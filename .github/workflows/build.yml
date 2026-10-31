@@ -102,8 +102,10 @@ jobs:
         shell: pwsh
         run: |
           $v = "${{ steps.meta.outputs.version }}"
-          $pre = if ("${{ github.event.inputs.prerelease }}" -eq "true") { "--prerelease" } else { "" }
-          python tools/make_manifest.py "dist/ProjectOpener-Setup-$v.exe" $pre
+          $args = @("tools/make_manifest.py", "dist/ProjectOpener-Setup-$v.exe")
+          if ("${{ github.event.inputs.prerelease }}" -eq "true") { $args += "--prerelease" }
+          python @args
+          if ($LASTEXITCODE -ne 0) { throw "make_manifest failed" }
           Compress-Archive -Path dist\ProjectOpener\* -DestinationPath "dist\ProjectOpener-Portable-$v.zip" -CompressionLevel Optimal
           Get-ChildItem dist -File | Format-Table Name, Length
 

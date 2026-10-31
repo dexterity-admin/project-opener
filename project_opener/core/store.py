@@ -278,14 +278,18 @@ class WorkspaceStore:
 
     def stats(self) -> dict[str, Any]:
         rows = read_jsonl(self.history_path)
-        today = datetime.now().date().isoformat()
-        week_rows = rows[-500:]
+        today = datetime.now().date()  # local date; timestamps are stored in UTC
+
+        def is_today(ts: Any) -> bool:
+            dt = M.parse_iso(ts)
+            return dt is not None and dt.astimezone().date() == today
+
         return {
             "projects": len(self.projects),
             "items": sum(len(p.items) for p in self.projects),
             "launch_sets": sum(len(p.launch_sets) for p in self.projects),
             "launches_total": len(rows),
-            "launches_today": sum(1 for r in week_rows if str(r.get("ts", "")).startswith(today)),
+            "launches_today": sum(1 for r in rows[-500:] if is_today(r.get("ts"))),
             "pinned": sum(1 for p in self.projects if p.pinned),
         }
 
