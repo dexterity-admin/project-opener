@@ -1,0 +1,1182 @@
+import os
+import sys
+import json
+import random # Import random module
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QPushButton, QListWidget, QFileDialog, QLineEdit, QTextEdit, QScrollArea,
+    QFrame, QCheckBox, QDialog, QInputDialog, QMessageBox, QGraphicsDropShadowEffect,
+    QDialogButtonBox, QListWidgetItem, QSpacerItem, QSizePolicy # Added QSpacerItem, QSizePolicy
+)
+from PyQt6.QtCore import Qt, QUrl, QTimer, QSize # Added QSize
+from PyQt6.QtGui import QDesktopServices, QIcon, QKeyEvent, QColor, QPalette # Added QColor, QPalette
+
+# ---------------------
+# Resource Path Helper
+# ---------------------
+def resource_path(relative_path: str) -> str:
+    """Get absolute path to resource, works for development and PyInstaller."""
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        # If not running as a bundled app, use the script's directory
+        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".")) # More robust way to get base path
+
+    return os.path.join(base_path, relative_path)
+
+# Ensure the icon exists before trying to load it
+app_icon_path = resource_path("resources/coordinator.ico")
+if not os.path.exists(app_icon_path):
+    print(f"Warning: App icon not found at {app_icon_path}", file=sys.stderr)
+    app_icon_path = "" # Use default icon if not found
+
+# Prepare paths for QSS - Use forward slashes for URLs
+checkmark_icon_path_qss = resource_path("resources/checkmark_red.png").replace("\\", "/")
+if not os.path.exists(resource_path("resources/checkmark_red.png")):
+     print(f"Warning: Checkmark icon not found at {resource_path('resources/checkmark_red.png')}", file=sys.stderr)
+     checkmark_icon_path_qss = "" # Avoid broken image link in QSS
+
+# ---------------------
+# JSON File Management
+# ---------------------
+# Use AppData or equivalent for config files, Documents might clutter user space
+try:
+    # Use APPDATA on Windows, ~/.config or ~/.local/share on Linux, ~/Library/Application Support on macOS
+    if sys.platform == "win32":
+        config_dir = os.path.join(os.getenv('APPDATA'), "ProjectOpener")
+    elif sys.platform == "darwin":
+        config_dir = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "ProjectOpener")
+    else: # Linux and other POSIX
+        config_dir = os.path.join(os.path.expanduser("~"), ".config", "ProjectOpener")
+except Exception:
+    # Fallback to Documents if preferred location fails
+    config_dir = os.path.join(os.path.expanduser("~"), "Documents", "ProjectOpener")
+
+os.makedirs(config_dir, exist_ok=True)
+PROJECTS_FILE = os.path.join(config_dir, "projects.json")
+AUTO_LAUNCH_FILE = os.path.join(config_dir, "auto_launch.json")
+SETTINGS_FILE = os.path.join(config_dir, "settings.json") # For storing dark mode preference
+
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return {} # Return empty dict if corrupted
+    return {}
+
+def save_settings(settings):
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=4)
+
+def load_projects():
+    if os.path.exists(PROJECTS_FILE):
+        try:
+            with open(PROJECTS_FILE, "r") as f:
+                projects = json.load(f)
+                # Convert file entries from plain string to dict if needed.
+                for proj in projects.values():
+                    new_files = []
+                    for item in proj.get("files", []):
+                        if isinstance(item, dict) and "path" in item and "selected" in item:
+                            new_files.append(item)
+                        elif isinstance(item, str): # Handle old format
+                            new_files.append({"path": item, "selected": True})
+                        # Skip malformed entries silently or log a warning
+                    proj["files"] = new_files
+                return projects
+        except json.JSONDecodeError:
+            # Use a non-blocking way to show error if possible, or log it
+            print(f"Error: Projects file '{PROJECTS_FILE}' corrupted. Creating new file.", file=sys.stderr)
+            # QMessageBox.critical(None, "Error", "Projects file corrupted. Creating new file.") # Avoid blocking on startup
+            return {}
+    return {}
+
+def save_projects(projects):
+    with open(PROJECTS_FILE, "w") as f:
+        json.dump(projects, f, indent=4)
+
+def load_auto_launch():
+    if os.path.exists(AUTO_LAUNCH_FILE):
+        try:
+            with open(AUTO_LAUNCH_FILE, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            print(f"Error: Auto-launch file '{AUTO_LAUNCH_FILE}' corrupted. Creating new file.", file=sys.stderr)
+            return {}
+    return {}
+
+def save_auto_launch(auto_launch):
+    with open(AUTO_LAUNCH_FILE, "w") as f:
+        json.dump(auto_launch, f, indent=4)
+
+# ---------------------
+# Light & Dark QSS
+# ---------------------
+# Define reusable colors
+COLOR_LIGHT_BG = "#f8f9fa" # Slightly off-white
+COLOR_LIGHT_FG = "#212529" # Dark Gray
+COLOR_LIGHT_BORDER = "#dee2e6"
+COLOR_LIGHT_CARD_BG = "#ffffff"
+COLOR_LIGHT_CARD_HOVER = "#f1f3f5"
+COLOR_LIGHT_BUTTON = "#e9ecef"
+COLOR_LIGHT_BUTTON_HOVER = "#ced4da"
+COLOR_LIGHT_ACCENT = "#007bff" # Blue accent
+
+COLOR_DARK_BG = "#121212" #"#212529" # Very Dark Gray
+COLOR_DARK_FG = "#e9ecef" # Light Gray
+COLOR_DARK_BORDER = "#495057"
+COLOR_DARK_CARD_BG = "rgba(255, 255, 255, 0.05)" # Slightly transparent white
+COLOR_DARK_CARD_HOVER = "rgba(255, 255, 255, 0.1)"
+COLOR_DARK_BUTTON = "rgba(255, 255, 255, 0.15)"
+COLOR_DARK_BUTTON_HOVER = "rgba(255, 255, 255, 0.25)"
+COLOR_DARK_ACCENT = "#0d6efd" # Brighter blue accent for dark mode
+
+# Generate QSS dynamically
+def generate_qss(dark_mode=False):
+    # Base colors
+    bg = COLOR_DARK_BG if dark_mode else COLOR_LIGHT_BG
+    fg = COLOR_DARK_FG if dark_mode else COLOR_LIGHT_FG
+    border = COLOR_DARK_BORDER if dark_mode else COLOR_LIGHT_BORDER
+    card_bg = COLOR_DARK_CARD_BG if dark_mode else COLOR_LIGHT_CARD_BG
+    card_hover = COLOR_DARK_CARD_HOVER if dark_mode else COLOR_LIGHT_CARD_HOVER
+    button_bg = COLOR_DARK_BUTTON if dark_mode else COLOR_LIGHT_BUTTON
+    button_hover = COLOR_DARK_BUTTON_HOVER if dark_mode else COLOR_LIGHT_BUTTON_HOVER
+    accent = COLOR_DARK_ACCENT if dark_mode else COLOR_LIGHT_ACCENT
+    scroll_handle = "rgba(255,255,255,0.3)" if dark_mode else "#cccccc"
+    scroll_handle_hover = "rgba(255,255,255,0.5)" if dark_mode else "#aaaaaa"
+    status_bg = "#333333" if dark_mode else "#f0f0f0" # Adjust status bar colors
+    status_fg = "#ffffff" if dark_mode else "#000000"
+    title_color = fg # Use main foreground for title
+    card_name_color = fg
+    card_notes_color = "#adb5bd" if dark_mode else "#6c757d" # Muted color for notes
+    checkbox_bg = bg # Checkbox background matches window bg
+    checkbox_border = fg # Border color matches text color
+
+    # Use local checkmark icon if available
+    checkmark_image_style = f"image: url('{checkmark_icon_path_qss}');" if checkmark_icon_path_qss else ""
+
+    # Define a base font
+    base_font = "'Segoe UI', sans-serif"
+
+    # Card specific colors (will be overridden by random colors later)
+    card_specific_bg = card_bg # Placeholder
+
+    return f"""
+        QMainWindow, QWidget, QDialog, QScrollArea {{
+            background-color: {bg};
+            font-family: {base_font};
+        }}
+        QFrame {{ /* Default Frame Style */
+             background-color: transparent; /* Avoid unwanted backgrounds */
+             border: none;
+        }}
+        QLabel, QLineEdit, QTextEdit, QListWidget {{
+            color: {fg};
+            background: transparent;
+            border: 1px solid {border}; /* Add subtle border to input fields */
+            padding: 4px;
+            border-radius: 4px;
+        }}
+        QLineEdit:focus, QTextEdit:focus {{
+            border: 1px solid {accent};
+        }}
+        QListWidget {{
+             border: 1px solid {border};
+             border-radius: 4px;
+        }}
+        QListWidget::item {{
+            padding: 4px; /* Spacing for list items */
+        }}
+        QListWidget::item:selected {{
+             background-color: {accent};
+             color: {COLOR_LIGHT_BG}; /* White text on accent bg */
+        }}
+
+        #TitleLabel {{
+            font-size: 24pt; /* Slightly smaller title */
+            font-weight: bold;
+            color: {title_color};
+            margin: 10px 0; /* Adjust margin */
+            border: none; /* Override default border */
+            padding: 0; /* Override default padding */
+            background: transparent; /* Ensure transparent background */
+        }}
+        #SidebarFrame {{ /* Specific style for the sidebar */
+            background-color: {card_bg}; /* Sidebar slightly different bg */
+            border-radius: 10px;
+            border: 1px solid {border};
+        }}
+        QPushButton {{
+            background-color: {button_bg};
+            color: {fg};
+            border: none; /* Cleaner buttons */
+            padding: 8px 14px; /* Adjust padding */
+            margin: 4px 0;
+            border-radius: 6px; /* Standardize radius */
+            font-size: 10pt;
+        }}
+        QPushButton:hover {{
+            background-color: {button_hover};
+        }}
+        QPushButton:pressed {{
+             background-color: {accent}; /* Feedback on press */
+             color: {COLOR_LIGHT_BG};
+        }}
+        QPushButton#InfoButton {{ /* Style for info button */
+            background-color: transparent;
+            color: {card_notes_color}; /* Muted color */
+            border: none;
+            font-size: 14pt; /* Larger 'i' */
+            font-weight: bold;
+            padding: 0;
+            margin: 0;
+            border-radius: 13px; /* Make it round */
+            min-width: 26px;
+            max-width: 26px;
+            min-height: 26px;
+            max-height: 26px;
+        }}
+        QPushButton#InfoButton:hover {{
+            color: {accent};
+            background-color: {button_hover};
+        }}
+        QStatusBar {{
+            background-color: {status_bg};
+            color: {status_fg};
+        }}
+        /* CheckBox Styling (Standalone and ListWidget) */
+        QCheckBox::indicator, QListWidget::indicator {{
+            width: 16px;
+            height: 16px;
+            border: 1px solid {checkbox_border};
+            background-color: {checkbox_bg};
+            border-radius: 3px; /* Slightly rounded */
+        }}
+        QCheckBox::indicator:checked, QListWidget::indicator:checked {{
+            background-color: {accent}; /* Use accent color for background when checked */
+            border: 1px solid {accent};
+            {checkmark_image_style} /* Apply the local image */
+        }}
+        QCheckBox::indicator:unchecked, QListWidget::indicator:unchecked {{
+             /* Styles defined above */
+        }}
+        QCheckBox {{
+            color: {fg};
+            background: transparent;
+            border: none;
+            padding: 2px 0px; /* Adjust padding */
+            spacing: 8px; /* Space between indicator and text */
+        }}
+
+        /* Project Card Styling */
+        QFrame#ProjectCard {{
+            /* background-color: {card_specific_bg}; Don't set default bg here, will be random */
+            border-radius: 10px; /* Slightly less round */
+            border: 1px solid {border};
+            /* The background-color will be set individually */
+        }}
+        /* QFrame#ProjectCard:hover {{
+            background-color: {card_hover}; /* Hover handled dynamically based on random color */
+        }} */
+        QFrame#ProjectCard QLabel {{
+             border: none; /* Override default border for labels inside card */
+             padding: 0; /* Override default padding */
+             background: transparent; /* Ensure transparent background */
+        }}
+        QFrame#ProjectCard QLabel#ProjectName {{
+            font-size: 13pt; /* Slightly larger name */
+            font-weight: bold;
+            color: {card_name_color};
+        }}
+         QFrame#ProjectCard QLabel#FileCountLabel {{
+            font-size: 9pt;
+            color: {card_notes_color}; /* Muted color */
+            padding: 0 5px; /* Add some space */
+         }}
+        QFrame#ProjectCard QLabel#ProjectNotes {{
+            font-size: 9pt;
+            color: {card_notes_color};
+            padding: 5px 0;
+            font-style: italic; /* Italic notes */
+        }}
+        QFrame#ProjectCard QPushButton {{
+            background-color: transparent; /* Make card buttons initially transparent */
+            color: {card_notes_color}; /* Muted color */
+            border: none;
+            padding: 4px; /* Smaller padding */
+            border-radius: 4px;
+            margin: 0 1px; /* Tighter spacing */
+            font-size: 8pt; /* Smaller font */
+            min-width: 24px; /* Ensure icons fit */
+            min-height: 24px;
+        }}
+        QFrame#ProjectCard QPushButton:hover {{
+            background-color: {button_hover};
+            color: {fg}; /* More visible on hover */
+        }}
+         QFrame#ProjectCard QPushButton:pressed {{
+             background-color: {accent};
+             color: {COLOR_LIGHT_BG};
+        }}
+        QFrame#ProjectCard QCheckBox {{
+            color: {fg};
+            font-size: 9pt;
+            background: transparent;
+            border: none;
+            padding: 0;
+        }}
+        QFrame#CardSeparator {{
+            background-color: {border}; /* Use border color for separator */
+            min-height: 1px;
+            max-height: 1px;
+            border: none;
+            margin: 5px 0; /* Add vertical margin */
+        }}
+        QScrollBar:vertical {{
+            background: {bg};
+            width: 12px; /* Slightly wider scrollbar */
+            margin: 0px 0px 0px 0px;
+        }}
+        QScrollBar::handle:vertical {{
+            background: {scroll_handle};
+            border-radius: 6px;
+            min-height: 20px; /* Minimum handle size */
+        }}
+        QScrollBar::handle:vertical:hover {{
+            background: {scroll_handle_hover};
+        }}
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+            background: none;
+            border: none;
+            height: 0px;
+        }}
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+            background: none;
+        }}
+    """
+
+# Define a palette of nice background colors for cards (adjust as needed)
+# Using slightly desaturated colors often works well
+CARD_COLOR_PALETTE_DARK = [
+    "#2a3d45", "#3a5a6e", "#4b778d", "#2e5d6e", "#1f404e",
+    "#4a4e69", "#5f5f8d", "#746f9e", "#4e4c67", "#393a4f",
+    "#5e503f", "#7a6c5d", "#96877a", "#574a3a", "#40372b",
+    "#3c6e71", "#4e878a", "#609fa3", "#346063", "#274749"
+]
+CARD_COLOR_PALETTE_LIGHT = [
+    "#e0fbfc", "#c2dfe3", "#a4c2c9", "#e7d8c9", "#f0e6db",
+    "#d4e09b", "#b8d08d", "#9cc183", "#fde4cf", "#f8d5b7",
+    "#ffccd5", "#ffb3c1", "#f7a1b5", "#e0e1dd", "#c7c8c3"
+]
+
+# Helper function to adjust color brightness for hover effect
+def adjust_color_brightness(hex_color, factor=1.2):
+    """ Increases brightness for hover effect. Factor > 1 lightens, < 1 darkens. """
+    try:
+        color = QColor(hex_color)
+        # Ensure factor doesn't blow out colors or make them black
+        h, s, v, a = color.getHsv()
+        new_v = min(255, int(v * factor))
+        hover_color = QColor.fromHsv(h, s, new_v, a)
+        return hover_color.name()
+    except Exception:
+        return hex_color # Return original if conversion fails
+
+# ---------------------
+# Custom File List Widget (Delete key support)
+# ---------------------
+class FileListWidget(QListWidget):
+    def __init__(self, parent=None): # Removed file_list argument, not needed directly
+        super().__init__(parent)
+        self.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection) # Allow multi-select for deletion
+
+    def keyPressEvent(self, event: QKeyEvent):
+        if event.key() == Qt.Key.Key_Delete:
+            selected_items = self.selectedItems()
+            if selected_items:
+                # Ask for confirmation if deleting multiple items? (Optional)
+                reply = QMessageBox.question(self, "Confirm Deletion",
+                                             f"Remove {len(selected_items)} selected item(s)?",
+                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                             QMessageBox.StandardButton.No)
+                if reply == QMessageBox.StandardButton.Yes:
+                    for item in selected_items:
+                        row = self.row(item)
+                        self.takeItem(row)
+                    # Note: The actual data deletion needs to happen in the dialog's save logic
+        else:
+            super().keyPressEvent(event)
+
+# ---------------------
+# Main Window and Functionality
+# ---------------------
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.settings = load_settings()
+        self.projects = load_projects()
+        self.auto_launch = load_auto_launch()
+        # Load dark mode preference, default to False
+        self.dark_mode = self.settings.get("dark_mode", False)
+
+        self.setWindowTitle("Project Opener")
+        if app_icon_path:
+            self.setWindowIcon(QIcon(app_icon_path))
+        self.setMinimumSize(1000, 600)
+
+        self.init_ui()
+        # self.create_info_button() # Info button integrated into sidebar now
+        self.apply_style() # Apply initial style based on loaded setting
+        self.refresh_projects()
+        QTimer.singleShot(700, self.auto_launch_projects) # Keep auto-launch delay
+
+    def init_ui(self):
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QHBoxLayout(central_widget)
+        main_layout.setContentsMargins(15, 15, 15, 15) # Reduced margins
+        main_layout.setSpacing(15) # Reduced spacing
+
+        # Left Sidebar
+        self.sidebar_frame = QFrame()
+        self.sidebar_frame.setObjectName("SidebarFrame") # Assign object name for styling
+        self.sidebar_frame.setMinimumWidth(240) # Slightly wider sidebar
+        self.sidebar_frame.setMaximumWidth(300)
+        sidebar_layout = QVBoxLayout(self.sidebar_frame)
+        sidebar_layout.setSpacing(10) # Tighter spacing in sidebar
+        sidebar_layout.setContentsMargins(15, 15, 15, 15)
+
+        title_label = QLabel("Project Opener")
+        title_label.setObjectName("TitleLabel")
+        sidebar_layout.addWidget(title_label)
+
+        # --- Sidebar Controls ---
+        add_btn = QPushButton("Add Project")
+        add_btn.clicked.connect(self.add_project)
+        sidebar_layout.addWidget(add_btn)
+
+        import_btn = QPushButton("Import Projects")
+        import_btn.clicked.connect(self.import_projects)
+        sidebar_layout.addWidget(import_btn)
+
+        export_btn = QPushButton("Export Projects")
+        export_btn.clicked.connect(self.export_projects)
+        sidebar_layout.addWidget(export_btn)
+
+        sidebar_layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)) # Flexible spacer
+
+        # --- Settings Area ---
+        settings_label = QLabel("Settings")
+        settings_label.setStyleSheet("font-weight: bold; margin-top: 10px;") # Style label
+        sidebar_layout.addWidget(settings_label)
+
+        self.dark_mode_checkbox = QCheckBox("Dark Mode")
+        self.dark_mode_checkbox.setChecked(self.dark_mode) # Set initial state
+        self.dark_mode_checkbox.toggled.connect(self.toggle_dark_mode)
+        sidebar_layout.addWidget(self.dark_mode_checkbox)
+
+        # --- Info Button --- (Moved to bottom of sidebar)
+        self.info_button = QPushButton(" i ") # Added spaces for better visual
+        self.info_button.setObjectName("InfoButton")
+        self.info_button.setToolTip("Concept: Vikram | Code: Yokesh\nData stored in: " + config_dir)
+        self.info_button.clicked.connect(lambda: QMessageBox.information(self, "About Project Opener", f"Concept by Vikram\nActualized by Yokesh\n\nConfiguration data is stored in:\n{config_dir}"))
+        # Align info button to the right within a layout
+        info_layout = QHBoxLayout()
+        info_layout.addStretch()
+        info_layout.addWidget(self.info_button)
+        sidebar_layout.addLayout(info_layout)
+
+
+        main_layout.addWidget(self.sidebar_frame, 0) # Sidebar takes fixed width
+
+        # Right Container (Project Cards)
+        self.right_container = QFrame()
+        self.right_container.setObjectName("RightContainer") # For potential styling
+        right_layout = QVBoxLayout(self.right_container)
+        right_layout.setSpacing(0) # No spacing here, handled by project layout
+        right_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("QScrollArea { border: none; }") # Remove scroll area border
+        self.projects_container = QWidget()
+        self.projects_container.setObjectName("ProjectsContainer")
+        self.projects_layout = QVBoxLayout(self.projects_container)
+        self.projects_layout.setSpacing(15) # Spacing between cards
+        self.projects_layout.setContentsMargins(10, 10, 10, 10)
+        self.projects_layout.setAlignment(Qt.AlignmentFlag.AlignTop) # Align cards to top
+        self.scroll_area.setWidget(self.projects_container)
+
+        right_layout.addWidget(self.scroll_area)
+        main_layout.addWidget(self.right_container, 1) # Project area takes remaining space
+
+        self.statusBar().showMessage("Ready")
+
+    # Removed create_info_button as it's now in init_ui
+
+    def apply_style(self):
+        qss = generate_qss(self.dark_mode)
+        self.setStyleSheet(qss)
+        # Re-apply random colors after main style changes
+        self.apply_random_card_colors()
+        self.statusBar().showMessage(f"{'Dark' if self.dark_mode else 'Light'} mode enabled. Ready.")
+
+    def apply_random_card_colors(self):
+        """Iterates through existing cards and applies random colors."""
+        palette = CARD_COLOR_PALETTE_DARK if self.dark_mode else CARD_COLOR_PALETTE_LIGHT
+        if not palette: return # No colors defined
+
+        for i in range(self.projects_layout.count()):
+            widget = self.projects_layout.itemAt(i).widget()
+            if isinstance(widget, QFrame) and widget.objectName() == "ProjectCard":
+                base_color = random.choice(palette)
+                hover_color = adjust_color_brightness(base_color, 1.15 if self.dark_mode else 0.9) # Darken slightly on light mode hover
+
+                # Apply specific background and hover effect using stylesheet
+                widget.setStyleSheet(f"""
+                    QFrame#ProjectCard {{
+                        background-color: {base_color};
+                        border: 1px solid {adjust_color_brightness(base_color, 1.2)}; /* Border slightly lighter/darker */
+                        border-radius: 10px;
+                    }}
+                    QFrame#ProjectCard:hover {{
+                        background-color: {hover_color};
+                    }}
+                    /* Reset nested widget styles that might be affected */
+                    QFrame#ProjectCard QLabel, QFrame#ProjectCard QPushButton, QFrame#ProjectCard QCheckBox {{
+                        background-color: transparent;
+                    }}
+                """)
+
+    def toggle_dark_mode(self, checked):
+        self.dark_mode = checked
+        self.settings["dark_mode"] = self.dark_mode # Save preference
+        save_settings(self.settings)
+        self.apply_style() # Regenerate and apply QSS
+
+    def refresh_projects(self):
+        # Clear existing widgets more safely
+        while self.projects_layout.count():
+            item = self.projects_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater() # Use deleteLater for safety
+
+        if not self.projects:
+            no_proj_label = QLabel("No projects found. Click 'Add Project' to create one.")
+            no_proj_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.projects_layout.addWidget(no_proj_label)
+        else:
+            # Add project cards
+            for name in sorted(self.projects.keys()):
+                 # Check if project data is valid before creating card
+                if isinstance(self.projects.get(name), dict):
+                    self.projects_layout.addWidget(self.create_project_card(name))
+                else:
+                    print(f"Warning: Skipping invalid project data for '{name}'", file=sys.stderr)
+
+            # Add a stretch at the end to push cards up if there are few
+            # self.projects_layout.addStretch(1) # Add stretch *after* cards
+
+        # Apply random colors *after* all cards are potentially added/removed
+        self.apply_random_card_colors()
+        # Ensure the layout updates visually
+        self.projects_container.updateGeometry()
+        self.scroll_area.updateGeometry()
+
+
+    def create_project_card(self, name):
+        card = QFrame()
+        card.setObjectName("ProjectCard")
+        card.setMinimumHeight(100) # Ensure minimum card height
+
+        # Don't apply shadow effect here, it conflicts with QSS border/background styling.
+        # If shadows are desired, they need careful integration with QSS or painting.
+
+        card_layout = QVBoxLayout(card)
+        card_layout.setSpacing(8) # Tighter spacing inside card
+        card_layout.setContentsMargins(12, 10, 12, 10) # Card padding
+
+        # --- Top Row (Name, File Count, Buttons) ---
+        top_row_layout = QHBoxLayout()
+        top_row_layout.setSpacing(6)
+
+        project_name_label = QLabel(name)
+        project_name_label.setObjectName("ProjectName")
+        top_row_layout.addWidget(project_name_label, 1) # Name takes available space
+
+        file_count = len(self.projects[name].get("files", []))
+        file_text = f"{file_count} item{'s' if file_count != 1 else ''}" # "item/items" is more general
+        count_label = QLabel(file_text)
+        count_label.setObjectName("FileCountLabel")
+        top_row_layout.addWidget(count_label)
+
+        top_row_layout.addStretch(1) # Push buttons to the right
+
+        # Buttons with Icons
+        icon_size = QSize(16, 16) # Icon size for card buttons
+
+        open_btn = QPushButton()
+        open_icon_path = resource_path("resources/open.png")
+        if os.path.exists(open_icon_path):
+             open_btn.setIcon(QIcon(open_icon_path))
+        else:
+             open_btn.setText("O") # Fallback text
+        open_btn.setIconSize(icon_size)
+        open_btn.setToolTip("Open Project")
+        open_btn.clicked.connect(lambda checked, n=name: self.open_project(n))
+        top_row_layout.addWidget(open_btn)
+
+        edit_btn = QPushButton()
+        edit_icon_path = resource_path("resources/edit.png")
+        if os.path.exists(edit_icon_path):
+             edit_btn.setIcon(QIcon(edit_icon_path))
+        else:
+             edit_btn.setText("E") # Fallback text
+        edit_btn.setIconSize(icon_size)
+        edit_btn.setToolTip("Edit Project")
+        edit_btn.clicked.connect(lambda checked, n=name: self.edit_project(n))
+        top_row_layout.addWidget(edit_btn)
+
+        remove_btn = QPushButton()
+        remove_icon_path = resource_path("resources/remove.png")
+        if os.path.exists(remove_icon_path):
+            remove_btn.setIcon(QIcon(remove_icon_path))
+        else:
+            remove_btn.setText("X") # Fallback text
+        remove_btn.setIconSize(icon_size)
+        remove_btn.setToolTip("Remove Project")
+        remove_btn.clicked.connect(lambda checked, n=name: self.remove_project(n))
+        top_row_layout.addWidget(remove_btn)
+
+        auto_checkbox = QCheckBox("Auto") # Shorter text
+        auto_checkbox.setToolTip("Auto-Launch on Startup")
+        auto_checkbox.setChecked(self.auto_launch.get(name, False))
+        auto_checkbox.stateChanged.connect(lambda state, n=name: self.toggle_auto_launch(n, state == Qt.CheckState.Checked.value)) # Use CheckState value
+        top_row_layout.addWidget(auto_checkbox)
+
+        card_layout.addLayout(top_row_layout)
+
+        # --- Notes (Optional) ---
+        notes = self.projects[name].get("notes", "").strip()
+        if notes:
+            note_label = QLabel(notes if len(notes) <= 120 else notes[:117] + "...") # Slightly longer preview
+            note_label.setObjectName("ProjectNotes")
+            note_label.setWordWrap(True)
+            note_label.setAlignment(Qt.AlignmentFlag.AlignTop) # Align text top
+            card_layout.addWidget(note_label)
+
+            # Separator (only if notes exist)
+            sep = QFrame()
+            sep.setObjectName("CardSeparator") # Give it an ID for styling
+            sep.setFrameShape(QFrame.Shape.HLine)
+            # sep.setFrameShadow(QFrame.Shadow.Sunken) # Shadow not needed with styled bg color
+            card_layout.addWidget(sep)
+
+
+        # Add a spacer at the bottom to push content up if notes are short or absent
+        card_layout.addSpacerItem(QSpacerItem(20, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+
+        return card
+
+
+    def add_project(self):
+        name, ok = QInputDialog.getText(self, "Add Project", "Enter project name:")
+        if ok and name:
+            clean_name = name.strip()
+            if not clean_name:
+                QMessageBox.warning(self, "Invalid Name", "Project name cannot be empty.")
+                return
+            if clean_name in self.projects:
+                QMessageBox.warning(self, "Duplicate Name", "Project name already exists!")
+                return
+
+            self.projects[clean_name] = {"files": [], "notes": ""}
+            save_projects(self.projects)
+            self.statusBar().showMessage(f"Project '{clean_name}' created")
+            self.refresh_projects()
+            # Optionally open edit dialog immediately
+            # self.edit_project(clean_name)
+
+    def open_project(self, name):
+        if name not in self.projects:
+            QMessageBox.critical(self, "Error", f"Project '{name}' not found.")
+            return
+
+        project_data = self.projects[name]
+        files_to_open = project_data.get("files", [])
+        opened_any = False
+        missing_files = []
+
+        if not files_to_open:
+             QMessageBox.information(self, "Empty Project", f"Project '{name}' has no files or links.")
+             self.statusBar().showMessage(f"Project '{name}' is empty")
+             return
+
+        for item in files_to_open:
+            # Ensure item is a dictionary with path and selected status
+            if not isinstance(item, dict) or "path" not in item:
+                print(f"Warning: Skipping malformed item in project '{name}': {item}", file=sys.stderr)
+                continue
+
+            if not item.get("selected", True): # Skip if not selected
+                continue
+
+            path = item["path"]
+            if not path: # Skip empty paths
+                continue
+
+            try:
+                is_url = path.lower().startswith("http://") or path.lower().startswith("https://")
+                if is_url:
+                    QDesktopServices.openUrl(QUrl(path))
+                    opened_any = True
+                else:
+                    # Check if local file or directory exists
+                    if os.path.exists(path):
+                        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.abspath(path))) # Use absolute path
+                        opened_any = True
+                    else:
+                        missing_files.append(path)
+            except Exception as e:
+                print(f"Error opening '{path}': {e}", file=sys.stderr)
+                QMessageBox.warning(self, "Opening Error", f"Could not open:\n{path}\n\nError: {e}")
+
+        if missing_files:
+            QMessageBox.warning(self, "Missing Files/Folders",
+                                f"The following items in project '{name}' could not be found:\n\n" + "\n".join(missing_files))
+
+        if opened_any:
+            self.statusBar().showMessage(f"Attempted to open selected items in '{name}'")
+        elif not missing_files: # No items were selected or valid
+             self.statusBar().showMessage(f"No selected items to open in project '{name}'")
+
+
+    def edit_project(self, name):
+        if name not in self.projects:
+            return
+
+        dialog = EditProjectDialog(name, self.projects[name], self.dark_mode, self) # Pass dark mode status
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_name = dialog.project_name # Get potentially changed name
+            new_data = {"files": dialog.files, "notes": dialog.notes}
+
+            # Handle potential name change
+            if new_name != name:
+                 # Check if new name conflicts
+                if new_name in self.projects:
+                    QMessageBox.critical(self, "Error", f"Project name '{new_name}' already exists!")
+                    # Re-open dialog? Or just fail? Let's fail for simplicity.
+                    return
+                # Update projects dictionary
+                del self.projects[name]
+                self.projects[new_name] = new_data
+                # Update auto-launch dictionary
+                if name in self.auto_launch:
+                    self.auto_launch[new_name] = self.auto_launch.pop(name) # More efficient way to rename key
+            else:
+                # Just update the data if name is the same
+                 self.projects[name] = new_data
+
+            save_projects(self.projects)
+            save_auto_launch(self.auto_launch) # Save auto-launch in case keys changed
+            self.statusBar().showMessage(f"Project '{new_name}' updated")
+            self.refresh_projects()
+
+    def remove_project(self, name):
+        reply = QMessageBox.question(self, "Confirm Removal", f"Are you sure you want to remove project '{name}'?\nThis cannot be undone.",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, # Use Cancel
+                                     QMessageBox.StandardButton.Cancel) # Default to Cancel
+        if reply == QMessageBox.StandardButton.Yes:
+            if name in self.projects:
+                del self.projects[name]
+            if name in self.auto_launch:
+                del self.auto_launch[name]
+                save_auto_launch(self.auto_launch) # Save change
+            save_projects(self.projects)
+            self.statusBar().showMessage(f"Project '{name}' removed")
+            self.refresh_projects()
+
+    def toggle_auto_launch(self, name, state):
+        # The state passed from the signal is the CheckState enum value (0, 1, 2)
+        # We need boolean True if state is Checked (value 2)
+        is_checked = bool(state) # Convert state (int) to bool
+        self.auto_launch[name] = is_checked
+        status_msg = f"Auto-launch {'enabled' if is_checked else 'disabled'} for '{name}'"
+        self.statusBar().showMessage(status_msg)
+        save_auto_launch(self.auto_launch)
+        # No need to refresh projects visually for this change, just update the data file
+
+    def export_projects(self):
+        # Suggest a filename
+        default_filename = os.path.join(os.path.expanduser("~"), "Documents", "project_opener_backup.json")
+        file_path, _ = QFileDialog.getSaveFileName(self, "Export Projects", default_filename,
+                                                   "JSON Files (*.json);;All Files (*)")
+        if file_path:
+            try:
+                # Ensure the config directory exists before trying to read files
+                os.makedirs(config_dir, exist_ok=True)
+                # Reload data right before export to ensure it's current
+                current_projects = load_projects()
+                current_auto_launch = load_auto_launch()
+
+                export_data = {"projects": current_projects, "auto_launch": current_auto_launch}
+                with open(file_path, "w") as f:
+                    json.dump(export_data, f, indent=4)
+                self.statusBar().showMessage(f"Projects exported to {os.path.basename(file_path)}")
+                QMessageBox.information(self, "Export Successful", f"Projects and auto-launch settings exported to:\n{file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Error", f"Failed to export projects: {str(e)}")
+                print(f"Export Error: {e}", file=sys.stderr)
+
+    def import_projects(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Import Projects", "",
+                                                   "JSON Files (*.json);;All Files (*)")
+        if file_path:
+            try:
+                with open(file_path, "r") as f:
+                    import_data = json.load(f)
+
+                imported_projects = import_data.get("projects", {})
+                imported_auto_launch = import_data.get("auto_launch", {})
+                merge = False
+
+                if not imported_projects and not imported_auto_launch:
+                     QMessageBox.warning(self, "Import Error", "The selected file does not contain valid 'projects' or 'auto_launch' data.")
+                     return
+
+                if imported_projects:
+                    reply = QMessageBox.question(self, "Import Projects",
+                                                 "Choose import mode:\n"
+                                                 "- **Merge:** Add new projects and update existing ones.\n"
+                                                 "- **Replace:** Delete all current projects before importing.",
+                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
+                                                 QMessageBox.StandardButton.Cancel) # Buttons map to Merge, Replace, Cancel
+
+                    if reply == QMessageBox.StandardButton.Cancel:
+                        self.statusBar().showMessage("Import cancelled")
+                        return
+                    elif reply == QMessageBox.StandardButton.No: # Replace
+                        self.projects = {} # Clear existing projects
+                        self.auto_launch = {} # Clear existing auto-launch as well
+                        merge = False
+                    else: # Merge (Yes button)
+                        merge = True
+
+                    # Perform project import based on choice
+                    if merge:
+                        project_update_count = 0
+                        project_add_count = 0
+                        for proj_name, data in imported_projects.items():
+                            # Basic validation of imported data structure
+                            if isinstance(data, dict) and isinstance(data.get("files"), list):
+                                if proj_name in self.projects:
+                                    project_update_count += 1
+                                else:
+                                    project_add_count += 1
+                                self.projects[proj_name] = data # Add or overwrite
+                            else:
+                                print(f"Warning: Skipping invalid project structure for '{proj_name}' during merge.", file=sys.stderr)
+                        import_proj_msg = f"Merged projects: {project_add_count} added, {project_update_count} updated."
+                    else: # Replace
+                        self.projects = imported_projects
+                        import_proj_msg = f"Replaced projects with {len(self.projects)} imported items."
+
+                else:
+                    import_proj_msg = "No 'projects' data found in the file."
+
+
+                # Import auto-launch settings (always merge/update)
+                auto_launch_update_count = 0
+                if imported_auto_launch:
+                    for proj_name, value in imported_auto_launch.items():
+                         # Only apply if the project exists after project import
+                         if proj_name in self.projects and isinstance(value, bool):
+                            self.auto_launch[proj_name] = value
+                            auto_launch_update_count +=1
+                    import_auto_msg = f"Updated {auto_launch_update_count} auto-launch settings."
+                else:
+                    import_auto_msg = "No 'auto_launch' data found."
+
+
+                # Save and refresh
+                save_projects(self.projects)
+                save_auto_launch(self.auto_launch)
+                self.refresh_projects() # Refresh UI fully
+                self.statusBar().showMessage("Import completed.")
+                QMessageBox.information(self, "Import Summary", f"{import_proj_msg}\n{import_auto_msg}")
+
+            except json.JSONDecodeError:
+                 QMessageBox.critical(self, "Import Error", "Failed to read JSON file. It might be corrupted.")
+                 print(f"Import Error: JSONDecodeError in {file_path}", file=sys.stderr)
+            except Exception as e:
+                QMessageBox.critical(self, "Import Error", f"An unexpected error occurred during import: {str(e)}")
+                print(f"Import Error: {e}", file=sys.stderr)
+
+    def auto_launch_projects(self):
+        auto_launched = []
+        for project_name, enabled in self.auto_launch.items():
+            if enabled and project_name in self.projects:
+                 # Check if project has *selected* files before attempting to open
+                 has_selected_files = any(item.get("selected", True) for item in self.projects[project_name].get("files", []) if isinstance(item, dict))
+                 if has_selected_files:
+                     print(f"Auto-launching: {project_name}") # Log auto-launch attempt
+                     self.open_project(project_name)
+                     auto_launched.append(project_name)
+        if auto_launched:
+            # Show status briefly
+            QTimer.singleShot(1000, lambda: self.statusBar().showMessage(f"Auto-launched: {', '.join(auto_launched)}", 5000)) # Show for 5 secs
+        else:
+            # If nothing launched, keep "Ready" or previous message
+            pass
+
+    def closeEvent(self, event):
+        # Optional: Add confirmation dialog before closing if needed
+        save_settings(self.settings) # Save settings on close
+        super().closeEvent(event)
+
+
+class EditProjectDialog(QDialog):
+    # Pass dark_mode status to style the dialog correctly
+    def __init__(self, project_name, project_data, dark_mode, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Edit Project: {project_name}")
+        self.setMinimumSize(600, 500) # Adjusted minimum size
+        self.dark_mode = dark_mode # Store dark mode status
+
+        self.original_name = project_name
+        self.project_name = project_name
+        # Ensure files are in dict format with "path" and "selected" (perform validation)
+        self.files = []
+        for item in project_data.get("files", []):
+            if isinstance(item, dict) and "path" in item and isinstance(item.get("selected"), bool):
+                self.files.append(item)
+            elif isinstance(item, str): # Convert old string format
+                self.files.append({"path": item, "selected": True})
+            else:
+                 print(f"Warning: Discarding invalid file item during edit: {item}", file=sys.stderr)
+
+        self.notes = project_data.get("notes", "")
+
+        self.init_ui()
+        self.apply_dialog_style() # Apply styles based on dark_mode
+
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(15, 15, 15, 15)
+        self.setAcceptDrops(True) # Enable drag and drop on the whole dialog
+
+        # --- Project Name ---
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Project Name:"))
+        self.name_edit = QLineEdit(self.project_name)
+        self.name_edit.setPlaceholderText("Enter a unique name for the project")
+        name_layout.addWidget(self.name_edit)
+        layout.addLayout(name_layout)
+
+        # --- Project Notes ---
+        layout.addWidget(QLabel("Project Notes (Optional):"))
+        self.notes_edit = QTextEdit()
+        self.notes_edit.setPlainText(self.notes)
+        self.notes_edit.setPlaceholderText("Add any relevant notes or descriptions here...")
+        self.notes_edit.setFixedHeight(80) # Fixed height for notes
+        layout.addWidget(self.notes_edit)
+
+        # --- Files List ---
+        layout.addWidget(QLabel("Project Items (Files / Folders / Links):"))
+        # Use the custom FileListWidget for delete key support
+        self.files_list = FileListWidget(self) # Use the custom widget
+        self.files_list.setToolTip("Check items to open them with the project.\nUncheck items to skip them.\nDrag & drop files/folders here.\nPress DEL key to remove selected items.")
+        self.populate_files_list() # Populate list initially
+        layout.addWidget(self.files_list, 1) # List takes expanding space
+
+        # --- File Action Buttons ---
+        file_buttons_layout = QHBoxLayout()
+        file_buttons_layout.setSpacing(6)
+
+        icon_size = QSize(16, 16)
+
+        add_file_btn = QPushButton(" Add File") # Space for alignment
+        add_file_icon = resource_path("resources/add_file.png")
+        if os.path.exists(add_file_icon): add_file_btn.setIcon(QIcon(add_file_icon))
+        add_file_btn.setIconSize(icon_size)
+        add_file_btn.clicked.connect(self.add_file)
+        file_buttons_layout.addWidget(add_file_btn)
+
+        add_folder_btn = QPushButton(" Add Folder")
+        add_folder_icon = resource_path("resources/add_folder.png")
+        if os.path.exists(add_folder_icon): add_folder_btn.setIcon(QIcon(add_folder_icon))
+        add_folder_btn.setIconSize(icon_size)
+        add_folder_btn.clicked.connect(self.add_folder)
+        file_buttons_layout.addWidget(add_folder_btn)
+
+        add_link_btn = QPushButton(" Add Link")
+        add_link_icon = resource_path("resources/add_link.png")
+        if os.path.exists(add_link_icon): add_link_btn.setIcon(QIcon(add_link_icon))
+        add_link_btn.setIconSize(icon_size)
+        add_link_btn.clicked.connect(self.add_link)
+        file_buttons_layout.addWidget(add_link_btn)
+
+        file_buttons_layout.addStretch() # Push buttons left
+
+        # Button to clear list (Optional)
+        # remove_all_btn = QPushButton("Clear All")
+        # remove_all_btn.clicked.connect(self.clear_all_files)
+        # file_buttons_layout.addWidget(remove_all_btn)
+
+        layout.addLayout(file_buttons_layout)
+
+        # --- Dialog Buttons (Save/Cancel) ---
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.save_changes)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def apply_dialog_style(self):
+        # Apply the main application's QSS to the dialog
+        # This ensures it matches the light/dark theme
+        # We might need minor adjustments if specific dialog styles clash
+        main_window = self.parent()
+        if main_window and hasattr(main_window, 'styleSheet'):
+             dialog_qss = generate_qss(self.dark_mode) # Generate QSS based on mode
+             self.setStyleSheet(dialog_qss)
+        # Ensure background updates if the main window's isn't inherited perfectly
+        palette = self.palette()
+        bg_color = QColor(COLOR_DARK_BG) if self.dark_mode else QColor(COLOR_LIGHT_BG)
+        palette.setColor(QPalette.ColorRole.Window, bg_color)
+        self.setPalette(palette)
+        self.setAutoFillBackground(True)
+
+
+    def populate_files_list(self):
+        self.files_list.clear()
+        for file_item in self.files:
+            path = file_item.get("path", "")
+            selected = file_item.get("selected", True)
+            item = QListWidgetItem(path)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+            item.setCheckState(Qt.CheckState.Checked if selected else Qt.CheckState.Unchecked)
+            self.files_list.addItem(item)
+
+    def add_file_item(self, path, selected=True):
+        """Adds a new item to the list widget and internal list, avoiding duplicates."""
+        # Check if path already exists
+        for i in range(self.files_list.count()):
+            if self.files_list.item(i).text() == path:
+                 QMessageBox.information(self, "Duplicate Item", f"'{os.path.basename(path)}' is already in the list.")
+                 return
+
+        # Add to internal list (for saving later)
+        # self.files.append({"path": path, "selected": selected}) # This will be rebuilt on save
+
+        # Add to QListWidget
+        item = QListWidgetItem(path)
+        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+        item.setCheckState(Qt.CheckState.Checked if selected else Qt.CheckState.Unchecked)
+        self.files_list.addItem(item)
+        self.files_list.scrollToItem(item) # Ensure visible
+
+
+    def add_file(self):
+        # Allow selecting multiple files
+        file_paths, _ = QFileDialog.getOpenFileNames(self, "Select File(s)")
+        if file_paths:
+            for file_path in file_paths:
+                 self.add_file_item(os.path.normpath(file_path)) # Normalize path
+
+    def add_folder(self):
+        folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
+        if folder_path:
+            self.add_file_item(os.path.normpath(folder_path)) # Normalize path
+
+    def add_link(self):
+        link, ok = QInputDialog.getText(self, "Add Web Link", "Enter URL (e.g., https://example.com):")
+        if ok and link.strip():
+            clean_link = link.strip()
+            if not (clean_link.lower().startswith("http://") or clean_link.lower().startswith("https://")):
+                # Optionally prepend http:// if missing, or warn user
+                reply = QMessageBox.question(self, "Add http://?", f"The link doesn't start with http:// or https://. Add 'http://' prefix?",
+                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+                if reply == QMessageBox.StandardButton.Yes:
+                    clean_link = "http://" + clean_link
+                elif reply == QMessageBox.StandardButton.Cancel:
+                    return # User cancelled
+                # If No, add the link as is
+            self.add_file_item(clean_link)
+
+    # --- Drag and Drop ---
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            # Maybe change background slightly to indicate drop target?
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+         if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+         else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.setDropAction(Qt.DropAction.CopyAction) # Indicate copying
+            event.acceptProposedAction()
+            urls = event.mimeData().urls()
+            for url in urls:
+                if url.isLocalFile():
+                    local_path = os.path.normpath(url.toLocalFile())
+                    self.add_file_item(local_path)
+                else:
+                    # Assume it's a web link if not local
+                    self.add_file_item(url.toString())
+        else:
+            event.ignore()
+
+    # --- Save Logic ---
+    def save_changes(self):
+        new_name = self.name_edit.text().strip()
+        if not new_name:
+            QMessageBox.warning(self, "Invalid Name", "Project name cannot be empty.")
+            return # Prevent saving with empty name
+
+        # If name changed, check for duplicates (handled in MainWindow after dialog accepts)
+        # We just pass the new name back.
+
+        self.project_name = new_name # Update internal name
+        self.notes = self.notes_edit.toPlainText().strip()
+
+        # Rebuild the files list from the QListWidget state
+        new_files_list = []
+        for index in range(self.files_list.count()):
+            item = self.files_list.item(index)
+            path = item.text()
+            is_selected = item.checkState() == Qt.CheckState.Checked
+            if path: # Ensure path is not empty
+                new_files_list.append({"path": path, "selected": is_selected})
+        self.files = new_files_list
+
+        self.accept() # Close dialog successfully
+
+
+if __name__ == "__main__":
+    # Enable high DPI scaling for better visuals on modern displays
+    if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+        QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
+    if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+        QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
+
+    app = QApplication(sys.argv)
+    # No need to setStyle("Fusion") explicitly usually, PyQt6 often picks a good default.
+    # If you force Fusion, some native styling might be lost.
+    # app.setStyle("Fusion")
+
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())

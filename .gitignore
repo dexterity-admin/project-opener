@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments (developers create their own: see docs/DEVELOPMENT.md)
+.venv/
+.venv1/
+venv/
+
+# Build outputs
+build/
+dist/
+Output/
+installer/Output/
+*.spec.bak
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# Local data / secrets
+*.local.json
+.env
+
+# Claude desktop preview config
+.claude/
+

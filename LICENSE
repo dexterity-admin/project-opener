@@ -1,0 +1,16 @@
+Project Opener
+Copyright (c) 2026 Dexterity Design Services Pvt. Ltd.
+
+Internal software. All rights reserved.
+
+This software and its source code are the property of Dexterity Design
+Services Pvt. Ltd. and are provided to its employees and contractors for use
+in the company's own work. Redistribution outside the company, in source or
+binary form, is not permitted without written consent from the company.
+
+Third-party components keep their own licences:
+  - Qt / PySide6            LGPL-3.0 (https://www.qt.io/licensing)
+  - qtawesome / Font Awesome 5 Free   MIT / SIL OFL 1.1
+  - PyInstaller             GPL-2.0 with bootloader exception (build tool only)
+  - Inno Setup              Inno Setup licence (build tool only)
+  - Three.js, GSAP          MIT / GreenSock standard licence (landing page only)

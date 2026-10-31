@@ -1,0 +1,29 @@
+{
+    "projects": {
+        "ANTEO": {
+            "name": "ANTEO",
+            "description": "ANTEO isometrics",
+            "icon": "\ud83d\udcc1",
+            "activities": [
+                {
+                    "name": "Isometric checking",
+                    "items": [
+                        {
+                            "type": "file",
+                            "path": "C:/Users/vikram/Downloads/document.pdf"
+                        }
+                    ]
+                },
+                {
+                    "name": "Handover",
+                    "items": [
+                        {
+                            "type": "file",
+                            "path": "C:/Users/vikram/Downloads/in.gov.cbse-SSCER-41171452012.pdf"
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}

@@ -1,0 +1,178 @@
+# Build Project Opener on every push.
+#
+#  * every push / PR  -> tests, PyInstaller build, Inno Setup installer,
+#                        portable zip, latest.json + SHA256SUMS as artifacts
+#  * push to main     -> if project_opener/__init__.py has a version with no
+#                        tag yet, the workflow tags it (vX.Y.Z) and publishes a
+#                        GitHub Release with the installer, so bumping the
+#                        version number is all a maintainer has to do.
+#  * tag push vX.Y.Z  -> publishes the release for that tag.
+#
+# The in-app updater reads the release's latest.json asset (see docs/UPDATES.md).
+name: build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Mark the release as a pre-release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag_exists: ${{ steps.meta.outputs.tag_exists }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Read version
+        id: meta
+        shell: pwsh
+        run: |
+          $v = (python -c "import project_opener; print(project_opener.__version__)").Trim()
+          "version=$v" >> $env:GITHUB_OUTPUT
+          git fetch --tags --quiet
+          $exists = if (git tag -l "v$v") { "true" } else { "false" }
+          "tag_exists=$exists" >> $env:GITHUB_OUTPUT
+          Write-Host "version $v (tag exists: $exists)"
+
+      - name: Lint
+        run: ruff check project_opener tests tools
+
+      - name: Tests
+        run: python -m pytest tests -q
+
+      - name: UI smoke test (offscreen)
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python tools/smoke_ui.py --out build/screens
+
+      - name: Icon + version resource
+        run: |
+          python tools/build_icon.py
+          python tools/version_info.py
+
+      - name: PyInstaller
+        run: python -m PyInstaller project_opener.spec --noconfirm --clean
+
+      - name: Frozen exe starts
+        shell: pwsh
+        run: |
+          & dist\ProjectOpener\ProjectOpener.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "frozen exe failed" }
+
+      - name: Inno Setup installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y; $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc installer\ProjectOpener.iss "/DAppVersion=${{ steps.meta.outputs.version }}" /Qp
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+
+      - name: Manifest + checksums + portable zip
+        shell: pwsh
+        run: |
+          $v = "${{ steps.meta.outputs.version }}"
+          $pre = if ("${{ github.event.inputs.prerelease }}" -eq "true") { "--prerelease" } else { "" }
+          python tools/make_manifest.py "dist/ProjectOpener-Setup-$v.exe" $pre
+          Compress-Archive -Path dist\ProjectOpener\* -DestinationPath "dist\ProjectOpener-Portable-$v.zip" -CompressionLevel Optimal
+          Get-ChildItem dist -File | Format-Table Name, Length
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProjectOpener-${{ steps.meta.outputs.version }}-${{ github.sha }}
+          path: |
+            dist/ProjectOpener-Setup-*.exe
+            dist/ProjectOpener-Portable-*.zip
+            dist/latest.json
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload UI screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots-${{ github.sha }}
+          path: build/screens/*.png
+          retention-days: 14
+
+  release:
+    needs: build
+    if: >-
+      github.event_name != 'pull_request' &&
+      (startsWith(github.ref, 'refs/tags/v') ||
+       (github.ref == 'refs/heads/main' && needs.build.outputs.tag_exists == 'false'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ProjectOpener-${{ needs.build.outputs.version }}-${{ github.sha }}
+          path: dist
+
+      - name: Tag the version (main branch auto-release)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ needs.build.outputs.version }}"
+          git push origin "v${{ needs.build.outputs.version }}"
+
+      - name: Release notes from CHANGELOG
+        id: notes
+        run: |
+          python3 - <<'EOF' > notes.md
+          import re, pathlib
+          v = "${{ needs.build.outputs.version }}"
+          text = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8") if pathlib.Path("CHANGELOG.md").exists() else ""
+          m = re.search(rf"^## \[?{re.escape(v)}\]?[^\n]*\n(.*?)(?=^## |\Z)", text, re.S | re.M)
+          body = m.group(1).strip() if m else f"Project Opener {v}"
+          print(body)
+          print("\n---\n**Install:** run `ProjectOpener-Setup-%s.exe` (per-user, no admin). "
+                "**Update in-app:** Updates → Check for updates (LAN hub or GitHub with a read-only token). "
+                "`latest.json` and `SHA256SUMS` are read by the updater; verify downloads against them." % v)
+          EOF
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          name: Project Opener ${{ needs.build.outputs.version }}
+          body_path: notes.md
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
+          files: |
+            dist/ProjectOpener-Setup-*.exe
+            dist/ProjectOpener-Portable-*.zip
+            dist/latest.json
+            dist/SHA256SUMS

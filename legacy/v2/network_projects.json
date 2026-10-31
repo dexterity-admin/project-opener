@@ -1,0 +1,27 @@
+{
+    "projects": {
+        "Standard Turbine Model": {
+            "locked": true,
+            "activities": [
+                {
+                    "name": "View Specifications",
+                    "items": [
+                        {
+                            "type": "file",
+                            "path": "C:/Windows/System32/drivers/etc/hosts"
+                        }
+                    ]
+                }
+            ]
+        },
+        "Safety Protocols 2025": {
+            "locked": true,
+            "activities": [
+                {
+                    "name": "Read Guidelines",
+                    "items": []
+                }
+            ]
+        }
+    }
+}

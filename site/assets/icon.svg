@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1C2B63"/>
+      <stop offset="0.55" stop-color="#2F5BFF"/>
+      <stop offset="1" stop-color="#19C8FF"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="flap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DCE8FF"/>
+    </linearGradient>
+    <linearGradient id="card1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#BFE9FF" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#7FE7FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- squircle background -->
+  <rect x="16" y="16" width="480" height="480" rx="118" ry="118" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="240" rx="118" ry="118" fill="url(#sheen)"/>
+
+  <!-- faint engineering grid -->
+  <g stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="2">
+    <path d="M96 60 V452 M176 60 V452 M256 60 V452 M336 60 V452 M416 60 V452"/>
+    <path d="M60 96 H452 M60 176 H452 M60 256 H452 M60 336 H452 M60 416 H452"/>
+  </g>
+
+  <!-- folder back (glass) -->
+  <path d="M112 176 h88 l30 -26 h118 a22 22 0 0 1 22 22 v178 a22 22 0 0 1 -22 22 H112 a22 22 0 0 1 -22 -22 V198 a22 22 0 0 1 22 -22 z"
+        fill="#FFFFFF" fill-opacity="0.20" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3"/>
+
+  <!-- launching cards fanning out of the folder -->
+  <g>
+    <rect x="186" y="118" width="150" height="104" rx="16" transform="rotate(-18 261 170)"
+          fill="#FFFFFF" fill-opacity="0.35"/>
+    <rect x="196" y="112" width="150" height="104" rx="16" transform="rotate(-9 271 164)"
+          fill="#FFFFFF" fill-opacity="0.6"/>
+    <rect x="206" y="104" width="150" height="104" rx="16" transform="rotate(2 281 156)" fill="url(#card1)"/>
+    <!-- lines on the top card -->
+    <g transform="rotate(2 281 156)" stroke="#2F5BFF" stroke-width="10" stroke-linecap="round" stroke-opacity="0.8">
+      <path d="M232 138 H300"/>
+      <path d="M232 164 H330"/>
+      <path d="M232 190 H286"/>
+    </g>
+  </g>
+
+  <!-- folder front flap with perspective -->
+  <path d="M100 236 h312 a18 18 0 0 1 17 23 l-34 118 a24 24 0 0 1 -23 17 H128 a24 24 0 0 1 -23 -17 L71 259 a18 18 0 0 1 17 -23 z"
+        fill="url(#flap)"/>
+  <path d="M100 236 h312 a18 18 0 0 1 17 23 l-4 14 H86 l-4 -14 a18 18 0 0 1 17 -23 z" fill="#FFFFFF" fill-opacity="0.9"/>
+
+  <!-- launch arrow on the flap -->
+  <path d="M232 348 l48 -48 l-48 -48" fill="none" stroke="#2F5BFF" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M158 300 H276" fill="none" stroke="#2F5BFF" stroke-width="22" stroke-linecap="round"/>
+
+  <!-- spark -->
+  <circle cx="404" cy="104" r="22" fill="url(#spark)"/>
+  <circle cx="404" cy="104" r="36" fill="#7FE7FF" fill-opacity="0.22"/>
+  <circle cx="356" cy="72" r="7" fill="#FFFFFF" fill-opacity="0.8"/>
+</svg>

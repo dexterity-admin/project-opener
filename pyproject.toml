@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project-opener"
+version = "3.0.0"
+description = "Dexterity Design Services workspace launcher: open every file, folder, link and tool a project needs in one click, and share it over the office LAN."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary - internal use at Dexterity Design Services Pvt. Ltd." }
+authors = [{ name = "Dexterity Design Services Pvt. Ltd." }]
+dependencies = [
+    "PySide6>=6.7,<7",
+    "qtawesome>=1.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pyinstaller>=6.6", "ruff>=0.5"]
+
+[project.scripts]
+project-opener = "project_opener.app:main"
+
+[tool.setuptools.packages.find]
+include = ["project_opener*"]
+
+[tool.setuptools.package-data]
+project_opener = ["resources/icon/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = ["legacy", "build", "dist", ".venv", ".venv1"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008", "UP007"]
