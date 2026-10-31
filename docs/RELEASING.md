@@ -29,6 +29,24 @@ Pre-release: run the workflow manually (*Actions → build → Run workflow*) wi
 - An admin should open *Updates*, download, and click **Mirror to Team Hub for colleagues** so the
   whole office can update from the LAN without tokens or internet.
 
+## Landing page (GitHub Pages)
+
+GitHub Free does not serve Pages from a **private** repository (the API answers
+`422 Your current plan does not support GitHub Pages for this repository`). Two options:
+
+1. **Public showcase repo (recommended, free).** Create `dexterity-admin/project-opener-site`
+   (public, contains only the static site, no source or installers) and run
+   `.\tools\publish_site.ps1` after any change under `site/`. The script clones the public repo,
+   copies `site/` in and pushes; a `pages.yml` in that repo deploys it to
+   `https://dexterity-admin.github.io/project-opener-site/`. The first run needs the repo to exist
+   with this workflow (upload-pages-artifact from `.`) and Pages set to *GitHub Actions* source
+   (`gh api -X POST repos/dexterity-admin/project-opener-site/pages -f build_type=workflow`).
+2. **GitHub Pro.** Private repositories get Pages. Restore the original workflow from the first
+   commit (`git show ce045c3:.github/workflows/pages.yml > .github/workflows/pages.yml`), enable
+   Pages with `build_type=workflow`, and the site deploys from `site/` on every push to `main`.
+
+The site is static (Three.js + GSAP from cdnjs) and contains no internal hostnames or paths.
+
 ## Versioning
 
 Semantic-ish: `MAJOR.MINOR.PATCH`. The updater compares numerically, so `3.10.0 > 3.9.0`.

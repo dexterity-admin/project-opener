@@ -38,8 +38,8 @@ if (Test-Path dist\ProjectOpener) { Remove-Item -Recurse -Force dist\ProjectOpen
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
 
 Write-Host "-- smoke run of the frozen exe" -ForegroundColor Cyan
-& dist\ProjectOpener\ProjectOpener.exe --version
-if ($LASTEXITCODE -ne 0) { throw "frozen exe failed to start" }
+$frozen = Start-Process -FilePath dist\ProjectOpener\ProjectOpener.exe -ArgumentList "--version" -Wait -PassThru -NoNewWindow
+if ($frozen.ExitCode -ne 0) { throw "frozen exe failed to start (exit $($frozen.ExitCode))" }
 
 if (-not $SkipInstaller) {
     $iscc = Get-Command iscc -ErrorAction SilentlyContinue

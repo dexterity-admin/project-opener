@@ -10,13 +10,13 @@ Open every drawing, folder, link and tool a job needs, share it across the Dexte
 everyone on the same files, without a server.
 
 [![build](https://github.com/dexterity-admin/project-opener/actions/workflows/build.yml/badge.svg)](https://github.com/dexterity-admin/project-opener/actions/workflows/build.yml)
-[![pages](https://github.com/dexterity-admin/project-opener/actions/workflows/pages.yml/badge.svg)](https://github.com/dexterity-admin/project-opener/actions/workflows/pages.yml)
+[![pages](https://github.com/dexterity-admin/project-opener-site/actions/workflows/pages.yml/badge.svg)](https://github.com/dexterity-admin/project-opener-site/actions/workflows/pages.yml)
 ![python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![qt](https://img.shields.io/badge/PySide6-Qt%206-41CD52?logo=qt&logoColor=white)
 ![windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white)
 ![internal](https://img.shields.io/badge/Dexterity%20Design-internal%20tool-2F5BFF)
 
-[Landing page](https://dexterity-admin.github.io/project-opener/) Â·
+[Landing page](https://dexterity-admin.github.io/project-opener-site/) Â·
 [Download the latest release](https://github.com/dexterity-admin/project-opener/releases/latest) Â·
 [Docs](docs/) Â· [Changelog](CHANGELOG.md)
 
@@ -116,7 +116,7 @@ project_opener/   the application (core / lan / update / ui layers)      â†�
 tests/            pytest suite for core, hub and updater (no display needed)
 tools/            build_icon.py Â· build.ps1 Â· smoke_ui.py Â· make_manifest.py Â· version_info.py
 installer/        Inno Setup script (per-user, deep links, start-up task)
-site/             GitHub Pages landing page (Three.js + GSAP)
+site/             landing page (Three.js + GSAP); published to the public project-opener-site repo by tools/publish_site.ps1
 docs/             ARCHITECTURE Â· DATA-FORMAT Â· LAN-HUB Â· UPDATES Â· DEVELOPMENT Â· RELEASING
 legacy/           Project Opener 1.x and 2.x sources, kept for reference
 .github/          build.yml (installer on every push, auto-release on version bump) Â· pages.yml
@@ -145,4 +145,5 @@ push to `main`. CI builds, tests, packages and publishes the release with `lates
 <div align="center">
 <sub>Dexterity Design Services Pvt. Ltd. Â· internal tool Â· built in-house with Python, Qt and a shared folder.</sub>
 </div>
+
 

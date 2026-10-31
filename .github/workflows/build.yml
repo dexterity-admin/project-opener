@@ -85,8 +85,10 @@ jobs:
       - name: Frozen exe starts
         shell: pwsh
         run: |
-          & dist\ProjectOpener\ProjectOpener.exe --version
-          if ($LASTEXITCODE -ne 0) { throw "frozen exe failed" }
+          # GUI-subsystem exe: PowerShell does not wait for it with '&', so use Start-Process.
+          $p = Start-Process -FilePath dist\ProjectOpener\ProjectOpener.exe -ArgumentList "--version" -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "frozen exe failed with exit code $($p.ExitCode)" }
+          Write-Host "frozen exe exited 0"
 
       - name: Inno Setup installer
         shell: pwsh
