@@ -5,8 +5,8 @@ Two channels are consulted, in order:
 1. **LAN mirror** - ``<hub>/updates/latest.json`` next to the installer.  Any
    machine can mirror a release there from the Updates page; afterwards every
    colleague updates over the office LAN with no internet or GitHub access.
-2. **GitHub Releases** - the private repository's latest release.  Needs a
-   read-only token (Settings → Updates).  The release carries a
+2. **GitHub Releases** - the repository's latest release (public; a token in
+   Settings → Updates is optional).  The release carries a
    ``latest.json`` asset produced by CI with the installer's SHA-256.
 
 The manifest format (``latest.json``)::
@@ -159,7 +159,7 @@ class Updater:
                 data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             if exc.code in (401, 403, 404):
-                raise RuntimeError("repository is private; add a read-only token in Settings → Updates") from exc
+                raise RuntimeError(f"GitHub answered HTTP {exc.code}; if the repository is private add a read-only token in Settings → Updates") from exc
             raise RuntimeError(f"HTTP {exc.code}") from exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise RuntimeError(f"no connection ({getattr(exc, 'reason', exc)})") from exc

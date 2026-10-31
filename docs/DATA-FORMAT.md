@@ -20,7 +20,7 @@ kept before every write. All timestamps are ISO-8601 in UTC.
       "client": "FST",
       "job_number": "P12513",
       "items": [
-        {"id": "232133635800", "path": "\\\\192.168.0.12\\p12513\\ISO", "kind": "folder",
+        {"id": "232133635800", "path": "\\\\fileserver\\p12513\\ISO", "kind": "folder",
          "label": "Submission share", "args": "", "enabled": true, "group": "Folders",
          "added_at": "2026-10-31T17:00:00+00:00"},
         {"id": "909ded27bfc0", "path": "{SERVER_ROOT}\\P12513\\Rulings.docx", "kind": "file",

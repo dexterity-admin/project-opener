@@ -5,7 +5,7 @@ shared through the Team Hub therefore stores paths in *portable* form where
 possible:
 
 * ``{SERVER_ROOT}\\P12513\\ISO`` - a user-defined variable, resolved per machine;
-* ``\\\\192.168.0.200\\Project\\P12513`` - a UNC path, which works everywhere.
+* ``\\\\nas01\\Project\\P12513`` - a UNC path, which works everywhere.
 
 ``PathResolver.resolve`` expands variables and, when a mapped drive letter is
 not present on this machine, swaps it for the UNC path recorded alongside it.

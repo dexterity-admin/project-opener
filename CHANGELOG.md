@@ -20,7 +20,7 @@ Complete rebuild of the app ("Project Opener 3").
 - **Team Hub** on any shared folder (no server): who is online, publish projects, clone, revision
   notices, send a project to a colleague's inbox, announcements, activity pulse.
 - **LAN presence beacon** (UDP, optional) for near-instant online status.
-- **In-app updates**: LAN mirror first, then GitHub Releases (private repo with a read-only token);
+- **In-app updates**: LAN mirror first, then GitHub Releases (public releases, token optional);
   SHA-256 verified; silent install and restart; one click to mirror a release for the whole office.
 - **System tray** with quick launch, start with Windows, single instance, `projectopener://open/...`
   deep links, drag-and-drop to create projects or add items.

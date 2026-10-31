@@ -41,7 +41,7 @@ class Settings:
     hub_path: str = ""
     hub_share_pulse: bool = True
     presence_udp: bool = True
-    # Path variables: {"{SERVER_ROOT}": "\\\\192.168.0.200\\Project"}
+    # Path variables: {"{SERVER_ROOT}": "\\\\nas01\\Project"}
     variables: dict[str, str] = field(default_factory=dict)
     # Updates
     update_channel: str = "stable"      # stable | all

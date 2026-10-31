@@ -211,7 +211,7 @@ class UpdatesPage(Page):
         self.sources_lay.addWidget(self._source_row("fa5s.network-wired", lan_text, "Checked first; works without internet. Anyone can mirror a release here.", lan_ok))
         gh_ok = bool(s.github_token)
         self.sources_lay.addWidget(self._source_row("fa5b.github", f"GitHub: {C.GITHUB_OWNER}/{C.GITHUB_REPO}",
-                                                    "Private repository. " + ("Token configured." if gh_ok else "Add a read-only token in Settings → Updates to check here."), gh_ok))
+                                                    "Public releases; no token needed. " + ("Token configured (higher API rate limit)." if gh_ok else "A token in Settings → Updates is optional."), True))
 
     def _banner(self, icon_name: str, text: str, color: str) -> QFrame:
         f = QFrame()

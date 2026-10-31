@@ -7,7 +7,7 @@ reads and writes small JSON files under one folder.
 ## Setting it up (once per office)
 
 1. Create a folder every colleague can read **and write**, for example
-   `\\192.168.0.200\Project\_ProjectOpenerHub`.
+   `\\nas01\Project\_ProjectOpenerHub`.
 2. In Project Opener: **Settings → Team Hub → Browse… → Connect**. The app creates the layout below.
 3. Everyone else enters the same path. That's it.
 

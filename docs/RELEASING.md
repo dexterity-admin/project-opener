@@ -31,21 +31,13 @@ Pre-release: run the workflow manually (*Actions → build → Run workflow*) wi
 
 ## Landing page (GitHub Pages)
 
-GitHub Free does not serve Pages from a **private** repository (the API answers
-`422 Your current plan does not support GitHub Pages for this repository`). Two options:
+`pages.yml` deploys `site/` to https://dexterity-admin.github.io/project-opener/ on every push to
+`main` that touches `site/`. The repository is **public** because GitHub Free only serves Pages from
+public repositories; for that reason the repo must never contain internal hostnames, IP addresses,
+share paths, credentials or personal data (docs use placeholder names such as `\\nas01\Project`).
 
-1. **Public showcase repo (recommended, free).** Create `dexterity-admin/project-opener-site`
-   (public, contains only the static site, no source or installers) and run
-   `.\tools\publish_site.ps1` after any change under `site/`. The script clones the public repo,
-   copies `site/` in and pushes; a `pages.yml` in that repo deploys it to
-   `https://dexterity-admin.github.io/project-opener-site/`. The first run needs the repo to exist
-   with this workflow (upload-pages-artifact from `.`) and Pages set to *GitHub Actions* source
-   (`gh api -X POST repos/dexterity-admin/project-opener-site/pages -f build_type=workflow`).
-2. **GitHub Pro.** Private repositories get Pages. Restore the original workflow from the first
-   commit (`git show ce045c3:.github/workflows/pages.yml > .github/workflows/pages.yml`), enable
-   Pages with `build_type=workflow`, and the site deploys from `site/` on every push to `main`.
-
-The site is static (Three.js + GSAP from cdnjs) and contains no internal hostnames or paths.
+The site is static (Three.js + GSAP from cdnjs) and can be previewed with
+`python -I -m http.server 8765 --directory site`.
 
 ## Versioning
 

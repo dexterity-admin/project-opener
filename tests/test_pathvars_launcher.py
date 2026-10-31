@@ -14,10 +14,10 @@ def test_normalise_var_name():
 
 
 def test_resolve_variables():
-    r = PathResolver({"{SERVER_ROOT}": r"\\192.168.0.200\Project"}, drive_map={})
+    r = PathResolver({"{SERVER_ROOT}": r"\\nas01\Project"}, drive_map={})
     res = r.resolve(r"{SERVER_ROOT}\P12513\iso.pdf")
     assert res.used_variable
-    assert res.resolved.startswith(r"\\192.168.0.200\Project")
+    assert res.resolved.startswith(r"\\nas01\Project")
     assert res.resolved.endswith(r"P12513\iso.pdf")
 
 
@@ -28,9 +28,9 @@ def test_unresolved_variable_reported():
 
 
 def test_portable_and_localise_roundtrip():
-    r = PathResolver({}, drive_map={"Z:": r"\\192.168.0.200\Project"})
+    r = PathResolver({}, drive_map={"Z:": r"\\nas01\Project"})
     unc = r.portable(r"Z:\P12513\a.pdf")
-    assert unc == r"\\192.168.0.200\Project\P12513\a.pdf"
+    assert unc == r"\\nas01\Project\P12513\a.pdf"
     assert r.localise(unc) == r"Z:\P12513\a.pdf"
     assert r.portable("https://x.y") == "https://x.y"
 

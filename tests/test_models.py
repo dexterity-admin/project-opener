@@ -7,7 +7,7 @@ def test_guess_kind():
     assert M.guess_kind(r"C:\tools\run.exe") == "app"
     assert M.guess_kind(r"Z:\Project\P12513\iso.pdf") == "file"
     assert M.guess_kind(r"Z:\Project\P12513") == "folder"
-    assert M.guess_kind("\\\\192.168.0.200\\Project\\P12513\\") == "folder"
+    assert M.guess_kind("\\\\nas01\\Project\\P12513\\") == "folder"
     assert M.guess_kind("cmd: dir") == "command"
 
 

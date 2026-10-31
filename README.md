@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 <img src="project_opener/resources/icon/app-256.png" width="128" alt="Project Opener icon">
 
@@ -10,15 +10,15 @@ Open every drawing, folder, link and tool a job needs, share it across the Dexte
 everyone on the same files, without a server.
 
 [![build](https://github.com/dexterity-admin/project-opener/actions/workflows/build.yml/badge.svg)](https://github.com/dexterity-admin/project-opener/actions/workflows/build.yml)
-[![pages](https://github.com/dexterity-admin/project-opener-site/actions/workflows/pages.yml/badge.svg)](https://github.com/dexterity-admin/project-opener-site/actions/workflows/pages.yml)
+[![pages](https://github.com/dexterity-admin/project-opener/actions/workflows/pages.yml/badge.svg)](https://github.com/dexterity-admin/project-opener/actions/workflows/pages.yml)
 ![python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![qt](https://img.shields.io/badge/PySide6-Qt%206-41CD52?logo=qt&logoColor=white)
 ![windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white)
 ![internal](https://img.shields.io/badge/Dexterity%20Design-internal%20tool-2F5BFF)
 
-[Landing page](https://dexterity-admin.github.io/project-opener-site/) Â·
-[Download the latest release](https://github.com/dexterity-admin/project-opener/releases/latest) Â·
-[Docs](docs/) Â· [Changelog](CHANGELOG.md)
+[Landing page](https://dexterity-admin.github.io/project-opener/) ·
+[Download the latest release](https://github.com/dexterity-admin/project-opener/releases/latest) ·
+[Docs](docs/) · [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -49,24 +49,24 @@ are dead, and it can be shared with a colleague over the LAN in two clicks.
 
 | | Feature | What it does for the team |
 |---|---|---|
-| ðŸš€ | **Launch bundles** | Files, folders, links, apps with arguments, commands. Named **launch sets** (`Checking`, `Submission pack`) open a chosen subset. Auto-launch at sign-in. |
-| âŒ˜ | **Command palette** `Ctrl+K` | Fuzzy search across projects, launch sets, individual items and actions. Pinned and recent first. |
-| ðŸ©º | **Path health** | Every item is checked in the background: *not found*, *server offline* (real port-445 probe) or *undefined variable*, shown on the card and on the dashboard's "Needs attention". |
-| ðŸ§­ | **Portable paths** | `{SERVER_ROOT}`-style variables resolve per machine; drive letters are swapped for UNC paths when sharing, and UNC paths are shown as *your* drive letter. `Z:\Project` on one PC is `\\192.168.0.200\Project` on another, and it just works. |
-| ðŸ‘¥ | **Team Hub** | Any shared folder becomes the hub: who is online and what they're working on, publish projects for the team, clone them, get told when the author publishes a new revision, send a project to a colleague's inbox, post announcements, see an activity pulse. **No server, no database.** |
-| ðŸ“¡ | **LAN presence** | Optional UDP beacon for online status within seconds; the hub heartbeat remains the source of truth. |
-| â¬†ï¸ | **In-app updates** | Checks the office **LAN mirror first**, then GitHub Releases (private repo, read-only token). SHA-256 verified, silent install, automatic restart. One admin clicks *Mirror to Team Hub* and the whole office updates offline. |
-| ðŸ–¥ï¸ | **Desktop-native** | System tray with quick launch, start with Windows, single instance, `projectopener://open/<project>` deep links, drag-and-drop to create projects or add items, dark title bar. |
-| ðŸŽ¨ | **Polished UI** | Dark / light / follow-Windows themes, ten accent colours, comfortable or compact density, animated cards, toggles and toasts, collapsible sidebar, keyboard shortcuts everywhere. |
-| ðŸ›¡ï¸ | **Crash-safe data** | Atomic writes, 30 rotating backups, one-click restore, export/import. Automatic migration from Project Opener 1.x and import of 2.x hub files. |
+| 🚀 | **Launch bundles** | Files, folders, links, apps with arguments, commands. Named **launch sets** (`Checking`, `Submission pack`) open a chosen subset. Auto-launch at sign-in. |
+| ⌘ | **Command palette** `Ctrl+K` | Fuzzy search across projects, launch sets, individual items and actions. Pinned and recent first. |
+| 🩺 | **Path health** | Every item is checked in the background: *not found*, *server offline* (real port-445 probe) or *undefined variable*, shown on the card and on the dashboard's "Needs attention". |
+| 🧭 | **Portable paths** | `{SERVER_ROOT}`-style variables resolve per machine; drive letters are swapped for UNC paths when sharing, and UNC paths are shown as *your* drive letter. `Z:\Project` on one PC is `\\nas01\Project` on another, and it just works. |
+| 👥 | **Team Hub** | Any shared folder becomes the hub: who is online and what they're working on, publish projects for the team, clone them, get told when the author publishes a new revision, send a project to a colleague's inbox, post announcements, see an activity pulse. **No server, no database.** |
+| 📡 | **LAN presence** | Optional UDP beacon for online status within seconds; the hub heartbeat remains the source of truth. |
+| ⬆️ | **In-app updates** | Checks the office **LAN mirror first**, then GitHub Releases (no token needed). SHA-256 verified, silent install, automatic restart. One admin clicks *Mirror to Team Hub* and the whole office updates offline. |
+| 🖥️ | **Desktop-native** | System tray with quick launch, start with Windows, single instance, `projectopener://open/<project>` deep links, drag-and-drop to create projects or add items, dark title bar. |
+| 🎨 | **Polished UI** | Dark / light / follow-Windows themes, ten accent colours, comfortable or compact density, animated cards, toggles and toasts, collapsible sidebar, keyboard shortcuts everywhere. |
+| 🛡️ | **Crash-safe data** | Atomic writes, 30 rotating backups, one-click restore, export/import. Automatic migration from Project Opener 1.x and import of 2.x hub files. |
 
 ## Install
 
 1. Download `ProjectOpener-Setup-X.Y.Z.exe` from the [latest release](https://github.com/dexterity-admin/project-opener/releases/latest)
-   (sign in with your Dexterity GitHub account) **or** from the office hub folder `â€¦\_ProjectOpenerHub\updates\`.
+   **or** from the office hub folder `…\_ProjectOpenerHub\updates\`.
 2. Run it. It installs per-user into `%LOCALAPPDATA%\Programs\Project Opener` (no admin rights needed).
 3. First start imports your Project Opener 1.x projects automatically.
-4. *Settings â†’ Team Hub* â†’ pick the shared hub folder â†’ **Connect**.
+4. *Settings → Team Hub* → pick the shared hub folder → **Connect**.
 
 A portable zip is attached to every release as well.
 
@@ -77,23 +77,23 @@ A portable zip is attached to every release as well.
 | `Ctrl+K` / `Ctrl+P` | Command palette |
 | `Ctrl+N` | New project |
 | `Ctrl+F` | Filter projects |
-| `Ctrl+1` `Ctrl+2` `Ctrl+3` `Ctrl+,` | Home Â· Projects Â· Team Hub Â· Settings |
+| `Ctrl+1` `Ctrl+2` `Ctrl+3` `Ctrl+,` | Home · Projects · Team Hub · Settings |
 | `Ctrl+B` | Collapse sidebar |
 | `F5` | Re-check all paths |
-| `Alt+â†` | Back |
+| `Alt+←` | Back |
 | Double-click a card | Open the project |
 
 ## How the Team Hub works
 
 ```
       PC-A (vikram)                  \\server\Project\_ProjectOpenerHub               PC-B (yokesh)
-  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”             â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”          â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-  â”‚ heartbeat 60 s â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º  â”‚ users/vikram.json                â”‚  â—„â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€ heartbeat      â”‚
-  â”‚ publish â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º  â”‚ published/<id>.json  (rev 1,2,3) â”‚  â”€â”€â”€â”€â”€â”€â”€â–ºâ”¼â”€â”€ clone / update â”‚
-  â”‚ send to yokesh â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º  â”‚ inbox/yokesh/<id>.json           â”‚  â”€â”€â”€â”€â”€â”€â”€â–ºâ”¼â”€â”€ accept         â”‚
-  â”‚ announce â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º  â”‚ announcements.json               â”‚  â”€â”€â”€â”€â”€â”€â”€â–ºâ”¼â”€â”€ banner on Home â”‚
-  â”‚ mirror update â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º  â”‚ updates/latest.json + Setup.exe  â”‚  â”€â”€â”€â”€â”€â”€â”€â–ºâ”¼â”€â”€ install        â”‚
-  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜             â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜          â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+  ┌──────────────────┐             ┌──────────────────────────────────┐          ┌──────────────────┐
+  │ heartbeat 60 s ──┼──────────►  │ users/vikram.json                │  ◄───────┼── heartbeat      │
+  │ publish ─────────┼──────────►  │ published/<id>.json  (rev 1,2,3) │  ───────►┼── clone / update │
+  │ send to yokesh ──┼──────────►  │ inbox/yokesh/<id>.json           │  ───────►┼── accept         │
+  │ announce ────────┼──────────►  │ announcements.json               │  ───────►┼── banner on Home │
+  │ mirror update ───┼──────────►  │ updates/latest.json + Setup.exe  │  ───────►┼── install        │
+  └──────────────────┘             └──────────────────────────────────┘          └──────────────────┘
 ```
 
 Each writer owns its own files, every write is atomic, and readers tolerate corrupt files, so a
@@ -102,9 +102,9 @@ plain SMB share is all the infrastructure there is. Details in [docs/LAN-HUB.md]
 ## Updates, explained
 
 ```
-check â”€â”€â–º <hub>/updates/latest.json â”€â”€â”
-      â””â”€â–º GitHub Releases (token)  â”€â”€â”€â”´â”€â–º newest wins â”€â–º download â”€â–º SHA-256 â”€â–º silent install â”€â–º restart
-                                                                     â””â”€â–º "Mirror to Team Hub" for everyone else
+check ──► <hub>/updates/latest.json ──┐
+      └─► GitHub Releases (token)  ───┴─► newest wins ─► download ─► SHA-256 ─► silent install ─► restart
+                                                                     └─► "Mirror to Team Hub" for everyone else
 ```
 
 [docs/UPDATES.md](docs/UPDATES.md) covers the manifest format, tokens and the fallback path.
@@ -112,14 +112,14 @@ check â”€â”€â–º <hub>/updates/latest.json â”€â”€â”
 ## Repository map
 
 ```
-project_opener/   the application (core / lan / update / ui layers)      â†’ docs/ARCHITECTURE.md
+project_opener/   the application (core / lan / update / ui layers)      → docs/ARCHITECTURE.md
 tests/            pytest suite for core, hub and updater (no display needed)
-tools/            build_icon.py Â· build.ps1 Â· smoke_ui.py Â· make_manifest.py Â· version_info.py
+tools/            build_icon.py · build.ps1 · smoke_ui.py · make_manifest.py · version_info.py
 installer/        Inno Setup script (per-user, deep links, start-up task)
-site/             landing page (Three.js + GSAP); published to the public project-opener-site repo by tools/publish_site.ps1
-docs/             ARCHITECTURE Â· DATA-FORMAT Â· LAN-HUB Â· UPDATES Â· DEVELOPMENT Â· RELEASING
+site/             GitHub Pages landing page (Three.js + GSAP), deployed by pages.yml
+docs/             ARCHITECTURE · DATA-FORMAT · LAN-HUB · UPDATES · DEVELOPMENT · RELEASING
 legacy/           Project Opener 1.x and 2.x sources, kept for reference
-.github/          build.yml (installer on every push, auto-release on version bump) Â· pages.yml
+.github/          build.yml (installer on every push, auto-release on version bump) · pages.yml
 ```
 
 ## Build from source
@@ -143,7 +143,7 @@ push to `main`. CI builds, tests, packages and publishes the release with `lates
 ---
 
 <div align="center">
-<sub>Dexterity Design Services Pvt. Ltd. Â· internal tool Â· built in-house with Python, Qt and a shared folder.</sub>
+<sub>Dexterity Design Services Pvt. Ltd. · internal tool · built in-house with Python, Qt and a shared folder.</sub>
 </div>
 
 

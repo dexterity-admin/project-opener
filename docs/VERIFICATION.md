@@ -1,7 +1,7 @@
 # Verification record - Project Opener 3.0.0
 
 What was checked before calling 3.0.0 complete, and how. Dates are 31 Oct - 1 Nov 2026,
-machine DDS-030 (Windows 10 Pro 19045), Python 3.14 locally, Python 3.12 in CI.
+an office Windows 10 Pro PC, Python 3.14 locally, Python 3.12 in CI.
 
 ## 1. Feature parity with 1.x and 2.x
 
@@ -73,12 +73,13 @@ process (`$LASTEXITCODE` was stale even though the exe printed its version). Fix
 
 `site/` rendered in the desktop app's browser over `http://localhost:8765`: WebGL hero with orbiting
 cards around the icon, sections revealing on scroll, no console errors, no horizontal scroll at
-360 px. Not yet live: GitHub Free cannot serve Pages from a private repository (API returned 422);
-publishing needs the public showcase repo described in RELEASING.md.
+360 px. GitHub Free cannot serve Pages from a private repository (API returned 422), so the repository
+was made public (after scrubbing internal hostnames, share paths and personal data from the files and
+the git history) and the site deploys from `site/` via `pages.yml`.
 
 ## 8. Known limits (stated, not hidden)
 
-- GitHub update channel needs a read-only token per PC, or the LAN mirror.
+- Offline PCs update through the LAN mirror; the GitHub channel needs internet access.
 - UDP presence may be blocked inbound by Windows Firewall; the hub heartbeat is authoritative.
 - Second-instance forwarding takes ~3 s because Qt starts before the single-instance check.
 - The UI smoke test exercises rendering and navigation, not every click path; dialogs were

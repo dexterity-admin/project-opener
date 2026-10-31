@@ -17,9 +17,9 @@ COMPANY = __company__
 COMPANY_SHORT = "Dexterity Design"
 VERSION = __version__
 
-# GitHub repository the updater talks to.  The repository is private, so the
-# updater needs either a read-only token (stored encrypted with DPAPI) or the
-# LAN mirror described in docs/UPDATES.md.
+# GitHub repository the updater talks to.  Releases are public, so no token is
+# needed; one may be added (stored encrypted with DPAPI) for a higher API rate
+# limit.  Offline machines use the LAN mirror described in docs/UPDATES.md.
 GITHUB_OWNER = "dexterity-admin"
 GITHUB_REPO = "project-opener"
 GITHUB_API = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"

@@ -6,7 +6,7 @@ Project Opener updates itself. Two sources are checked, in this order, every 4 h
 | Source | What it needs | Why |
 |---|---|---|
 | **1. LAN mirror** `<hub>/updates/latest.json` | a Team Hub folder | works without internet or GitHub access; one person mirrors, the whole office updates |
-| **2. GitHub Releases** `dexterity-admin/project-opener` | a read-only token (*Settings → Updates*) because the repository is private | the canonical source, produced by CI |
+| **2. GitHub Releases** `dexterity-admin/project-opener` | internet access (a token in *Settings → Updates* is optional and only raises the API rate limit) | the canonical source, produced by CI |
 
 The newest version found wins. The user is told where it came from.
 

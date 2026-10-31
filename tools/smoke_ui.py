@@ -34,7 +34,7 @@ def seed(data_dir: Path, hub_dir: Path) -> None:
                        M.Item(path=str(docs / "Iso checklist.pdf"), kind="file", group="Checking"),
                        M.Item(path=str(docs / "Line list.xlsx"), kind="file", group="Checking"),
                        M.Item(path=str(docs), kind="folder", group="Folders", label="Working folder"),
-                       M.Item(path=r"\\192.168.0.12\p12513\ISO", kind="folder", group="Folders", label="Submission share"),
+                       M.Item(path=r"\\fileserver\p12513\ISO", kind="folder", group="Folders", label="Submission share"),
                        M.Item(path="https://github.com/dexterity-admin/project-opener", kind="url", group="Links"),
                        M.Item(path=r"{SERVER_ROOT}\P12513\Rulings.docx", kind="file", group="References"),
                    ])
@@ -96,7 +96,7 @@ def main() -> int:
     s.hub_path = str(hub_dir)
     s.display_name = "Vikram"
     s.role = "Piping QA"
-    s.variables = {"{SERVER_ROOT}": r"\\192.168.0.200\Project"}
+    s.variables = {"{SERVER_ROOT}": r"\\nas01\Project"}
     s.update_check = False
     s.presence_udp = False
     s.first_run_done = True

@@ -137,7 +137,7 @@ class SettingsPage(Page):
         self._anchors["hub"] = p
         lay.addWidget(label("TEAM HUB", "eyebrow"))
         lay.addWidget(label("Pick any folder on a shared drive that every colleague can read and write (for example "
-                            r"\\192.168.0.200\Project\_ProjectOpenerHub). No server is needed.", "muted", wrap=True))
+                            r"\\nas01\Project\_ProjectOpenerHub). No server is needed.", "muted", wrap=True))
         hrow = QHBoxLayout()
         self.hub_path = QLineEdit(s.hub_path)
         self.hub_path.setPlaceholderText(r"\\server\share\_ProjectOpenerHub")
@@ -197,7 +197,7 @@ class SettingsPage(Page):
         trow = QHBoxLayout()
         self.token = QLineEdit()
         self.token.setEchoMode(QLineEdit.EchoMode.Password)
-        self.token.setPlaceholderText("GitHub token with read access to the private repository (stored encrypted with Windows DPAPI)")
+        self.token.setPlaceholderText("Optional GitHub token (raises the API rate limit; stored encrypted with Windows DPAPI)")
         self.token.setText(s.github_token)
         trow.addWidget(self.token, 1)
         save_tok = Button("Save token", "fa5s.key")

@@ -164,7 +164,7 @@ jobs:
           body = m.group(1).strip() if m else f"Project Opener {v}"
           print(body)
           print("\n---\n**Install:** run `ProjectOpener-Setup-%s.exe` (per-user, no admin). "
-                "**Update in-app:** Updates → Check for updates (LAN hub or GitHub with a read-only token). "
+                "**Update in-app:** Updates → Check for updates (LAN hub or GitHub). "
                 "`latest.json` and `SHA256SUMS` are read by the updater; verify downloads against them." % v)
           EOF
 
