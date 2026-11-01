@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#F5F8F6">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Project Opener 3 · Your whole project. One click.">
+  <meta property="og:title" content="Project Opener 3: your whole project, one click">
   <meta property="og:description" content="A Windows desktop app for the Dexterity piping office. Opens every drawing, folder, link and tool a job needs, together.">
   <meta property="og:image" content="assets/icon-512.png">
   <meta property="og:site_name" content="Project Opener">
@@ -21,15 +21,12 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/icon-256.png">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&family=Onest:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Self-hosted fonts (OFL, licences next to the files). The two files the first paint needs are preloaded. -->
+  <link rel="preload" href="assets/fonts/unbounded-600.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/onest-400.woff2" as="font" type="font/woff2" crossorigin>
 
   <link rel="stylesheet" href="styles.css">
   <script>document.documentElement.className = document.documentElement.className.replace('no-js', 'js');</script>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
   <script src="main.js" defer></script>
 </head>
 
@@ -50,7 +47,8 @@
       <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
       <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
       <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3.5 3.5 0 0 1 0 7M21 20c0-2.8-1.9-5.1-4.5-5.8"/></symbol>
-      <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.5-4M4 13a8 8 0 0 0 14.5 4"/><path d="M4 4v5h5M20 20v-5h-5"/></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
       <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h6"/></symbol>
@@ -59,10 +57,18 @@
       <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
       <symbol id="i-cube" viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7zM12 12l9-5M12 12v10M12 12L3 7"/></symbol>
       <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+      <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
+      <symbol id="i-anchor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M12 7v14M5 13a7 7 0 0 0 14 0M3 13h4M17 13h4"/></symbol>
+      <symbol id="i-pipes" viewBox="0 0 24 24"><path d="M3 20v-6h6v6M9 14V8h6v6M15 8V4h6v16"/></symbol>
       <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5M8 4h8l-1 6 3 3v2H6v-2l3-3z"/></symbol>
+      <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></symbol>
+      <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5M3 17l9 5 9-5"/></symbol>
+      <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></symbol>
       <symbol id="i-mega" viewBox="0 0 24 24"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6l-5 4H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6"/></symbol>
       <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
-      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+      <symbol id="i-chev" viewBox="0 0 24 24"><path d="M11 6l-6 6 6 6M19 6l-6 6 6 6"/></symbol>
+      <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M5 19l3-3M14 4c3 0 6 3 6 6l-8 8-4-4zM8 12l-3 0 3-3M12 16l0 3 3-3"/></symbol>
     </defs>
   </svg>
 
@@ -72,12 +78,18 @@
       <span>Project Opener</span>
     </a>
     <nav class="nav__links" aria-label="Sections">
-      <a href="#paths">Paths</a>
+      <a href="#paths">Checks</a>
       <a href="#hub">Hub</a>
+      <a href="#search">Search</a>
       <a href="#updates">Updates</a>
-      <a href="https://github.com/dexterity-admin/project-opener#readme">Docs</a>
+      <a href="https://github.com/dexterity-admin/project-opener#readme" target="_blank" rel="noopener">Read me ↗</a>
     </nav>
-    <a class="pill pill--outline pill--one" href="https://github.com/dexterity-admin/project-opener/releases/latest" data-dl="installer">
+    <!-- Desktop: the installer itself. Phone: the Download moment on the page. CSS shows one of the two. -->
+    <a class="pill pill--outline pill--one nav__dl nav__dl--desktop" href="https://github.com/dexterity-admin/project-opener/releases/download/v3.1.0/ProjectOpener-Setup-3.1.0.exe" data-dl="installer">
+      <span class="pill__disc"><svg aria-hidden="true"><use href="#i-download"/></svg></span>
+      <span class="pill__label"><span class="pill__l1">Download</span></span>
+    </a>
+    <a class="pill pill--outline pill--one nav__dl nav__dl--phone" href="#download">
       <span class="pill__disc"><svg aria-hidden="true"><use href="#i-download"/></svg></span>
       <span class="pill__label"><span class="pill__l1">Download</span></span>
     </a>
@@ -85,22 +97,25 @@
 
   <main id="top">
 
-    <!-- 1 · Hero -->
+    <!-- 1 · Hero: nothing here animates in; the h1 is visible at 0 ms -->
     <section class="hero wrap" aria-labelledby="hero-title">
-      <h1 class="display" id="hero-title" data-rise>Your whole project.<br class="hero__br"> One click.</h1>
+      <h1 class="display" id="hero-title">
+        <span class="h1--desk">Your whole project.<br>One click.</span>
+        <span class="h1--phone">Whole project.<br>One click.</span>
+      </h1>
       <div class="hero__row">
-        <p class="lead" data-rise>A Windows desktop app for the Dexterity piping office. It opens every drawing, folder, link and tool a job needs, together.</p>
-        <div class="hero__cta" data-rise>
-          <a class="pill pill--primary" href="https://github.com/dexterity-admin/project-opener/releases/latest" data-dl="installer">
+        <p class="lead">A Windows desktop app for the Dexterity piping office. Every drawing, folder, link and tool a job needs, opened together.</p>
+        <div class="hero__cta">
+          <a class="pill pill--primary" href="https://github.com/dexterity-admin/project-opener/releases/download/v3.1.0/ProjectOpener-Setup-3.1.0.exe" data-dl="installer">
             <span class="pill__disc"><svg aria-hidden="true"><use href="#i-download"/></svg></span>
-            <span class="pill__label"><span class="pill__l1">Download for Windows</span><span class="pill__l2">v<span data-version>3.1.0</span> · installer</span></span>
+            <span class="pill__label"><span class="pill__l1">Download for Windows</span><span class="pill__l2">Installer, v<span data-version>3.1.0</span>, <span data-size="installer">35 MB</span></span></span>
           </a>
-          <a class="textlink" href="https://github.com/dexterity-admin/project-opener/releases/latest" data-dl="portable">Portable zip</a>
+          <a class="textlink hero__zip" href="https://github.com/dexterity-admin/project-opener/releases/download/v3.1.0/ProjectOpener-Portable-3.1.0.zip" data-dl="portable">Portable zip</a>
         </div>
       </div>
 
-      <!-- The live thing: a working Home screen of the app -->
-      <div class="stage" data-rise>
+      <!-- The live thing: the shipped Home screen, rebuilt from assets/screens/home-light.png -->
+      <div class="stage">
         <div class="win" data-ui id="demo" aria-label="Project Opener Home screen, working demonstration">
           <div class="win__title">
             <svg width="16" height="16" aria-hidden="true"><use href="#app-icon"/></svg>
@@ -112,34 +127,36 @@
               <div class="side__brand">
                 <svg width="28" height="28" aria-hidden="true"><use href="#app-icon"/></svg>
                 <div><b>Project Opener</b><small>v<span data-version>3.1.0</span> · Dexterity</small></div>
+                <svg class="side__collapse" aria-hidden="true"><use href="#i-chev"/></svg>
               </div>
-              <div class="side__search" aria-hidden="true"><svg><use href="#i-search"/></svg>Search<span class="kbd">Ctrl K</span></div>
+              <span class="apill apill--outline side__new"><svg aria-hidden="true"><use href="#i-plus"/></svg>New project</span>
+              <div class="side__search" aria-hidden="true"><svg><use href="#i-search"/></svg>Search · Ctrl+K</div>
               <nav class="side__nav" aria-label="App sections (demonstration)">
                 <span class="is-on"><svg aria-hidden="true"><use href="#i-home"/></svg>Home</span>
-                <span><svg aria-hidden="true"><use href="#i-folder"/></svg>Projects</span>
+                <span><svg aria-hidden="true"><use href="#i-grid"/></svg>Projects</span>
                 <span><svg aria-hidden="true"><use href="#i-users"/></svg>Team Hub<em class="count">1</em></span>
-                <span><svg aria-hidden="true"><use href="#i-download"/></svg>Updates</span>
+                <span><svg aria-hidden="true"><use href="#i-refresh"/></svg>Updates</span>
                 <span><svg aria-hidden="true"><use href="#i-settings"/></svg>Settings</span>
               </nav>
               <div class="side__foot">
                 <div class="side__hub"><i class="dot dot--ok" aria-hidden="true"></i>Hub connected · 2 online</div>
-                <div class="side__me"><span class="avatar avatar--vk" aria-hidden="true">VK</span><div><b>Vikram</b><small>Piping QA</small></div><span class="iconbtn" aria-hidden="true"><svg><use href="#i-sun"/></svg></span></div>
+                <div class="side__me"><span class="avatar avatar--v" aria-hidden="true">V</span><b>Vikram</b></div>
               </div>
             </aside>
 
             <div class="app">
-              <div class="greet">
+              <div class="app__top">
                 <div>
-                  <h2 class="app__h1">Good evening, Vikram</h2>
-                  <p class="app__sub"><span data-ready>5 projects ready</span> · 2 colleagues online · last launch <span data-last>just now</span></p>
+                  <h2 class="app__h1">Good afternoon, Vikram</h2>
+                  <p class="app__sub"><span data-finding>2 items need attention · 2 launches today</span></p>
                 </div>
-                <span class="apill apill--outline"><svg aria-hidden="true"><use href="#i-plus"/></svg>New project</span>
+                <span class="app__search" aria-hidden="true"><svg><use href="#i-search"/></svg>Search&nbsp; Ctrl+K</span>
+                <span class="apill apill--fill app__new" aria-hidden="true"><svg><use href="#i-plus"/></svg>New project</span>
               </div>
 
               <div class="banner">
                 <svg aria-hidden="true"><use href="#i-mega"/></svg>
-                <p><b>Z: drive moves on Friday.</b> The Project share moves to the new NAS at 18:00. Mapped drives reconnect automatically.</p>
-                <span class="banner__who">yokesh · just now</span>
+                <div class="banner__t"><b>Z: drive moves on Friday</b><span>The Project share moves to the new NAS at 18:00. Mapped drives reconnect automatically.</span><small>yokesh · Just now</small></div>
               </div>
 
               <div class="kpis">
@@ -149,89 +166,72 @@
                 <div><span class="kpis__l">Colleagues online</span><span class="kpis__v">2</span></div>
               </div>
 
-              <div class="cols">
-                <section class="quick" aria-labelledby="quick-h">
-                  <div class="app__sech"><h3 id="quick-h">Quick launch</h3><small>pinned and recent</small><span class="app__link">All projects</span></div>
-                  <div class="cards">
-                    <article class="card" style="--c:#2F5BFF">
-                      <svg class="card__ic" aria-hidden="true"><use href="#i-file"/></svg>
-                      <div class="card__b">
-                        <div class="card__t"><b>P12513 As-built isometrics</b><svg class="card__pin" aria-label="pinned"><use href="#i-pin"/></svg></div>
-                        <div class="card__k">FST · P12513</div>
-                        <div class="card__tags"><span>as-built</span><span>FST</span><span>isometrics</span></div>
-                        <div class="card__m"><span data-count>6/6 items · opened 15× · just now</span><span class="warn">1 missing</span></div>
-                      </div>
-                      <button type="button" class="apill apill--fill" id="open-p12513" aria-describedby="launch-foot">
+              <section class="quick" aria-labelledby="quick-h">
+                <h3 class="app__sech" id="quick-h">Quick launch</h3>
+                <div class="cards">
+                  <article class="card" style="--c:#2F5BFF">
+                    <div class="card__t"><svg class="card__ic" aria-hidden="true"><use href="#i-compass"/></svg><b>P12513 As-built isometrics</b><svg class="card__sm" aria-label="pinned"><use href="#i-pin"/></svg><svg class="card__sm" aria-hidden="true"><use href="#i-star"/></svg></div>
+                    <div class="card__k">FST · P12513</div>
+                    <div class="card__tags"><span>as-built</span><span>FST</span><span>isometrics</span></div>
+                    <div class="card__m"><i class="dot" aria-hidden="true"></i><span data-count>6/6 items · Just now</span></div>
+                    <div class="card__a">
+                      <!-- Accepted deviation from the shipped screen: this one Open pill is the filled accent control,
+                           because it is the button the visitor presses. Every other Open on the mock stays outlined. -->
+                      <button type="button" class="apill apill--fill card__open" id="open-p12513" aria-describedby="launch-foot">
                         <svg aria-hidden="true"><use href="#i-play"/></svg>Open
                       </button>
-                    </article>
-                    <article class="card" style="--c:#10B981">
-                      <svg class="card__ic" aria-hidden="true"><use href="#i-file"/></svg>
-                      <div class="card__b">
-                        <div class="card__t"><b>ANTEO Isometrics</b></div>
-                        <div class="card__k">ANTEO</div>
-                        <div class="card__tags"><span>isometrics</span><span>handover</span></div>
-                        <div class="card__m">2/2 items · just now</div>
-                      </div>
-                      <span class="apill apill--outline"><svg aria-hidden="true"><use href="#i-play"/></svg>Open</span>
-                    </article>
-                    <article class="card card--more" style="--c:#F97316">
-                      <svg class="card__ic" aria-hidden="true"><use href="#i-grid"/></svg>
-                      <div class="card__b">
-                        <div class="card__t"><b>Mangala Piping GAD</b></div>
-                        <div class="card__k">Cairn · DM-GAD</div>
-                        <div class="card__tags"><span>GAD</span><span>piping</span></div>
-                        <div class="card__m">1/1 item · never opened <span class="warn">1 missing</span></div>
-                      </div>
-                      <span class="apill apill--outline"><svg aria-hidden="true"><use href="#i-play"/></svg>Open</span>
-                    </article>
-                    <article class="card card--more" style="--c:#8B5CF6">
-                      <svg class="card__ic" aria-hidden="true"><use href="#i-cube"/></svg>
-                      <div class="card__b">
-                        <div class="card__t"><b>Navisworks clash review</b></div>
-                        <div class="card__k">No client · 3D review</div>
-                        <div class="card__tags"><span>3D</span><span>review</span></div>
-                        <div class="card__m">1/1 item · never opened</div>
-                      </div>
-                      <span class="apill apill--outline"><svg aria-hidden="true"><use href="#i-play"/></svg>Open</span>
-                    </article>
-                    <article class="card card--more" style="--c:#14B8A6">
-                      <svg class="card__ic" aria-hidden="true"><use href="#i-wrench"/></svg>
-                      <div class="card__b">
-                        <div class="card__t"><b>Office tools</b></div>
-                        <div class="card__k">Shared · utilities</div>
-                        <div class="card__tags"><span>tools</span></div>
-                        <div class="card__m">2/2 items · never opened</div>
-                      </div>
-                      <span class="apill apill--outline"><svg aria-hidden="true"><use href="#i-play"/></svg>Open</span>
-                    </article>
-                  </div>
-                </section>
+                      <svg class="card__sm" aria-hidden="true"><use href="#i-layers"/></svg><svg class="card__sm" aria-hidden="true"><use href="#i-more"/></svg>
+                    </div>
+                  </article>
+                  <article class="card" style="--c:#10B981">
+                    <div class="card__t"><svg class="card__ic" aria-hidden="true"><use href="#i-anchor"/></svg><b>ANTEO Isometrics</b><svg class="card__sm" aria-hidden="true"><use href="#i-pin"/></svg><svg class="card__sm" aria-hidden="true"><use href="#i-star"/></svg></div>
+                    <div class="card__k">ANTEO</div>
+                    <div class="card__tags"><span>isometrics</span><span>handover</span></div>
+                    <div class="card__m"><i class="dot" aria-hidden="true"></i>2/2 items · Just now</div>
+                    <div class="card__a"><span class="apill apill--outline card__open is-inert"><svg aria-hidden="true"><use href="#i-play"/></svg>Open</span><svg class="card__sm" aria-hidden="true"><use href="#i-more"/></svg></div>
+                  </article>
+                  <article class="card card--3" style="--c:#F97316">
+                    <div class="card__t"><svg class="card__ic" aria-hidden="true"><use href="#i-pipes"/></svg><b>Mangala Piping GAD</b><svg class="card__sm" aria-hidden="true"><use href="#i-pin"/></svg><svg class="card__sm" aria-hidden="true"><use href="#i-star"/></svg></div>
+                    <div class="card__k">Cairn · DM-GAD</div>
+                    <div class="card__tags"><span>GAD</span><span>piping</span></div>
+                    <div class="card__m"><i class="dot" aria-hidden="true"></i>1/1 items · Never opened</div>
+                    <div class="card__a"><span class="apill apill--outline card__open is-inert"><svg aria-hidden="true"><use href="#i-play"/></svg>Open</span><svg class="card__sm" aria-hidden="true"><use href="#i-more"/></svg></div>
+                  </article>
+                  <article class="card card--more" style="--c:#8B5CF6">
+                    <div class="card__t"><svg class="card__ic" aria-hidden="true"><use href="#i-cube"/></svg><b>Navisworks clash review</b><svg class="card__sm" aria-hidden="true"><use href="#i-pin"/></svg><svg class="card__sm" aria-hidden="true"><use href="#i-star"/></svg></div>
+                    <div class="card__k">&nbsp;</div>
+                    <div class="card__tags"><span>3D</span><span>review</span></div>
+                    <div class="card__m"><i class="dot" aria-hidden="true"></i>1/1 items · Never opened</div>
+                    <div class="card__a"><span class="apill apill--outline card__open is-inert"><svg aria-hidden="true"><use href="#i-play"/></svg>Open</span><svg class="card__sm" aria-hidden="true"><use href="#i-more"/></svg></div>
+                  </article>
+                  <article class="card card--more" style="--c:#14B8A6">
+                    <div class="card__t"><svg class="card__ic" aria-hidden="true"><use href="#i-wrench"/></svg><b>Office tools</b><svg class="card__sm" aria-hidden="true"><use href="#i-pin"/></svg><svg class="card__sm" aria-hidden="true"><use href="#i-star"/></svg></div>
+                    <div class="card__k">&nbsp;</div>
+                    <div class="card__tags"><span>tools</span></div>
+                    <div class="card__m"><i class="dot" aria-hidden="true"></i>2/2 items · Never opened</div>
+                    <div class="card__a"><span class="apill apill--outline card__open is-inert"><svg aria-hidden="true"><use href="#i-play"/></svg>Open</span><svg class="card__sm" aria-hidden="true"><use href="#i-more"/></svg></div>
+                  </article>
+                </div>
+              </section>
 
-                <aside class="aside">
-                  <section class="panel" aria-labelledby="att-h">
-                    <h3 id="att-h">Needs attention <small>2</small></h3>
-                    <div class="row"><i class="dot" style="background:#2F5BFF" aria-hidden="true"></i><div class="row__t"><b>P12513 As-built isometrics</b><small>1 missing · Rulings.docx</small></div><span class="app__link">Fix</span></div>
-                    <div class="row"><i class="dot" style="background:#F97316" aria-hidden="true"></i><div class="row__t"><b>Mangala Piping GAD</b><small>1 missing · GAD rev B</small></div><span class="app__link">Fix</span></div>
-                  </section>
-                  <section class="panel" aria-labelledby="team-h">
-                    <h3 id="team-h">Team pulse <small>2 online</small></h3>
-                    <div class="row"><span class="avatar avatar--yk" aria-hidden="true">YK</span><div class="row__t"><b>Yokesh <span class="muted">· Checker</span></b><small>working in ANTEO Isometrics</small></div><span class="ago">online</span></div>
-                    <div class="row"><span class="avatar avatar--pr" aria-hidden="true">PR</span><div class="row__t"><b>Priya <span class="muted">· Designer</span></b><small>sent you Mangala Piping GAD · “please check the GAD rev B”</small></div><span class="ago">online</span></div>
-                  </section>
-                  <section class="panel" aria-labelledby="act-h">
-                    <h3 id="act-h">Recent activity</h3>
-                    <div class="row" id="activity-line" aria-live="polite"><i class="dot" style="background:#2F5BFF" aria-hidden="true"></i><div class="row__t"><b data-act-title>P12513 As-built isometrics › Checking</b><small data-act-sub>2 opened</small></div><span class="ago" data-act-ago>just now</span></div>
-                    <div class="row"><i class="dot" style="background:#10B981" aria-hidden="true"></i><div class="row__t"><b>ANTEO Isometrics</b><small>2 opened</small></div><span class="ago">5 min ago</span></div>
-                  </section>
-                </aside>
+              <div class="panels">
+                <section class="panel" aria-labelledby="att-h">
+                  <h3 id="att-h">Needs attention<svg class="card__sm" aria-hidden="true"><use href="#i-refresh"/></svg></h3>
+                  <div class="row"><svg class="row__ic" aria-hidden="true"><use href="#i-pipes"/></svg><div class="row__t"><b>Mangala Piping GAD</b><small>1 missing</small></div><span class="apill apill--outline is-inert"><svg aria-hidden="true"><use href="#i-arrow"/></svg>Review</span></div>
+                  <div class="row"><svg class="row__ic" aria-hidden="true"><use href="#i-compass"/></svg><div class="row__t"><b>P12513 As-built isometrics</b><small>1 missing</small></div><span class="apill apill--outline is-inert"><svg aria-hidden="true"><use href="#i-arrow"/></svg>Review</span></div>
+                </section>
+                <section class="panel" aria-labelledby="team-h">
+                  <h3 id="team-h">Team pulse<span class="app__link">→ Team Hub</span></h3>
+                  <div class="row row--pulse"><span class="avatar avatar--p" aria-hidden="true">P</span><span class="avatar avatar--y" aria-hidden="true">Y</span><span class="muted">2 online</span></div>
+                  <div class="row"><span class="avatar avatar--p" aria-hidden="true">P</span><div class="row__t"><b>Priya sent Mangala Piping GAD → vikram</b><small>“please check the GAD rev B”</small></div><span class="ago">just now</span></div>
+                </section>
               </div>
 
-              <!-- Launch sheet: shown by Open; static without script -->
-              <section class="launch" id="launch" aria-labelledby="launch-h" hidden>
+              <!-- Launch sheet: shown by Open; static and in the flow without script -->
+              <section class="launch" id="launch" aria-labelledby="launch-h" tabindex="-1" hidden>
                 <div class="launch__h">
                   <div><h3 id="launch-h">Opening P12513 As-built isometrics</h3><small>6 items · FST · P12513</small></div>
-                  <button type="button" class="iconbtn launch__close" aria-label="Close">
+                  <button type="button" class="launch__close" aria-label="Close">
                     <svg aria-hidden="true"><use href="#i-x"/></svg>
                   </button>
                 </div>
@@ -250,101 +250,176 @@
           </div>
         </div>
       </div>
+      <p class="lead hero__try">Try it: the window is live. Press Open on P12513.</p>
+    </section>
+
+    <!-- Numbers: true by construction (they are the demo's numbers) -->
+    <section class="numbers wrap" aria-label="What the demo just did">
+      <div class="numbers__strip">
+        <div data-rise><span class="numbers__l">Paths checked</span><span class="numbers__v">6</span></div>
+        <div data-rise><span class="numbers__l">Clicks</span><span class="numbers__v">1</span></div>
+        <div data-rise><span class="numbers__l">To open the job</span><span class="numbers__v">1.8<small>s</small></span></div>
+        <div data-rise><span class="numbers__l">Servers to set up</span><span class="numbers__v">0</span></div>
+      </div>
     </section>
 
     <!-- 2 · Paths -->
-    <section class="sec split wrap" id="paths" aria-labelledby="paths-h">
-      <div class="split__text">
-        <h2 class="heading" id="paths-h" data-rise>Paths that still work on every PC</h2>
-        <p data-rise>A project is a list of paths. Before you click, the app checks each one and swaps drive letters for UNC names, so the same project opens on Priya’s desk as on yours.</p>
-        <ul class="states" data-rise>
-          <li><b>Reachable.</b> The file, folder or link answered. It opens.</li>
-          <li><b>Server offline.</b> The share did not answer. The item is skipped and named.</li>
-          <li><b>Not found.</b> The path, or the variable behind it, is missing. The item is skipped and named.</li>
-        </ul>
-      </div>
-      <figure class="shot shot--mat" data-rise>
-        <img src="assets/screens/project-light.png" width="1400" height="860" loading="lazy" alt="The Project page for P12513 As-built isometrics: six items grouped as Checking, Folders, Links and References, each with a status pill reading Reachable, Server offline or Not found, and two launch sets at the right.">
+    <section class="sec wrap" id="paths" aria-labelledby="paths-h">
+      <h2 class="heading" id="paths-h" data-rise>Z: on your desk. \\nas01 on Priya’s.</h2>
+      <figure class="pathcard" id="pathcard" aria-label="Three paths being checked">
+        <div class="pathline" data-state="ok">
+          <p class="pathline__p"><s class="pathline__drive">Z:\</s><span class="pathline__unc"><span>\\nas01\Project\</span></span><span>P12513\ISO\Line list.xlsx</span></p>
+          <span class="spill spill--ok pathline__pill">Reachable</span>
+        </div>
+        <div class="pathline" data-state="warn">
+          <p class="pathline__p"><s class="pathline__drive">W:\</s><span class="pathline__unc"><span>\\nas01\Project\</span></span><span>ISO\Submission share</span></p>
+          <span class="spill spill--warn pathline__pill">Server offline</span>
+        </div>
+        <div class="pathline" data-state="bad">
+          <p class="pathline__p"><s class="pathline__drive">{SERVER_ROOT}\</s><span class="pathline__unc"><span>\\nas01\Project\</span></span><span>P12513\Rulings.docx</span></p>
+          <span class="spill spill--bad pathline__pill">Not found</span>
+        </div>
       </figure>
+      <div class="two paths__row">
+        <div class="two__text">
+          <p data-rise>A project is a list of paths. Before anything opens, the app checks each one and swaps the drive letter for the server’s own name, so the same project opens on Priya’s desk as on yours.</p>
+          <ul class="states">
+            <li data-rise><b>Reachable</b> The file, folder or link answered. It opens.</li>
+            <li data-rise><b>Server offline</b> The share did not answer. The item is skipped and named.</li>
+            <li data-rise><b>Not found</b> The path, or the variable behind it, is missing. The item is skipped and named.</li>
+          </ul>
+        </div>
+        <figure class="proof proof--items two__fig">
+          <img src="assets/screens/project-items-2x.webp" srcset="assets/screens/project-items-2x.webp 1340w" sizes="(max-width: 1023px) calc(100vw - 32px), 58vw" width="1340" height="1108" loading="lazy" alt="The item list of P12513 As-built isometrics: six items grouped as Checking, Folders, Links and References, each with a status pill reading Reachable or Server offline.">
+        </figure>
+      </div>
     </section>
 
     <!-- 3 · Hub -->
     <section class="sec field field--sky" id="hub" aria-labelledby="hub-h">
       <div class="wrap">
         <div class="fieldrow">
-          <h2 class="heading" id="hub-h" data-rise>The team’s hub is a shared folder</h2>
+          <h2 class="heading" id="hub-h" data-rise>The server is a folder</h2>
           <div class="fieldrow__text">
-            <p data-rise>Point the office at one folder on the NAS. That is the whole server.</p>
-            <p data-rise>See who is online. Publish a project; colleagues clone it and are offered each revision you publish afterwards. Send a project to a colleague’s inbox with a note. Post an announcement and it sits at the top of everyone’s Home. No server, no account, no internet.</p>
+            <p data-rise>Point the office at one folder on the NAS. That is the whole hub.</p>
+            <p data-rise>See who is online. Publish a project; colleagues clone it and are offered each revision you publish afterwards. Send a project to a colleague’s inbox with a note. Post an announcement and it sits at the top of everyone’s Home.</p>
           </div>
         </div>
-        <figure class="shot" data-rise>
-          <img src="assets/screens/team-light.png" width="1400" height="860" loading="lazy" alt="The Team Hub page: three colleagues online, published projects with their revision numbers and Clone buttons, an inbox with a project sent by Priya, and the announcement about the Z: drive.">
+
+        <!-- The office map: one folder, seven people, one published project. Built, not photographed. -->
+        <figure class="office" id="office" aria-label="One shared folder with seven colleagues around it">
+          <svg class="office__lines" viewBox="0 0 1000 560" aria-hidden="true" preserveAspectRatio="none">
+            <line x1="500" y1="280" x2="150" y2="110"/>
+            <line x1="500" y1="280" x2="860" y2="90"/>
+            <line x1="500" y1="280" x2="110" y2="330"/>
+            <line x1="500" y1="280" x2="880" y2="300"/>
+            <line x1="500" y1="280" x2="230" y2="500"/>
+            <line x1="500" y1="280" x2="770" y2="480"/>
+            <line x1="500" y1="280" x2="500" y2="60"/>
+            <line x1="500" y1="280" x2="530" y2="510"/>
+          </svg>
+          <svg class="office__folder" viewBox="0 0 64 64" aria-hidden="true"><use href="#app-icon"/></svg>
+          <span class="disc disc--v  disc--xl is-online" style="--x:15%;--y:19.6%">V</span>
+          <span class="disc disc--y  disc--l  is-online" style="--x:86%;--y:16%">Y</span>
+          <span class="disc disc--p  disc--l  is-online" style="--x:11%;--y:59%">P<em class="disc__count">1</em></span>
+          <span class="disc disc--r  disc--m" style="--x:88%;--y:53.6%">R</span>
+          <span class="disc disc--s  disc--m" style="--x:23%;--y:89%">S</span>
+          <span class="disc disc--a  disc--s" style="--x:77%;--y:85.7%">A</span>
+          <span class="disc disc--mm disc--s" style="--x:50%;--y:10.7%">M</span>
+          <span class="disc disc--proj" style="--x:53%;--y:91%"><b>ANTEO</b><small>rev 2 · 3 clones</small></span>
+        </figure>
+        <p class="lead office__cap" data-rise>No server. No account. No internet. One folder.</p>
+
+        <figure class="proof proof--hub">
+          <img src="assets/screens/hub-strip-2x.webp" srcset="assets/screens/hub-strip-2x.webp 2270w" sizes="(max-width: 767px) calc(100vw - 32px), 760px" width="2270" height="830" loading="lazy" alt="The Team Hub page: Priya, Ravi and Yokesh online with what each is working in, and three published projects with their revision and a Clone button.">
         </figure>
       </div>
     </section>
 
-    <!-- 4 · Palette -->
-    <section class="sec beside wrap" id="search" aria-labelledby="search-h">
-      <figure class="shot shot--crop shot--mat" data-rise>
-        <img src="assets/screens/palette-light.png" width="1400" height="860" loading="lazy" alt="The command palette open over the app, with “open p12” typed and results for opening the project, its two launch sets and its working folder.">
-      </figure>
-      <div class="beside__text">
-        <h2 class="heading" id="search-h" data-rise>Find anything with Ctrl+K</h2>
-        <p class="statement" data-rise>Type three letters of a job number and press Enter. Projects, launch sets, folders and settings are all one keystroke away.</p>
-      </div>
-    </section>
-
-    <!-- 5 · Updates -->
-    <section class="sec field field--mint" id="updates" aria-labelledby="updates-h">
-      <div class="wrap">
-        <h2 class="heading" id="updates-h" data-rise>Updates arrive by themselves</h2>
-        <div class="threecol">
-          <div data-rise>
-            <h3 class="sub">From the office LAN first</h3>
-            <p>The app looks at the hub’s mirror before it looks anywhere else, so the whole office updates without touching the internet. An admin mirrors a release once.</p>
-          </div>
-          <div data-rise>
-            <h3 class="sub">Then from GitHub</h3>
-            <p>On a connected PC it checks the latest release, verifies the SHA-256 of the download, installs silently and restarts where you left off.</p>
-          </div>
-          <figure class="shot" data-rise>
-            <img src="assets/screens/home-dark.png" width="1400" height="860" loading="lazy" alt="The Home page in the dark theme: the same greeting, KPI strip, project cards and side panels on near-black surfaces with light text.">
-            <figcaption>Dark theme</figcaption>
+    <!-- 4 · Search -->
+    <section class="sec wrap" id="search" aria-labelledby="search-h">
+      <h2 class="heading" id="search-h" data-rise>Three letters. Enter.</h2>
+      <div class="two">
+        <div class="two__text">
+          <p class="statement" data-rise>Type three letters of a job number and press Enter. Projects, launch sets and folders are one keystroke away.</p>
+          <figure class="proof proof--palette">
+            <img src="assets/screens/palette-2x.webp" srcset="assets/screens/palette-2x.webp 1356w" sizes="(max-width: 767px) calc(100vw - 32px), (max-width: 1023px) calc(100vw - 48px), 560px" width="1356" height="600" loading="lazy" alt="The command palette with “check” typed: Check for updates, the Checking launch set, the P12513 project, Re-check all paths and Iso checklist.pdf.">
+          </figure>
+        </div>
+        <div class="two__fig">
+          <figure class="palette" id="palette" aria-label="The command palette, built">
+            <div class="keys" aria-hidden="true"><kbd class="keycap">Ctrl</kbd><kbd class="keycap">K</kbd></div>
+            <p class="typed"><span class="typed__t">open p12</span><span class="caret" aria-hidden="true"></span></p>
+            <ol class="results">
+              <li class="result"><svg aria-hidden="true"><use href="#i-compass"/></svg><div class="result__t"><b>P12513 As-built isometrics</b><small>RLM red-line cross-check lot 7</small></div><span class="result__k">Project</span></li>
+              <li class="result"><svg aria-hidden="true"><use href="#i-rocket"/></svg><div class="result__t"><b>Checking</b><small>Launch set in P12513 As-built isometrics</small></div><span class="result__k">Launch set</span></li>
+              <li class="result"><svg aria-hidden="true"><use href="#i-folder"/></svg><div class="result__t"><b>Working folder</b><small>C:\Temp\po-demo</small></div><span class="result__k">Folder</span></li>
+              <li class="result"><svg aria-hidden="true"><use href="#i-settings"/></svg><div class="result__t"><b>Open Settings</b><small>Action</small></div><span class="result__k">Action</span></li>
+            </ol>
           </figure>
         </div>
       </div>
     </section>
 
-    <!-- 6 · Download -->
-    <section class="sec download wrap" id="download" aria-labelledby="dl-h">
-      <h2 class="heading" id="dl-h" data-rise>Install in under a minute.</h2>
-      <div class="download__ctas" data-rise>
-        <a class="pill pill--primary" href="https://github.com/dexterity-admin/project-opener/releases/latest" data-dl="installer">
-          <span class="pill__disc"><svg aria-hidden="true"><use href="#i-download"/></svg></span>
-          <span class="pill__label"><span class="pill__l1">Download for Windows</span><span class="pill__l2">v<span data-version>3.1.0</span> · installer</span></span>
-        </a>
-        <a class="pill pill--outline" href="https://github.com/dexterity-admin/project-opener/releases/latest" data-dl="portable">
-          <span class="pill__disc"><svg aria-hidden="true"><use href="#i-zip"/></svg></span>
-          <span class="pill__label"><span class="pill__l1">Portable zip</span><span class="pill__l2">no install · unzip and run</span></span>
-        </a>
+    <!-- 5 · Updates: the page's one dark section -->
+    <section class="sec dark" id="updates" aria-labelledby="updates-h">
+      <div class="wrap dark__grid">
+        <h2 class="heading" id="updates-h" data-rise>Updates arrive by themselves</h2>
+        <div class="dark__text">
+          <div class="dark__cols">
+            <div data-rise>
+              <h3 class="sub">From the office LAN first</h3>
+              <p>The app looks at the hub’s mirror before it looks anywhere else, so the whole office updates without touching the internet. An admin mirrors a release once.</p>
+            </div>
+            <div data-rise>
+              <h3 class="sub">Then from GitHub</h3>
+              <p>On a connected PC it checks the latest release, verifies the SHA-256 of the download, installs silently and restarts where you left off.</p>
+            </div>
+          </div>
+        </div>
+        <figure class="dark__shot">
+          <img src="assets/screens/home-dark-2x.webp" srcset="assets/screens/home-dark-2x.webp 2800w" sizes="(max-width: 1023px) 100vw, 60vw" width="2800" height="1720" loading="lazy" alt="The Home page in the dark theme: the same greeting, announcement, KPI strip and project cards on near-black surfaces with light text.">
+        </figure>
       </div>
-      <p class="download__line" data-rise>Windows 10/11 · per-user install, no admin rights · or install from the office LAN hub</p>
-      <p class="download__all" data-rise><a class="textlink" href="https://github.com/dexterity-admin/project-opener/releases">All downloads on GitHub</a></p>
-      <figure class="shot shot--mat download__shot" data-rise>
-        <img src="assets/screens/home-light.png" width="1400" height="860" loading="lazy" alt="The Home page in the light theme after install: the greeting, the announcement, the KPI strip, pinned and recent projects with Open buttons, and the Needs attention, Team pulse and Recent activity panels.">
-        <figcaption>Home, light theme</figcaption>
-      </figure>
+    </section>
+
+    <!-- 6 · Download: the mint field, the one centred moment -->
+    <section class="sec field field--mint download" id="download" aria-labelledby="dl-h">
+      <div class="wrap">
+        <h2 class="heading" id="dl-h" data-rise>Install it.</h2>
+        <div class="download__ctas">
+          <a class="pill pill--primary" href="https://github.com/dexterity-admin/project-opener/releases/download/v3.1.0/ProjectOpener-Setup-3.1.0.exe" data-dl="installer">
+            <span class="pill__disc"><svg aria-hidden="true"><use href="#i-download"/></svg></span>
+            <span class="pill__label"><span class="pill__l1">Download for Windows</span><span class="pill__l2">Installer, v<span data-version>3.1.0</span>, <span data-size="installer">35 MB</span></span></span>
+          </a>
+          <a class="pill pill--outline" href="https://github.com/dexterity-admin/project-opener/releases/download/v3.1.0/ProjectOpener-Portable-3.1.0.zip" data-dl="portable">
+            <span class="pill__disc"><svg aria-hidden="true"><use href="#i-zip"/></svg></span>
+            <span class="pill__label"><span class="pill__l1">Portable zip</span><span class="pill__l2">Unzip and run, <span data-size="portable">53 MB</span></span></span>
+          </a>
+        </div>
+        <p class="download__line" data-rise>Per-user install on Windows 10 or 11, no admin rights. The office hub can install it too.</p>
+        <p class="download__all" data-rise><a class="textlink" href="https://github.com/dexterity-admin/project-opener/releases">All downloads on GitHub</a></p>
+      </div>
     </section>
 
   </main>
 
-  <!-- 7 · Ending -->
+  <!-- 7 · Ending: the name fitted to the page width -->
   <footer class="end wrap" aria-labelledby="end-h">
-    <h2 class="display end__name" id="end-h" data-rise>Project Opener</h2>
-    <div class="end__lines" data-rise>
-      <p>Built in-house at Dexterity Design Services Pvt. Ltd. · <a href="https://github.com/dexterity-admin/project-opener">Source on GitHub</a></p>
-      <p class="end__licence">© 2026 Dexterity Design Services Pvt. Ltd. Internal software, all rights reserved. Qt and PySide6 under LGPL-3.0.</p>
+    <h2 class="display end__name" id="end-h"><span class="end__fit">Project Opener</span></h2>
+    <div class="end__row">
+      <a class="pill pill--primary pill--one" href="https://github.com/dexterity-admin/project-opener/releases/download/v3.1.0/ProjectOpener-Setup-3.1.0.exe" data-dl="installer">
+        <span class="pill__disc"><svg aria-hidden="true"><use href="#i-download"/></svg></span>
+        <span class="pill__label"><span class="pill__l1">Download for Windows</span></span>
+      </a>
+      <a class="pill pill--outline pill--one" href="https://github.com/dexterity-admin/project-opener/releases/download/v3.1.0/ProjectOpener-Portable-3.1.0.zip" data-dl="portable">
+        <span class="pill__disc"><svg aria-hidden="true"><use href="#i-zip"/></svg></span>
+        <span class="pill__label"><span class="pill__l1">Portable zip</span></span>
+      </a>
+    </div>
+    <div class="end__lines">
+      <p>Built in-house at Dexterity Design Services Pvt. Ltd. <a href="https://github.com/dexterity-admin/project-opener">Source on GitHub</a></p>
+      <p>© 2026 Dexterity Design Services Pvt. Ltd. Internal software, all rights reserved. Qt and PySide6 under LGPL-3.0.</p>
     </div>
   </footer>
 </body>

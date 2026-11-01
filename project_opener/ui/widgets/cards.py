@@ -29,6 +29,11 @@ from project_opener.ui.widgets.common import (
 )
 
 
+def plural(n: int, word: str) -> str:
+    """"1 item", "2 items", "0 launch sets"."""
+    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+
+
 def relative_time(iso: str | None) -> str:
     dt = M.parse_iso(iso)
     if not dt:
@@ -264,7 +269,7 @@ class ProjectRow(QFrame):
         name.setFont(theme.ui_font(t.font_size, 600))
         lay.addWidget(name)
         sub = " · ".join(x for x in (project.client, project.job_number) if x) or project.description
-        sl = ElidedLabel(sub or f"{len(project.items)} items", mode=Qt.TextElideMode.ElideRight)
+        sl = ElidedLabel(sub or plural(len(project.items), "item"), mode=Qt.TextElideMode.ElideRight)
         sl.setObjectName("muted")
         lay.addWidget(sl, 1)
         for tag in project.tags[:2]:

@@ -9,7 +9,7 @@ from project_opener.lan.hub import InboxMessage, PublishedProject
 from project_opener.ui import icons, theme
 from project_opener.ui.context import AppContext
 from project_opener.ui.views.base import Page, badge, clear_layout, row_widget
-from project_opener.ui.widgets.cards import relative_time
+from project_opener.ui.widgets.cards import plural, relative_time
 from project_opener.ui.widgets.common import Avatar, Button, IconButton, label
 from project_opener.ui.widgets.dialogs import AnnouncementDialog, confirm
 from project_opener.ui.widgets.empty import EmptyState
@@ -176,7 +176,7 @@ class TeamPage(Page):
         lay.addLayout(top)
         if pub.description:
             lay.addWidget(label(pub.description, "muted", wrap=True))
-        lay.addWidget(label(f"{len(p.items)} items · {len(p.launch_sets)} launch sets", "faint"))
+        lay.addWidget(label(f"{plural(len(p.items), 'item')} · {plural(len(p.launch_sets), 'launch set')}", "faint"))
         row = QHBoxLayout()
         if have:
             row.addWidget(badge("In my workspace", "ok"))
@@ -238,7 +238,7 @@ class TeamPage(Page):
         col.addWidget(title)
         if m.message:
             col.addWidget(label(f"“{m.message}”", "muted", wrap=True))
-        col.addWidget(label(f"{len(m.project.items)} items · {relative_time(m.sent_at).lower()}", "faint"))
+        col.addWidget(label(f"{plural(len(m.project.items), 'item')} · {relative_time(m.sent_at).lower()}", "faint"))
         lay.addLayout(col, 1)
         acc = Button("Accept", "fa5s.check")
         acc.clicked.connect(lambda: self._accept(m))

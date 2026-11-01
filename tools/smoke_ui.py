@@ -71,6 +71,11 @@ def seed(data_dir: Path, hub_dir: Path) -> None:
     hub2 = TeamHub(hub_dir, user="priya", display_name="Priya", role="Checker")
     hub2.heartbeat(current_project="P14414 GAD")
     hub2.send(M.current_user(), p3, "Have a look at the Mangala bundle before the review.")
+    hub2.publish(M.Project.from_dict(p3.to_dict()), description="GAD review bundle, rev B drawings")
+    hub3 = TeamHub(hub_dir, user="ravi", display_name="Ravi", role="Designer")
+    hub3.heartbeat(current_project="Navisworks clash review")
+    hub3.publish(M.Project.from_dict(p4.to_dict()), description="Clash review set for the Tuesday meeting")
+    hub3.pulse("published", "Navisworks clash review")
 
 
 def main() -> int:
@@ -104,7 +109,7 @@ def main() -> int:
     s.hub_path = str(hub_dir)
     s.display_name = "Vikram"
     s.role = "Piping QA"
-    s.variables = {"{SERVER_ROOT}": r"\\nas01\Project"}
+    s.variables = {"{SERVER_ROOT}": str(Path(tempfile.gettempdir()) / "po-demo-server")}  # folder absent -> Not found
     s.update_check = False
     s.presence_udp = False
     s.first_run_done = True
@@ -136,7 +141,7 @@ def main() -> int:
     win.ctx.settings.view_mode = "grid"
     first = ctx.store.projects[0]
     win.open_project(first)
-    for _ in range(20):           # wait for the path-health pass so the pills show real states
+    for _ in range(60):           # wait for the path-health pass (slow UNC probes) so the pills show real states
         if all(ctx.health_for(p.id) is not None for p in ctx.store.projects):
             break
         QTest.qWait(250)
