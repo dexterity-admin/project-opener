@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Project Opener User Guide</title>
+<link rel="stylesheet" href="guide.css">
+<script id="meta" type="application/json">
+{"title": "Project Opener User Guide", "doc_no": "DDSP-IT-POP-UG-001", "rev": "0",
+ "company": "Dexterity Design Services Private Limited", "classification": "Internal use only",
+ "subject": "User guide for Project Opener 3.2 for Windows 10 / 11", "keywords": "Project Opener, Dexterity, user guide, launch bundle, Team Hub"}
+</script>
+</head>
+<body>
+
+<!-- ===================================================== COVER -->
+<section class="cover">
+  <div class="cover__top">
+    <img src="dexterity-logo.png" alt="Dexterity">
+    <div class="cover__org"><b>Dexterity Design Services Private Limited</b><br>Internal tools · Official usage document</div>
+  </div>
+  <div class="cover__title">
+    <img src="../../project_opener/resources/icon/app-256.png" alt="">
+    <div><h1>Project Opener</h1><p class="sub">User Guide: open a whole job with one click</p></div>
+  </div>
+  <div class="cover__rule"></div>
+  <p class="cover__lead">This guide explains every screen, button and setting in Project Opener, the in-house tool
+  Dexterity Design Services uses to open everything a job needs (isometrics, line lists, working folders,
+  submission shares, links, applications) with one click, to share those bundles over the office LAN, and to
+  keep every PC on the same version. Each section shows a screenshot of the option and explains what it does.
+  It is written for all DDSP staff who have Project Opener installed.</p>
+  <div class="cover__control">
+    <table class="control">
+      <tr><th colspan="2">Document control</th></tr>
+      <tr><td>Document No.</td><td>DDSP-IT-POP-UG-001</td></tr>
+      <tr><td>Revision</td><td>0 (first issue)</td></tr>
+      <tr><td>Date</td><td>01-Nov-2026</td></tr>
+      <tr><td>Applies to</td><td>Project Opener version 3.2.0 for Windows 10 / 11</td></tr>
+      <tr><td>Issued by</td><td>Office of the Managing Director</td></tr>
+      <tr><td>Approved by</td><td>Fredrick, Managing Director</td></tr>
+      <tr><td>Classification</td><td>Internal use only. Do not share outside DDSP.</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ===================================================== CONTENTS -->
+<section class="sec toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><span class="n">1</span><span class="t">Introduction</span><span class="toc-page" data-sec="1"></span></li>
+    <li><span class="n">2</span><span class="t">Installation and first start</span><span class="toc-page" data-sec="2"></span></li>
+    <li><span class="n">3</span><span class="t">The window at a glance</span><span class="toc-page" data-sec="3"></span></li>
+    <li><span class="n">4</span><span class="t">Home</span><span class="toc-page" data-sec="4"></span></li>
+    <li><span class="n">5</span><span class="t">Projects</span><span class="toc-page" data-sec="5"></span></li>
+    <li><span class="n">6</span><span class="t">Creating and editing a project</span><span class="toc-page" data-sec="6"></span></li>
+    <li><span class="n">7</span><span class="t">Items: files, folders, links, applications and commands</span><span class="toc-page" data-sec="7"></span></li>
+    <li><span class="n">8</span><span class="t">Launch sets</span><span class="toc-page" data-sec="8"></span></li>
+    <li><span class="n">9</span><span class="t">Opening a project</span><span class="toc-page" data-sec="9"></span></li>
+    <li><span class="n">10</span><span class="t">Path health and portable paths</span><span class="toc-page" data-sec="10"></span></li>
+    <li><span class="n">11</span><span class="t">The command palette</span><span class="toc-page" data-sec="11"></span></li>
+    <li><span class="n">12</span><span class="t">Team Hub</span><span class="toc-page" data-sec="12"></span></li>
+    <li><span class="n">13</span><span class="t">Updates</span><span class="toc-page" data-sec="13"></span></li>
+    <li><span class="n">14</span><span class="t">Settings</span><span class="toc-page" data-sec="14"></span></li>
+    <li><span class="n">15</span><span class="t">Your data, backups, export and import</span><span class="toc-page" data-sec="15"></span></li>
+    <li><span class="n">16</span><span class="t">Keyboard shortcuts</span><span class="toc-page" data-sec="16"></span></li>
+    <li><span class="n">17</span><span class="t">Troubleshooting and support</span><span class="toc-page" data-sec="17"></span></li>
+  </ol>
+  <div class="conventions">
+    <h3>Conventions used in this guide</h3>
+    <p><kbd>Ctrl</kbd> + <kbd>K</kbd> means: hold Ctrl and press K. <b>Words in bold</b> are names of buttons, menus or settings
+    exactly as they appear in Project Opener. <code>Z:\Project\P12513</code> is a path as you would type it.</p>
+    <p>The screenshots show sample data (job P12513, the ANTEO and Mangala projects, colleagues Yokesh, Priya and Ravi).
+    Your screens will show your own work. Screenshots are of the light theme; the dark theme has the same layout.</p>
+    <p><b>Policy.</b> Project Opener is an internal DDSP tool. It never changes the files it opens, and deleting a project
+    inside it never deletes anything on disk. Keep the Team Hub folder on the office server; do not copy hub files to
+    personal devices.</p>
+  </div>
+</section>
+
+<!-- ===================================================== 1 -->
+<section class="sec">
+  <h2>1 Introduction</h2>
+  <p class="lead">Every job at Dexterity touches a dozen places: the isometrics on <code>Z:</code>, the submission share on
+  <code>W:</code>, the line list, the client portal, Navisworks, a Teams channel. Project Opener keeps all of them together
+  as one <b>project</b> and opens the lot with one click.</p>
+  <table class="t wrap">
+    <tr><th style="width:30mm">Job</th><th>What Project Opener does</th></tr>
+    <tr><td>Open</td><td>Opens every file, folder, link, application and command a job needs, in one go, in the order you set. Named <b>launch sets</b> (for example <i>Checking</i> or <i>Submission pack</i>) open a chosen subset.</td></tr>
+    <tr><td>Check</td><td>Tests every path in the background and tells you <i>before</i> you click which ones are missing, which server is offline, and which variable is not set on this PC.</td></tr>
+    <tr><td>Share</td><td>Turns any shared folder into a <b>Team Hub</b>: see who is online, publish projects for the team, clone them, send one straight to a colleague's inbox, post announcements. No server and no database.</td></tr>
+    <tr><td>Stay current</td><td>Updates itself from the office LAN first, then from GitHub, with a checksum check and a silent install. One admin mirrors an update and the whole office gets it offline.</td></tr>
+  </table>
+  <h3>How a project fits together</h3>
+  <figure class="plain"><img src="figures/fig-concept.svg" alt="A project holds items, grouped, with launch sets choosing subsets; the project can be published to the hub, cloned, or sent to an inbox"><figcaption><b>Fig. 1-1</b> A project bundles items; launch sets pick subsets; the Team Hub carries projects between PCs</figcaption></figure>
+  <dl class="kv">
+    <dt>Project</dt><dd>One job. It has a name, client and job number, a colour and icon, tags, a description, free notes, its items and its launch sets.</dd>
+    <dt>Item</dt><dd>One thing to open: a file, a folder, a link, an application (with arguments) or a command line. Each item has an on/off switch, an optional friendly label and a group.</dd>
+    <dt>Launch set</dt><dd>A named subset of a project's items that opens together, regardless of the items' switches.</dd>
+    <dt>Team Hub</dt><dd>A shared folder on the office network where Project Opener writes small files for presence, published projects, inboxes, announcements and update mirrors.</dd>
+  </dl>
+  <h3>System requirements</h3>
+  <ul>
+    <li>Windows 10 or Windows 11, 64-bit. The dark title bar needs Windows 10 version 1809 or later.</li>
+    <li>About 120 MB of disk space. The program installs for your Windows user, so no administrator rights are needed.</li>
+    <li>For the Team Hub: read and write access to one folder on a shared drive. For GitHub update checks: internet access (optional; the LAN mirror works without it).</li>
+  </ul>
+</section>
+
+<!-- ===================================================== 2 -->
+<section class="sec">
+  <h2>2 Installation and first start</h2>
+  <h3>2.1 Install</h3>
+  <ol class="steps">
+    <li>Get <b>ProjectOpener-Setup-3.2.0.exe</b> from the office hub folder <code>…\_ProjectOpenerHub\updates\</code>, or from the
+        download page <a href="https://dexterity-admin.github.io/project-opener/">dexterity-admin.github.io/project-opener</a>.</li>
+    <li>Double-click it and click <b>Install</b>. It installs into <code>%LOCALAPPDATA%\Programs\Project Opener</code> for your Windows user only.
+        Leave <b>Start Project Opener when I sign in to Windows (minimised to the tray)</b> unticked unless you want it running from sign-in; you can change this later in Settings.</li>
+    <li>Project Opener starts at the end of the installation. A Start-menu shortcut is added, and <code>projectopener://</code> links open in it.</li>
+  </ol>
+  <div class="note warn"><b>If Windows shows "Windows protected your PC" (SmartScreen)</b>, click <b>More info → Run anyway</b>. This appears because the
+  installer is an internal build. Download the installer only from the hub folder or the official page above.</div>
+  <p>A portable zip is published with every release as well. Unzip it anywhere and run <b>ProjectOpener.exe</b>; it keeps its data in the same
+  per-user folder as the installed version, so you can switch between the two.</p>
+
+  <h3>2.2 First start</h3>
+  <div class="cols w60">
+    <div>
+      <p>On a fresh PC the window opens on <b>Home</b> with an empty workspace, and a welcome message suggests connecting a Team Hub folder.
+      Three things are worth doing in the first minute (Fig. 2-1 shows the empty Home):</p>
+      <ol class="steps">
+        <li><b>Settings → You</b>: enter your display name and role (for example <i>Piping designer</i>). Colleagues see these on the Team Hub.</li>
+        <li><b>Settings → Team Hub</b>: paste the office hub path (ask your admin; it looks like <code>\\nas01\Project\_ProjectOpenerHub</code>) and click <b>Connect</b>.</li>
+        <li><b>Settings → Path variables → Add my mapped drives</b>: this records that, on your PC, <code>Z:</code> means <code>\\nas01\Project</code>, so projects shared by colleagues open here even if their drive letters differ (section 10).</li>
+      </ol>
+    </div>
+    <figure><img src="figures/fig-first-run.png" alt="Home on first start, empty workspace with the welcome toast"><figcaption><b>Fig. 2-1</b> First start: an empty Home with the welcome message</figcaption></figure>
+  </div>
+
+  <h3>2.3 Coming from Project Opener 1.x or 2.x</h3>
+  <ul>
+    <li><b>1.x</b>: your projects are imported automatically the first time version 3 starts, if it finds <code>%APPDATA%\ProjectOpener\projects.json</code>. A message says how many came across. The 1.x files are not changed. You can repeat this later from <b>Settings → Data and backups → Import from Project Opener 1.x</b>.</li>
+    <li><b>2.x</b>: use <b>Settings → Data and backups → Import…</b> and choose your 2.x hub file (<code>&lt;user&gt;.json</code>). Each 2.x activity becomes a group of items and a launch set with the same name.</li>
+  </ul>
+  <div class="note tip"><b>Tip.</b> Updates never touch your projects or settings. They live in <code>%APPDATA%\DexterityDesign\ProjectOpener\</code>, with 30 automatic backups (section 15).</div>
+</section>
+
+<!-- ===================================================== 3 -->
+<section class="sec">
+  <h2>3 The window at a glance</h2>
+  <figure><img src="figures/fig-window.png" alt="The main window: sidebar on the left, Home page on the right"><figcaption><b>Fig. 3-1</b> The main window, Home page</figcaption></figure>
+  <table class="t wrap">
+    <tr><th style="width:34mm">Area</th><th>Purpose</th></tr>
+    <tr><td>Sidebar (left)</td><td><b>Search</b> (<kbd>Ctrl</kbd> + <kbd>K</kbd>) and the five pages: <b>Home</b>, <b>Projects</b>, <b>Team Hub</b> (with a badge when something is in your inbox), <b>Updates</b>, <b>Settings</b>. At the bottom: the hub status (<i>Team Hub not connected</i>, <i>Hub connected · N online</i>, <i>Hub unreachable</i>) and your name; click your name to open the <b>You</b> settings. The arrow at the top collapses the sidebar to icons (<kbd>Ctrl</kbd> + <kbd>B</kbd>).</td></tr>
+    <tr><td>Page</td><td>The current page. The project detail page (section 7) is reached from a project; it is not in the sidebar.</td></tr>
+    <tr><td>Toasts (bottom right)</td><td>Short messages: what opened, what failed, who sent you a project, an update is available. Some carry one button (<b>Open project</b>, <b>Open Updates</b>, <b>Open inbox</b>). They disappear by themselves. While the window is hidden, they appear as Windows notifications instead.</td></tr>
+  </table>
+  <h3>3.1 The notification-area (tray) icon</h3>
+  <div class="cols w60">
+    <div>
+      <p>Project Opener keeps running in the Windows notification area so a launch is always one click away.</p>
+      <ul>
+        <li><b>Click</b> the icon to show the window. <b>Right-click</b> for the menu.</li>
+        <li><b>Show Project Opener</b> restores the window. <b>Search… (Ctrl+K)</b> shows it with the command palette open.</li>
+        <li>Up to <b>ten projects</b> are listed, pinned first, then the most recently opened; clicking one opens all its enabled items without showing the window.</li>
+        <li><b>Quit</b> really closes the program and signs you off the Team Hub.</li>
+      </ul>
+      <p>Closing the window with the <b>×</b> only hides it (the first time, a balloon says so). Change this with <b>Settings → Behaviour → Keep running in the tray on close</b>.</p>
+    </div>
+    <figure class="narrow"><img src="figures/fig-tray.png" alt="Tray menu with Show, Search, project entries and Quit"><figcaption><b>Fig. 3-2</b> Tray menu</figcaption></figure>
+  </div>
+  <h3>3.2 Keyboard</h3>
+  <p>Everything is reachable by keyboard. <kbd>Ctrl</kbd> + <kbd>K</kbd> opens the command palette (section 11); <kbd>Ctrl</kbd> + <kbd>1</kbd> to <kbd>3</kbd> and <kbd>Ctrl</kbd> + <kbd>,</kbd> switch pages; <kbd>Alt</kbd> + <kbd>←</kbd> goes back; <kbd>F5</kbd> re-checks every path. Section 16 lists all of them.</p>
+</section>
+
+<!-- ===================================================== 4 -->
+<section class="sec">
+  <h2>4 Home</h2>
+  <p class="lead">Home answers one question: <i>which job do I open now, and is anything wrong with it?</i></p>
+  <figure><img src="figures/fig-home.png" alt="Home page with greeting, KPI strip, quick launch cards, needs attention and team panels"><figcaption><b>Fig. 4-1</b> Home</figcaption></figure>
+  <table class="t wrap">
+    <tr><th style="width:34mm">Panel</th><th>What it shows and does</th></tr>
+    <tr><td>Greeting</td><td><i>Good morning / afternoon / evening, &lt;your name&gt;</i>, and below it the finding line: <i>2 paths need attention in 2 projects · 3 colleagues online · 2 launches today</i>, or <i>Every linked path is reachable</i>.</td></tr>
+    <tr><td>Announcement</td><td>The newest current Team Hub announcement as one band (blue = information, amber = warning, red = critical), with its author and when it was posted; <i>+N more</i> and <b>Team Hub</b> open the Announcements tab. It disappears when it expires or its author removes it.</td></tr>
+    <tr><td>Quick launch</td><td>One row of project cards: pinned projects first, then the ones you opened most recently; <b>All projects</b> goes to the full list. The cards are the same as on the Projects page (section 5.2): <b>Open</b> opens the project, the card itself opens its detail page.</td></tr>
+    <tr><td>Drives on this PC</td><td>Every root your projects use (<code>Z:</code>, <code>D:</code>, <code>\\nas01</code>, <code>{SERVER_ROOT}</code>), one row each with its pill and how many projects use it, worst first; the heading counts how many are down. This is the first place to look when several projects go amber at once: one offline server explains them all. <b>Re-check</b> tests every path again (<kbd>F5</kbd>); <b>Review</b> opens the first project that uses that root.</td></tr>
+    <tr><td>Needs attention</td><td>The individual items that are not explained by a drive being down: a file that was moved or renamed on a drive that is otherwise fine. Each row shows the item, its project, its pill and <b>Review</b>. The panel is hidden when there is nothing unexplained.</td></tr>
+    <tr><td>Team pulse</td><td>How many colleagues are online, their avatars (hover an avatar for their PC, version and what they are working in), the latest team activity, and a button when projects are waiting in your inbox. <b>Team Hub</b> opens the hub page.</td></tr>
+    <tr><td>Recent activity</td><td>Your launches, with today's count in the heading: project, launch set if any, how many items opened, and when. A warning icon marks a launch where some paths were missing.</td></tr>
+  </table>
+  <div class="note info"><b>Why "needs attention" matters.</b> Project Opener tests every path in the background (section 10). A project listed here will still open; the items it cannot reach are simply reported after the launch. Fix the path, the mapping or the variable, press <kbd>F5</kbd>, and the project leaves the list.</div>
+</section>
+
+<!-- ===================================================== 5 -->
+<section class="sec">
+  <h2>5 Projects</h2>
+  <p class="lead">The Projects page lists every project in your workspace and finds the one you want in a few keystrokes.</p>
+  <figure><img src="figures/fig-projects.png" alt="Projects page in grid view with the search box, sort menu, tag chips and project cards"><figcaption><b>Fig. 5-1</b> Projects, grid view</figcaption></figure>
+  <h3>5.1 Finding a project</h3>
+  <table class="t wrap">
+    <tr><th style="width:38mm">Control</th><th>What it does</th></tr>
+    <tr><td>Search box (<kbd>Ctrl</kbd> + <kbd>F</kbd>)</td><td>Filters as you type. It matches the name, client, job number, description and tags first, then anything else in the project (notes, item names and paths, launch-set names). Spelling need not be exact: <i>p125 iso</i> finds <i>P12513 As-built isometrics</i>. While a search is active, the best matches come first and the sort order is ignored.</td></tr>
+    <tr><td>Sort</td><td><b>Pinned + recent</b> (pinned first, then by last opened), <b>Name</b>, <b>Last opened</b>, <b>Most used</b>, <b>Created</b>. Pinned projects always stay on top. The choice is remembered.</td></tr>
+    <tr><td>★ Only favourites</td><td>Shows only the projects you have starred.</td></tr>
+    <tr><td>Grid view / List view</td><td>Cards or compact rows. The list view fits about twice as many projects on screen; the choice is remembered.</td></tr>
+    <tr><td>Tag chips</td><td>One chip per tag used in your workspace, most used first. Click one to show only projects with that tag; click several to require all of them; click again to clear.</td></tr>
+  </table>
+  <p>The subtitle under the title counts your projects, how many are shown by the current filter, and how many are pinned.</p>
+  <h3>5.2 The project card</h3>
+  <div class="cols w40">
+    <figure><img src="figures/fig-card.png" alt="A project card with its pin and star, tags, health line, Open button, launch sets and More buttons"><figcaption><b>Fig. 5-2</b> One project card</figcaption></figure>
+    <div>
+      <table class="t wrap">
+        <tr><th>Element</th><th>Meaning</th></tr>
+        <tr><td>Pin</td><td>Pinned projects sit first everywhere: here, on Home, in the palette and in the tray menu.</td></tr>
+        <tr><td>Star</td><td>Favourite. Used by the <b>Only favourites</b> filter.</td></tr>
+        <tr><td>Title</td><td>The job number first, then the name: <i>P12513 · As-built isometrics</i>. The same spine appears on rows, in the palette, on the launch sheet and on hub cards, so a job is recognised by its number everywhere.</td></tr>
+        <tr><td>Second line</td><td>Client and description; when both are empty, what the project holds (<i>1 file · 1 link</i>).</td></tr>
+        <tr><td>Tags</td><td>The first three, then <i>+N</i>.</td></tr>
+        <tr><td>Health line</td><td>A dot (green: all paths reachable; amber: some need attention; red: a server is offline; grey: still checking), then <i>6 items · opened just now</i>, or <i>4 of 6 items</i> when some are switched off, or <i>never opened</i>.</td></tr>
+        <tr><td><b>Open</b></td><td>Opens all enabled items now (section 9).</td></tr>
+        <tr><td>Launch sets</td><td>Shown only when the project has launch sets; pick one to open just that set.</td></tr>
+        <tr><td>More (⋯)</td><td>The project menu, below.</td></tr>
+      </table>
+      <p>Click anywhere else on the card to open the project's detail page.</p>
+    </div>
+  </div>
+  <h3>5.3 The project menu</h3>
+  <p>The <b>⋯</b> button on a card, a row and the detail page opens the same menu.</p>
+  <table class="t wrap">
+    <tr><th style="width:44mm">Entry</th><th>What it does</th></tr>
+    <tr><td>Open all enabled items</td><td>Same as <b>Open</b>.</td></tr>
+    <tr><td>Open launch set ▸</td><td>Opens one launch set (only shown when the project has sets).</td></tr>
+    <tr><td>View details</td><td>Opens the detail page (section 7).</td></tr>
+    <tr><td>Edit…</td><td>Opens the project editor (section 6).</td></tr>
+    <tr><td>Pin to top / Unpin</td><td>Pin or unpin.</td></tr>
+    <tr><td>Add to favourites / Remove from favourites</td><td>Star or unstar.</td></tr>
+    <tr><td>Open at start-up</td><td>When ticked, the project's enabled items open every time Project Opener starts (if <b>Settings → Behaviour → Open start-up projects</b> is on). Useful for the job you are on this month.</td></tr>
+    <tr><td>Duplicate</td><td>Makes a copy named <i>&lt;name&gt; (copy)</i> with fresh counters and no pin.</td></tr>
+    <tr><td>Publish to Team Hub…</td><td>Section 12.3.</td></tr>
+    <tr><td>Send to colleague…</td><td>Section 12.4.</td></tr>
+    <tr><td>Export as JSON…</td><td>Saves the project as one file you can mail or keep; import it with <b>Settings → Data and backups → Import…</b>.</td></tr>
+    <tr><td>Delete project</td><td>Asks for confirmation. Only the entry in Project Opener is removed; <b>the files themselves are not touched</b>.</td></tr>
+  </table>
+  <h3>5.4 Creating a project by dropping files</h3>
+  <p>Drag files or folders from Explorer onto the Projects page. The project editor opens with the name taken from the first dropped item and all dropped paths already added as items. Check the name, pick a colour and click <b>Create project</b>.</p>
+</section>
+
+<!-- ===================================================== 6 -->
+<section class="sec">
+  <h2>6 Creating and editing a project</h2>
+  <p class="lead">Click <b>New project</b> (Home or Projects; <kbd>Ctrl</kbd> + <kbd>N</kbd> anywhere) to create one, or <b>Edit</b> on a project to change it. Both open the same editor.</p>
+  <div class="cols">
+    <figure><img src="figures/fig-project-editor.png" alt="The New project dialog: name, client and job, description, colour swatches, icon grid, tags, notes, auto-launch switch"><figcaption><b>Fig. 6-1</b> New project</figcaption></figure>
+    <div>
+      <table class="t wrap">
+        <tr><th>Field</th><th>Notes</th></tr>
+        <tr><td>Name</td><td>Required. Use the job number and the job: <i>P12513 As-built isometrics</i>. The icon on the left shows the colour and icon as they will appear. If the box is left empty, the dialog outlines it and says so.</td></tr>
+        <tr><td>Client, Job number</td><td>Both are searchable and shown under the name.</td></tr>
+        <tr><td>Description</td><td>One line. Shown on the card when there is no client or job, and to the team when you publish.</td></tr>
+        <tr><td>Colour</td><td>Twelve swatches, or the eyedropper for any colour. The colour marks the project everywhere, including the tray menu.</td></tr>
+        <tr><td>Icon</td><td>Twenty-four trade icons: drafting, diagram, plant, oil &amp; gas, power, water, fire, mechanical, 3D model, QA / check, submission, marine, site, process, and so on.</td></tr>
+        <tr><td>Tags</td><td>Type a tag and press <kbd>Enter</kbd> or <b>Add</b> (or separate several with commas). Tags you already use elsewhere are offered as <i>+ tag</i> chips; click one to add it. Click the × on a tag to remove it.</td></tr>
+        <tr><td>Open at start-up</td><td>Same as the menu entry in section 5.3.</td></tr>
+      </table>
+    </div>
+  </div>
+  <p><b>Create project</b> (or <b>Save</b> when editing; <kbd>Enter</kbd> does the same) closes the editor and takes you to the project's detail page, where you add its items and write its notes. A new project with a name that already exists gets <i>(2)</i> appended rather than being refused.</p>
+  <div class="note tip"><b>Tip.</b> Pin, favourite and notes are not in the editor: use the pin and star on the card, or the project menu, and the <b>Notes</b> panel on the detail page.</div>
+</section>
+
+<!-- ===================================================== 7 -->
+<section class="sec">
+  <h2>7 Items: files, folders, links, applications and commands</h2>
+  <p class="lead">The project detail page is where a project's items live. It answers: <i>what is in this job, and does every path still resolve?</i></p>
+  <figure><img src="figures/fig-detail.png" alt="Project detail page: header with Open project, Edit and More; items grouped with status pills; launch sets and notes panels"><figcaption><b>Fig. 7-1</b> Project detail page</figcaption></figure>
+  <h3>7.1 The header</h3>
+  <p><b>All projects</b> returns to the list. The title is the job number and the name; the line under it shows the client and description, then pills for each tag and <i>Auto-launch</i>. The grey meta line sums the project up: <i>5 of 6 items enabled · 2 launch sets · Opened 14× · last 2 h ago · all paths reachable</i>. <b>Open project</b> opens every enabled item; <b>Edit</b> opens the editor; <b>⋯</b> is the project menu (section 5.3).</p>
+  <p>A project that came from the Team Hub shows a banner here: <i>Published by Priya · you have revision 1 · revision 2 available</i>, with an <b>Update from hub</b> button (section 12.3).</p>
+
+  <h3>7.2 Adding items</h3>
+  <div class="cols">
+    <div>
+      <p>Two buttons at the top of the <b>Items</b> panel:</p>
+      <ul>
+        <li><b>Add files</b>: choose one or more files; they are added at once.</li>
+        <li><b>Add other</b>: a menu with <b>Folder</b> (choose a folder), <b>Link</b>, <b>Application</b> and <b>Command</b>; the last three open the item dialog with the type pre-set.</li>
+      </ul>
+      <p>You can also <b>drag files, folders, applications or web links from Explorer or a browser</b> onto the page; the type is guessed from what you drop. Paths that are already in the project are skipped, and a message says how many were added.</p>
+    </div>
+    <figure><img src="figures/fig-item-editor.png" alt="The Add item dialog: path with browse buttons, type, label, arguments, group, enabled"><figcaption><b>Fig. 7-2</b> Add item</figcaption></figure>
+  </div>
+  <table class="t wrap">
+    <tr><th style="width:30mm">Field</th><th>Notes</th></tr>
+    <tr><td>Path, link or command</td><td>Required. Anything Windows can open: a file or folder (<code>Z:\Project\P12513\ISO</code>), a UNC path (<code>\\nas01\Project\…</code>), a link (<code>https://…</code>, <code>mailto:</code>, Teams and OneNote links), an application (<code>.exe</code>, <code>.bat</code>, <code>.cmd</code>, <code>.lnk</code>, <code>.msi</code>), a path with a variable (<code>{SERVER_ROOT}\P12513\Rulings.docx</code>, section 10) or an environment variable (<code>%USERPROFILE%\…</code>), or a command: <code>cmd: ipconfig</code> or <code>ps: Get-Date</code>. The two buttons beside the box browse for a file or a folder.</td></tr>
+    <tr><td>Type</td><td><b>File</b>, <b>Folder</b>, <b>Link</b>, <b>Application</b>, <b>Command</b>. Guessed from the path as you type a new item; check it. A web address typed without <code>https://</code> is guessed as a file, so type the full address.</td></tr>
+    <tr><td>Label</td><td>A friendly name shown instead of the file name, for example <i>Submission share</i>.</td></tr>
+    <tr><td>Arguments</td><td>For applications only: what to pass on the command line, for example <code>"{SERVER_ROOT}\model.dgn"</code>. Quote arguments that contain spaces.</td></tr>
+    <tr><td>Group</td><td>Items are listed under their group on the page: <i>Drawings</i>, <i>References</i>, <i>Tools</i>. Pick an existing group or type a new name; blank means ungrouped.</td></tr>
+    <tr><td>Opens with the project</td><td>On by default. Turn it off to keep an item in the project without opening it with <b>Open project</b>.</td></tr>
+  </table>
+  <p><b>Add item</b> (or <b>Save</b>) closes the dialog. An empty path is refused with the box outlined and the reason shown above the buttons.</p>
+
+  <h3>7.3 The item row</h3>
+  <figure><img src="figures/fig-item-rows.png" alt="Item rows: switch, icon, name and path, status pill, open, show in Explorer and more buttons"><figcaption><b>Fig. 7-3</b> Item rows with their status pills</figcaption></figure>
+  <table class="t wrap">
+    <tr><th style="width:36mm">Control</th><th>What it does</th></tr>
+    <tr><td>Switch</td><td>Enabled or not. Disabled items are dimmed and skipped by <b>Open project</b>, but still open from their own button and from any launch set that contains them.</td></tr>
+    <tr><td>Name and path</td><td>The label or file name, and the path. A UNC path is shown with <i>your</i> drive letter when one is mapped to it. Arguments are shown after the path.</td></tr>
+    <tr><td>Status pill</td><td><span class="pill ok">Reachable</span> <span class="pill warn">Not found</span> <span class="pill bad">Server offline</span> <span class="pill warn">Undefined variable</span> <span class="pill neutral">Checking…</span> — see section 10.1. Hover for the resolved path or the reason.</td></tr>
+    <tr><td>Open this item</td><td>Opens just this item. Double-clicking the row does the same.</td></tr>
+    <tr><td>Show in Explorer</td><td>Selects the file, or opens the folder, in Windows Explorer (files, folders and applications).</td></tr>
+    <tr><td>More (⋮)</td><td><b>Edit…</b>, <b>Copy path</b> (copies the path exactly as stored, variables included), <b>Open terminal here</b> (a Windows Terminal or Command Prompt in the item's folder), <b>Remove</b> (asks first and says that the file itself is not touched; the item also leaves every launch set).</td></tr>
+  </table>
+  <h3>7.4 Notes</h3>
+  <p>The <b>Notes</b> panel is a plain text box for contacts, conventions and reminders. It saves itself a moment after you stop typing. Notes are searched by the Projects search box and are kept when you update a project from the hub.</p>
+</section>
+
+<!-- ===================================================== 8 -->
+<section class="sec">
+  <h2>8 Launch sets</h2>
+  <p class="lead">A launch set is a named subset of a project's items that opens together, in an order you choose: <i>Checking</i> (1 the iso checklist, 2 the line list), <i>Submission pack</i> (1 the working folder, 2 the submission share), <i>Morning start</i>. Think of it as the trade's checklist for one task.</p>
+  <div class="cols">
+    <div>
+      <ol class="steps">
+        <li>On the project detail page, click <b>+</b> in the <b>Launch sets</b> panel. (The project needs at least one item first.)</li>
+        <li>Give the set a name and, if you like, an icon.</li>
+        <li>Tick the items that belong to it. <b>Select all</b> and <b>Select none</b> help with long lists; the dialog counts <i>N of M items selected</i> and refuses an empty set.</li>
+        <li>Put them in the order they should open with <b>Move up</b> and <b>Move down</b>. The numbers are the launch order; the sheet (section 9.1) shows the same numbers while it opens them.</li>
+        <li>Click <b>Create launch set</b>.</li>
+      </ol>
+      <p>Each set is listed with its numbered steps (<i>1 Iso checklist.pdf · 2 Line list.xlsx</i>) and an <b>Open</b> button. The pencil edits it; the bin deletes it (the items stay in the project).</p>
+      <p>Launch sets are also offered on the project card (the layers icon), in the project menu (<b>Open launch set ▸</b>) and in the command palette, where typing the set's name finds it directly.</p>
+      <div class="note info"><b>Switches do not apply to sets.</b> A launch set opens exactly the items you ticked, whether or not their switch on the detail page is on. Use the switch for <b>Open project</b>; use sets for named jobs.</div>
+    </div>
+    <figure><img src="figures/fig-launchset-editor.png" alt="The New launch set dialog with name, icon and a checklist of items"><figcaption><b>Fig. 8-1</b> New launch set</figcaption></figure>
+  </div>
+</section>
+
+<!-- ===================================================== 9 -->
+<section class="sec">
+  <h2>9 Opening a project</h2>
+  <p class="lead">Six ways to open, all of them one action: <b>Open</b> on a card or row; <b>Open project</b> on the detail page; a launch set; a project in the tray menu; a <code>projectopener://open/…</code> link; and auto-launch at start-up.</p>
+  <h3>9.1 The launch sheet</h3>
+  <figure><img src="figures/fig-launch.png" alt="The launch sheet: one row per item with its status pill, a footer with the counts and elapsed time, and the project's launch sets"><figcaption><b>Fig. 9-1</b> The launch sheet after opening P12513: four items opened, one server offline, one file not found</figcaption></figure>
+  <p>The moment you open a project, a sheet appears over the page and shows what is happening, item by item:</p>
+  <ol class="steps">
+    <li>Project Opener collects the enabled items (or the launch set's items, in the set's order) and resolves variables and drive letters for this PC (section 10.2). Each row is a numbered step under its group, with the item's icon, name and resolved path.</li>
+    <li>Items open one after another with a short pause between them (<b>Settings → Behaviour → Pause between items</b>, 350 ms by default) so that each application gets its window up. The row being tried reads <span class="pill neutral">Opening…</span>; then its pill settles on <span class="pill ok">Opened</span>, <span class="pill warn">Not found</span>, <span class="pill bad">Server offline</span>, <span class="pill warn">Undefined variable</span> or <span class="pill bad">Failed</span> (hover a Failed pill for the reason). One dead path never stops the others.</li>
+    <li>The footer sums it up: <b>4 opened</b> · 2 not opened · 2.8 s (<i>skipped</i> is used only for items that were switched off). On the right, the project's launch sets are offered as small buttons, so <i>Checking</i> is one more click away.</li>
+    <li>When every item opened, the sheet closes by itself after a moment. When anything did not, it stays until you press <kbd>Esc</kbd> or the ×, so nothing is missed. If the window is hidden (a tray launch), a Windows notification carries the summary instead.</li>
+  </ol>
+  <p>If there are more than eight items (<b>Confirm when opening more than</b>, in Settings), Project Opener asks <i>Open many items?</i> first. Afterwards the project's <i>Opened N×</i> counter and <i>last opened</i> time are updated, the launch appears under <b>Recent activity</b> on Home, and, if you share your activity, colleagues see <i>Vikram opened P12513 › Checking</i> on the hub.</p>
+  <table class="t wrap">
+    <tr><th style="width:30mm">Item type</th><th>How it opens</th></tr>
+    <tr><td>File</td><td>With its default program, as a double-click in Explorer would.</td></tr>
+    <tr><td>Folder</td><td>In Windows Explorer.</td></tr>
+    <tr><td>Link</td><td>In your default browser, or in Teams, OneNote or your mail program for their link types.</td></tr>
+    <tr><td>Application</td><td>Started from its own folder with the arguments you gave. Without arguments it is opened through the Windows shell, so shortcuts and applications that ask for elevation behave as usual.</td></tr>
+    <tr><td>Command</td><td><code>cmd:</code> runs in a Command Prompt window that stays open; <code>ps:</code> runs in a PowerShell window that stays open. Variables are substituted first.</td></tr>
+  </table>
+  <h3>9.2 Auto-launch at start-up</h3>
+  <p>Tick <b>Open at start-up</b> in a project's menu or editor, and keep <b>Settings → Behaviour → Open start-up projects</b> on. About a second after Project Opener starts, those projects' enabled items open, and a toast lists them. Combine it with <b>Start with Windows</b> and your job is open before you have sat down.</p>
+  <h3>9.3 Links that open a project</h3>
+  <p>The installer registers the <code>projectopener://</code> protocol. A link of the form <code>projectopener://open/P12513 As-built isometrics</code> (the project's exact name) opens that project's enabled items from a browser, a Teams message, an e-mail or a desktop shortcut. If Project Opener is already running, the running copy handles it.</p>
+</section>
+
+<!-- ===================================================== 10 -->
+<section class="sec">
+  <h2>10 Path health and portable paths</h2>
+  <p class="lead">Paths are the data. Project Opener never guesses or rewrites one silently; it tests each one and tells you what it found.</p>
+  <h3>10.1 The five states</h3>
+  <table class="t wrap">
+    <tr><th style="width:34mm">Pill</th><th>Exact meaning</th><th style="width:48mm">What to do</th></tr>
+    <tr><td class="pill-cell"><span class="pill ok">Reachable</span></td><td>The resolved path exists on this PC. Links and commands are never tested, so they always show Reachable: it does not mean the web page is up.</td><td>Nothing.</td></tr>
+    <tr><td class="pill-cell"><span class="pill warn">Not found</span></td><td>The path does not exist: the file was moved or renamed, the mapped drive is disconnected, or the server answers but the folder is gone.</td><td>Fix the path with <b>Edit…</b>, or reconnect the drive, then press <kbd>F5</kbd>.</td></tr>
+    <tr><td class="pill-cell"><span class="pill bad">Server offline</span></td><td>A UNC path whose server does not answer on the file-sharing port (445) within 0.8 s. The card's dot turns red.</td><td>Wait for the server, or check your network. Nothing to fix in the project.</td></tr>
+    <tr><td class="pill-cell"><span class="pill warn">Undefined variable</span></td><td>The path contains <code>{NAME}</code> and this PC has no value for it in <b>Settings → Path variables</b>.</td><td>Add the variable with the value for this PC (section 10.2).</td></tr>
+    <tr><td class="pill-cell"><span class="pill neutral">Checking…</span></td><td>No result yet. Checks run in the background at start-up, after edits and launches, and on <kbd>F5</kbd>.</td><td>Wait a moment.</td></tr>
+  </table>
+  <h3>10.2 Portable paths: variables and mapped drives</h3>
+  <p>Drive letters differ from PC to PC: <code>Z:</code> is <code>\\nas01\Project</code> on your desk and <code>\\nas01\Project</code> is <code>P:</code> on Priya's. Project Opener handles this in two ways, and the <b>Drives on this PC</b> block on Home (section 4) shows the result per root: one row for <code>Z:</code>, one for <code>\\nas01</code>, one for <code>{SERVER_ROOT}</code>.</p>
+  <figure class="plain"><img src="figures/fig-paths.svg" alt="A drive-letter path on one PC becomes a UNC path on the hub and is shown with the other PC's own drive letter"><figcaption><b>Fig. 10-1</b> One path, three PCs</figcaption></figure>
+  <dl class="kv">
+    <dt>Mapped-drive variables</dt>
+    <dd>Click <b>Settings → Path variables → Add my mapped drives</b> once on each PC. It adds a variable per network drive, for example <code>{Z_DRIVE}</code> = <code>\\nas01\Project</code>. When you publish or send a project, drive letters that are mapped to a network share are converted to their UNC form, so the project opens on every PC. When a project arrives with a drive letter this PC does not have, but a <code>{X_DRIVE}</code> variable says where that letter points, the letter is swapped automatically. On the detail page, UNC paths are shown with <i>your</i> drive letter.</dd>
+    <dt>Named variables</dt>
+    <dd>For anything else, use <code>{NAME}</code> in a path and give it a value per PC: <code>{SERVER_ROOT}\P12513\Rulings.docx</code> with <code>{SERVER_ROOT}</code> = <code>\\nas01\Project</code> here and <code>D:\Mirror</code> on the laptop. Names are upper case letters, digits and underscores; the editor normalises <i>server root</i> to <code>{SERVER_ROOT}</code>. Windows environment variables such as <code>%USERPROFILE%</code> work too.</dd>
+  </dl>
+  <p>Resolution order, before every test and every launch: 1) <code>{VARIABLES}</code> from Settings, 2) <code>%ENV%</code> variables, 3) a drive letter this PC lacks is swapped for its <code>{X_DRIVE}</code> share, 4) the path is normalised. A path with an undefined variable stops at step 1 and is reported as such; nothing is run.</p>
+</section>
+
+<!-- ===================================================== 11 -->
+<section class="sec">
+  <h2>11 The command palette</h2>
+  <p class="lead">Press <kbd>Ctrl</kbd> + <kbd>K</kbd> anywhere, type three letters, press <kbd>Enter</kbd>.</p>
+  <div class="cols w60">
+    <figure><img src="figures/fig-palette.png" alt="The command palette with a query and results of several kinds"><figcaption><b>Fig. 11-1</b> The palette after typing a query</figcaption></figure>
+    <div>
+      <p>The palette searches four kinds of things and groups the results under <b>Projects</b>, <b>Launch sets</b>, <b>Items</b> and <b>Actions</b>:</p>
+      <table class="t wrap">
+        <tr><th>Kind</th><th>Enter does</th></tr>
+        <tr><td>Project</td><td>Opens its detail page (it does not launch it; press <b>Open project</b> there).</td></tr>
+        <tr><td>Launch set</td><td>Opens that set at once.</td></tr>
+        <tr><td>Item</td><td>Opens that one item.</td></tr>
+        <tr><td>Action</td><td>Runs it: <b>New project</b>, <b>Go to Projects</b>, <b>Go to Team Hub</b>, <b>Check for updates</b>, <b>Open Settings</b>, <b>Toggle dark / light theme</b>, <b>Re-check all paths</b>.</td></tr>
+      </table>
+      <p>With an empty box it lists your projects, pinned and recent first, then the actions with their shortcuts. When nothing matches, the footer says so. Matching is forgiving: a word start beats a substring, and the letters only need to appear in order, so <i>sub pack</i> finds <i>Submission pack</i>. Pinned projects rank higher.</p>
+      <p><kbd>↑</kbd> <kbd>↓</kbd> move, <kbd>Enter</kbd> opens, <kbd>Esc</kbd> closes. <kbd>Ctrl</kbd> + <kbd>P</kbd> is the same as <kbd>Ctrl</kbd> + <kbd>K</kbd>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== 12 -->
+<section class="sec">
+  <h2>12 Team Hub</h2>
+  <p class="lead">The Team Hub turns one shared folder into the team's notice board: who is online, what has been published, what is in your inbox, and what the team is doing. There is no server, no database and nothing to install on the file server.</p>
+  <figure><img src="figures/fig-team.png" alt="Team Hub page: online colleagues, tabs for Published projects, Inbox, Announcements and Activity"><figcaption><b>Fig. 12-1</b> Team Hub, Published projects tab</figcaption></figure>
+  <h3>12.1 Setting it up</h3>
+  <ol class="steps">
+    <li>Your admin creates one folder that every colleague can read <b>and write</b>, for example <code>\\nas01\Project\_ProjectOpenerHub</code>. (Once per office.)</li>
+    <li>On each PC: <b>Settings → Team Hub</b>, paste the path or <b>Browse…</b> to it, click <b>Connect</b>. The sidebar status turns green (<i>Hub connected · N online</i>), and the Team Hub page shows the <span class="pill ok">Connected</span> pill with the folder and the online count under the title.</li>
+    <li>Also on each PC: <b>Settings → Path variables → Add my mapped drives</b>, so shared projects open regardless of drive letters.</li>
+  </ol>
+  <p>Project Opener creates sub-folders in the hub (<code>users</code>, <code>published</code>, <code>inbox</code>, <code>pulse</code>, <code>updates</code>) and writes small files there. Every write is atomic, every reader tolerates a damaged file, and each person writes only their own files, so a plain network share is all the infrastructure there is.</p>
+  <h3>12.2 Who is online</h3>
+  <p><b>Online now</b> (with the count beside it) shows a card per colleague: name, role, and either what they are working in, their PC and version, or when they were last seen. Someone is <i>online</i> if their heartbeat file is younger than three minutes; with <b>Fast LAN presence</b> on (the default), PCs on the same subnet also announce themselves every 15 seconds, so the status updates within seconds. Quitting Project Opener signs you off; hiding it to the tray does not.</p>
+  <h3>12.3 Publishing, cloning and revisions</h3>
+  <div class="cols w60">
+    <div>
+      <ol class="steps">
+        <li>In a project's menu choose <b>Publish to Team Hub…</b> (or click <b>Publish a project</b> on the hub page and pick one).</li>
+        <li>Write the description the team will see, and click <b>Publish</b>. Drive letters become UNC paths; the project's pin and auto-launch are not published.</li>
+        <li>Colleagues see it under <b>Published projects</b> with your name and <i>rev 1</i> in the card's corner. <b>Clone</b> gives them their own copy; the card then shows <i>In your workspace</i>.</li>
+        <li>When you change the project, publish again: the card says <i>rev 2</i>, Activity reads <i>Vikram published P12513 · As-built isometrics rev 2 (was rev 1)</i>, and everyone who cloned it gets a toast <i>New revision of …</i> and a banner on the project (<i>you have revision 1 · revision 2 available</i>) with <b>Update from hub</b>.</li>
+      </ol>
+      <p><b>Update from hub</b> replaces the clone's items and launch sets with the new revision and keeps the colleague's own notes, colour, pin and settings. Items they added locally are lost, so it asks first. As the author you see <b>Publish changes</b> on your own project's page, and a bin icon on the hub card to <b>Unpublish</b> (colleagues keep their clones).</p>
+    </div>
+    <figure><img src="figures/fig-publish.png" alt="The Publish dialog with the description box"><figcaption><b>Fig. 12-2</b> Publish to Team Hub</figcaption></figure>
+  </div>
+  <div class="note warn"><b>One author per publication.</b> Publishing a project you cloned from someone else overwrites their publication under your name. Duplicate it first and publish the copy if you want your own version.</div>
+  <h3>12.4 Sending a project to a colleague</h3>
+  <div class="cols w60">
+    <div>
+      <p>In the project menu choose <b>Send to colleague…</b>, pick the colleague's Windows user name under <b>To</b> (everyone who has used the hub is listed, online or not; any Windows user name can be typed), add a message, and click <b>Send</b>. Drive letters are converted so the project opens on their machine.</p>
+      <p>On their side a badge appears on <b>Team Hub</b> in the sidebar, Home shows <i>1 project waiting in your inbox</i>, and a toast offers <b>Open inbox</b>. In the <b>Inbox</b> tab (its label carries the count) they <b>Accept</b> (the project is added to their workspace) or <b>Dismiss</b> (it is discarded; there is no undo).</p>
+    </div>
+    <figure><img src="figures/fig-inbox.png" alt="The Inbox tab with a project sent by a colleague and its Accept and Dismiss buttons"><figcaption><b>Fig. 12-3</b> Inbox</figcaption></figure>
+  </div>
+  <h3>12.5 Announcements</h3>
+  <div class="cols w60">
+    <div>
+      <p><b>Announcements → Post announcement</b> puts a banner on everyone's Home page: a drive move, a template change, a deadline. Give it a <b>Title</b> and <b>Details</b>, a <b>Level</b> (<b>Information</b>, <b>Warning</b>, <b>Critical</b>) and <b>Expires after</b> in days (<i>Never</i> at 0). Only the author can remove an announcement; the hub keeps the newest fifty.</p>
+    </div>
+    <figure><img src="figures/fig-announce.png" alt="The Post an announcement dialog"><figcaption><b>Fig. 12-4</b> Post an announcement</figcaption></figure>
+  </div>
+  <h3>12.6 Activity and privacy</h3>
+  <p>The <b>Activity</b> tab lists the newest forty events from the team: <i>Yokesh opened P12513 › Checking</i>, <i>Priya published ANTEO Isometrics rev 2 (was rev 1)</i>, <i>Ravi sent DM-GAD · Mangala Piping GAD → Vikram</i>. <b>Settings → Team Hub → Share my activity</b> controls whether your launches and your current project are shared; publishing and sending are always listed because the recipients see them anyway. Turning sharing off keeps your online status but publishes nothing else.</p>
+</section>
+
+<!-- ===================================================== 13 -->
+<section class="sec">
+  <h2>13 Updates</h2>
+  <p class="lead">Project Opener updates itself. You will usually only see a toast, <i>Update 3.2.1 available · From LAN hub</i>, and two clicks later you are on the new version.</p>
+  <figure><img src="figures/fig-updates.png" alt="The Updates page: current version, Check for updates, update sources and diagnostics"><figcaption><b>Fig. 13-1</b> Updates</figcaption></figure>
+  <h3>13.1 How a check works</h3>
+  <ol class="steps">
+    <li>Eight seconds after start-up, then every four hours (and whenever you click <b>Check for updates</b>), the app reads the LAN mirror <code>&lt;hub&gt;\updates\latest.json</code> and asks GitHub Releases. The newer of the two wins. The <b>This PC</b> card always says in one sentence where you stand: <i>You are on the latest version, 3.2.0</i>, or what went wrong, with a <b>Try again</b> button.</li>
+    <li>When a newer version exists, the card shows <i>Version X is available</i>, where it came from and its size, the release notes, <b>Download update</b> and <b>Skip this version</b>.</li>
+    <li><b>Download update</b> fetches the installer into <code>%APPDATA%\DexterityDesign\ProjectOpener\downloads\</code> and checks its SHA-256 against the manifest. A mismatch deletes the file and reports an error; a release without a checksum is installed but the toast says it was not verified.</li>
+    <li><b>Install and restart</b> runs the installer silently, closes Project Opener and starts the new version. Your projects and settings are untouched.</li>
+  </ol>
+  <h3>13.2 Updating the whole office from the LAN (admins)</h3>
+  <p>After downloading an update from GitHub, an admin clicks <b>Mirror 3.2.1 to the Team Hub</b> (the button names the version it will copy). The installer and a fresh manifest are copied into <code>&lt;hub&gt;\updates\</code>, and every other PC picks the update up from the LAN at its next check, with no internet access needed. <b>Mirror 3.2.0 to the Team Hub</b> under <b>Update sources</b> does the same for the version you are already running. The hub keeps only the two newest installers.</p>
+  <h3>13.3 Other controls</h3>
+  <table class="t wrap">
+    <tr><th style="width:48mm">Control</th><th>What it does</th></tr>
+    <tr><td>Skip this version / Offer it again</td><td>Stops the reminders for that one version. A newer one is offered again. <b>Settings → Updates → Clear</b> does the same.</td></tr>
+    <tr><td>Update sources</td><td>Shows the LAN mirror folder and the GitHub repository, each with a <span class="pill ok">Reachable</span> or <span class="pill neutral">Not set</span> pill.</td></tr>
+    <tr><td>Diagnostics</td><td>The data folder, the executable, your PC and user name, the last lines of the log, and buttons to <b>Open data folder</b>, <b>Open log</b> and <b>Show in folder</b>. Quote the version and attach the log when you report a problem.</td></tr>
+  </table>
+  <div class="note info"><b>Manual fallback.</b> Download <code>ProjectOpener-Setup-X.Y.Z.exe</code> from the hub's <code>updates\</code> folder or the release page, and run it. Settings and the workspace are kept.</div>
+</section>
+
+<!-- ===================================================== 14 -->
+<section class="sec">
+  <h2>14 Settings</h2>
+  <p class="lead">Every setting applies immediately; there is no Save button. Text boxes apply when you leave them or press <kbd>Enter</kbd>.</p>
+  <figure><img src="figures/fig-settings-1.png" alt="Settings: You and Appearance"><figcaption><b>Fig. 14-1</b> You, Appearance</figcaption></figure>
+  <div class="cols">
+    <div>
+      <h3>14.1 You</h3>
+      <p><b>Display name</b> (your Windows user name if blank) and <b>Role</b> (shown as a pill by your name). Both are shown to colleagues on the Team Hub.</p>
+    </div>
+    <div>
+      <h3>14.2 Appearance</h3>
+      <p><b>Theme</b>: <b>Dark</b>, <b>Light</b> or <b>Follow Windows</b>, which switches live with Windows. <b>Accent</b>: ten colours, Aurora green by default (switches that are on show in ink, not in the accent, so colour stays reserved for projects and path health). <b>Density</b>: <b>Comfortable</b> or <b>Compact</b>, which tightens cards and rows to fit more on a laptop screen.</p>
+    </div>
+  </div>
+  <figure><img src="figures/fig-settings-2.png" alt="Settings: Behaviour and Team Hub"><figcaption><b>Fig. 14-2</b> Behaviour, Team Hub</figcaption></figure>
+  <div class="cols">
+    <div>
+      <h3>14.3 Behaviour</h3>
+      <table class="t wrap">
+        <tr><th>Setting</th><th>Default</th></tr>
+        <tr><td><b>Start with Windows</b> starts the app minimised to the tray when you sign in.</td><td>Off</td></tr>
+        <tr><td><b>Open start-up projects</b>: projects marked <i>Open at start-up</i> open when the app starts (section 9.2).</td><td>On</td></tr>
+        <tr><td><b>Keep running in the tray on close</b>: the × closes the window; the tray icon stays.</td><td>On</td></tr>
+        <tr><td><b>Start minimised</b>: start in the tray without showing the window.</td><td>Off</td></tr>
+        <tr><td><b>Show notifications</b>: toasts for launches, updates and hub events (errors always show).</td><td>On</td></tr>
+        <tr><td><b>Pause between items</b> when a project opens.</td><td>350 ms</td></tr>
+        <tr><td><b>Confirm when opening more than</b> N items (0 = never ask).</td><td>8</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>14.4 Team Hub</h3>
+      <p>The hub folder with <b>Browse…</b> and <b>Connect</b> (section 12.1); a status line says whether it is reachable. Clear the path and click <b>Connect</b> to disconnect. <b>Share my activity</b> (section 12.6). <b>Fast LAN presence (UDP beacon)</b> announces you on the subnet on port 48620 so <i>online</i> updates within seconds; the hub heartbeat remains the source of truth if the firewall blocks it.</p>
+    </div>
+  </div>
+  <figure><img src="figures/fig-settings-3.png" alt="Settings: Path variables, Updates, Data and backups"><figcaption><b>Fig. 14-3</b> Path variables, Updates, Data and backups</figcaption></figure>
+  <div class="cols">
+    <div>
+      <h3>14.5 Path variables</h3>
+      <p><b>Add my mapped drives</b> creates a <code>{X_DRIVE}</code> variable per network drive. <b>Add row</b> adds a variable of your own: a <b>Variable</b> name and its <b>Value on this PC</b>. The bin removes a row. Section 10.2 explains how they are used.</p>
+      <h3>14.6 Updates</h3>
+      <p><b>Check for updates automatically</b> (every four hours). <b>Skipped version</b> with <b>Clear</b>. An optional <b>GitHub token</b>, saved as soon as you leave the box and stored encrypted for your Windows account; it only raises the API rate limit, and most colleagues never need one. <b>Channel</b>: <b>Stable releases only</b> or <b>Include pre-releases</b>.</p>
+    </div>
+    <div>
+      <h3>14.7 Data and backups</h3>
+      <p>The workspace file's location, <b>Export workspace…</b>, <b>Import…</b>, <b>Import from Project Opener 1.x</b>, <b>Restore a backup…</b> and <b>Open backups folder</b>. Section 15 covers each.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== 15 -->
+<section class="sec">
+  <h2>15 Your data, backups, export and import</h2>
+  <table class="t wrap">
+    <tr><th style="width:62mm">Location</th><th>Contents</th></tr>
+    <tr><td><code>%APPDATA%\DexterityDesign\ProjectOpener\</code></td><td><code>workspace.json</code> (all projects), <code>settings.json</code>, <code>history.jsonl</code> (launch log), <code>backups\</code> (the 30 newest copies of the workspace, one before every save), <code>logs\project-opener.log</code>, <code>downloads\</code> (update installers).</td></tr>
+    <tr><td><code>%LOCALAPPDATA%\Programs\Project Opener\</code></td><td>The program itself. No user data lives here, so reinstalling or updating never loses projects.</td></tr>
+    <tr><td>The Team Hub folder</td><td>Shared files (section 12.1). Your own are <code>users\&lt;you&gt;.json</code>, <code>pulse\&lt;you&gt;.jsonl</code>, and the projects you published or sent.</td></tr>
+  </table>
+  <p>Every change is saved immediately, and every file is written to a temporary name first and then renamed, so a crash or a power cut cannot leave a half-written workspace. If the workspace file is ever unreadable, the newest good backup is loaded automatically and the damaged file is kept beside it as <code>workspace.corrupt.json</code>.</p>
+  <table class="t wrap">
+    <tr><th style="width:46mm">Action (Settings → Data and backups)</th><th>What it does</th></tr>
+    <tr><td>Export workspace…</td><td>Writes every project to one JSON file (by default in Documents). Use it to move to a new PC or to keep an archive.</td></tr>
+    <tr><td>Import…</td><td>Reads a Project Opener 3 export, a single exported project, a 1.x backup or a 2.x hub file. For 3.x and 1.x files it asks <b>Merge</b> (projects with the same name or id are replaced by the imported copy, the rest are added) or <b>Replace everything</b> (your current workspace is emptied first, after a backup).</td></tr>
+    <tr><td>Import from Project Opener 1.x</td><td>Re-reads the 1.x data on this PC and merges it.</td></tr>
+    <tr><td>Restore a backup…</td><td>Lists the backups, newest first, and replaces the workspace with the one you choose, after confirmation. The current workspace is backed up first, so a restore can itself be undone.</td></tr>
+    <tr><td>Open backups folder</td><td>Opens the folder in Explorer, for copying a backup elsewhere.</td></tr>
+  </table>
+  <div class="note warn"><b>Backups are per save, not per day.</b> Thirty backups can span a single busy hour. For a point-in-time archive, use <b>Export workspace…</b> and keep the file.</div>
+</section>
+
+<!-- ===================================================== 16 -->
+<section class="sec">
+  <h2>16 Keyboard shortcuts</h2>
+  <div class="keys">
+    <div>
+      <h3>Anywhere in the window</h3>
+      <table class="t">
+        <tr><td>Command palette</td><td><kbd>Ctrl</kbd> + <kbd>K</kbd> or <kbd>Ctrl</kbd> + <kbd>P</kbd></td></tr>
+        <tr><td>New project</td><td><kbd>Ctrl</kbd> + <kbd>N</kbd></td></tr>
+        <tr><td>Find a project (Projects page, search box focused)</td><td><kbd>Ctrl</kbd> + <kbd>F</kbd></td></tr>
+        <tr><td>Home</td><td><kbd>Ctrl</kbd> + <kbd>1</kbd></td></tr>
+        <tr><td>Projects</td><td><kbd>Ctrl</kbd> + <kbd>2</kbd></td></tr>
+        <tr><td>Team Hub</td><td><kbd>Ctrl</kbd> + <kbd>3</kbd></td></tr>
+        <tr><td>Settings</td><td><kbd>Ctrl</kbd> + <kbd>,</kbd></td></tr>
+        <tr><td>Collapse or expand the sidebar</td><td><kbd>Ctrl</kbd> + <kbd>B</kbd></td></tr>
+        <tr><td>Re-check all paths</td><td><kbd>F5</kbd></td></tr>
+        <tr><td>Back to the previous page</td><td><kbd>Alt</kbd> + <kbd>←</kbd></td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>In the command palette</h3>
+      <table class="t">
+        <tr><td>Move the selection</td><td><kbd>↑</kbd> <kbd>↓</kbd></td></tr>
+        <tr><td>Open the selected result</td><td><kbd>Enter</kbd></td></tr>
+        <tr><td>Close</td><td><kbd>Esc</kbd></td></tr>
+      </table>
+      <h3>In dialogs</h3>
+      <table class="t">
+        <tr><td>Confirm (the filled button; never a delete)</td><td><kbd>Enter</kbd></td></tr>
+        <tr><td>Cancel</td><td><kbd>Esc</kbd></td></tr>
+        <tr><td>Close the launch sheet</td><td><kbd>Esc</kbd></td></tr>
+        <tr><td>Add a tag (project editor)</td><td><kbd>Enter</kbd> in the tag box</td></tr>
+      </table>
+      <h3>Mouse</h3>
+      <table class="t">
+        <tr><td>Open a project's detail page</td><td>Click the card</td></tr>
+        <tr><td>Open one item</td><td>Double-click its row</td></tr>
+        <tr><td>Create a project from files</td><td>Drop them on Projects</td></tr>
+        <tr><td>Add items</td><td>Drop them on the detail page</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ===================================================== 17 -->
+<section class="sec">
+  <h2>17 Troubleshooting and support</h2>
+  <table class="t wrap">
+    <tr><th style="width:52mm">Symptom</th><th>Cause and what to do</th></tr>
+    <tr><td>An item shows <span class="pill warn">Not found</span> but the file is there</td><td>The path was typed for another PC's drive letter, or your mapped drive is disconnected. Open the item's <b>Edit…</b>, check the path, reconnect the drive, press <kbd>F5</kbd>. For shared projects, run <b>Add my mapped drives</b> once.</td></tr>
+    <tr><td><span class="pill warn">Undefined variable</span></td><td>Add the variable in <b>Settings → Path variables</b> with its value for this PC (section 10.2).</td></tr>
+    <tr><td><span class="pill bad">Server offline</span> on everything</td><td>The server is down or you are off the office network. Nothing to change in the project. Links and local files still open.</td></tr>
+    <tr><td>"Open project" opens nothing: <i>Nothing to open</i></td><td>Every item's switch is off, or the project has no items. Turn switches on, or use a launch set.</td></tr>
+    <tr><td>A web address opens as a file</td><td>It was saved with type File because it had no <code>https://</code>. Edit the item and set the type to Link.</td></tr>
+    <tr><td>Colleagues cannot see me online</td><td>Check <b>Settings → Team Hub</b> shows <i>Connected</i> and that you are using the same folder. Presence refreshes within three minutes without the UDP beacon; with it, within seconds unless Windows Firewall blocks UDP port 48620.</td></tr>
+    <tr><td><i>Hub folder not writable</i> / <i>Publish failed</i></td><td>Ask your admin for write access to the hub folder. Reading works without it, but publishing, sending and announcements do not.</td></tr>
+    <tr><td>The sidebar says <i>Hub unreachable</i></td><td>The hub folder cannot be reached right now. Work continues locally; the hub reconnects by itself when the share is back.</td></tr>
+    <tr><td>Update check says <i>GitHub answered HTTP 403</i></td><td>No internet, or the API rate limit was hit. The LAN mirror still works; ask an admin to mirror the update, or add a read-only token in <b>Settings → Updates</b>.</td></tr>
+    <tr><td>Nothing happens when I click a <code>projectopener://</code> link</td><td>The protocol is registered by the installer, not by the portable zip. Run the installer once. Check the project name in the link is exact.</td></tr>
+    <tr><td>Closing the window does not quit</td><td>By design: it hides to the tray. Right-click the tray icon → <b>Quit</b>, or turn off <b>Keep running in the tray on close</b>.</td></tr>
+    <tr><td>Project Opener hit a problem</td><td>The crash dialog shows the details. Your workspace is safe (it is saved after every change). Send the details and the log (<b>Updates → Open log</b>) to the admin.</td></tr>
+    <tr><td>I deleted a project by mistake</td><td><b>Settings → Data and backups → Restore a backup…</b> and choose the backup from just before the deletion. The files on disk were never touched.</td></tr>
+  </table>
+  <h3>Support</h3>
+  <p>Report problems to the Office of the Managing Director by e-mail or Zoho Cliq with: the version (<b>Updates</b> page), what you clicked, what you expected, and the log file. Suggestions for the next version are welcome the same way. The source, release notes and installers are at <a href="https://github.com/dexterity-admin/project-opener">github.com/dexterity-admin/project-opener</a>, and the download page is <a href="https://dexterity-admin.github.io/project-opener/">dexterity-admin.github.io/project-opener</a>.</p>
+</section>
+</body>
+</html>

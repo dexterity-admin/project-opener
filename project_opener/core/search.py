@@ -63,7 +63,8 @@ def search_projects(query: str, projects: Iterable[M.Project], limit: int = 20) 
             best = 0.3
         if best > 0:
             bonus = (0.15 if p.pinned else 0) + (0.05 if p.last_opened else 0)
-            hits.append(Hit("project", p.name, p.description or f"{len(p.items)} items", best + bonus,
+            n = len(p.items)
+            hits.append(Hit("project", p.title, p.description or f"{n} item{'s' if n != 1 else ''}", best + bonus,
                             project=p, icon=p.icon))
     hits.sort(key=lambda h: (-h.score, h.title.lower()))
     return hits[:limit]
@@ -80,12 +81,12 @@ def search_everything(query: str, projects: Iterable[M.Project], actions: list[t
             for s in p.launch_sets:
                 sc = subsequence_score(q, s.name)
                 if sc > 0.3:
-                    hits.append(Hit("set", s.name, f"Launch set in {p.name}", sc * 0.9, project=p, launch_set=s,
+                    hits.append(Hit("set", s.name, f"Launch set in {p.title}", sc * 0.9, project=p, launch_set=s,
                                     icon=s.icon))
             for it in p.items:
                 sc = max(subsequence_score(q, it.display_name), subsequence_score(q, it.path) * 0.7)
                 if sc > 0.3:
-                    hits.append(Hit("item", it.display_name, f"{p.name}  ·  {it.path}", sc * 0.8, project=p, item=it,
+                    hits.append(Hit("item", it.display_name, f"{p.title}  ·  {it.path}", sc * 0.8, project=p, item=it,
                                     icon=item_icon(it)))
     action_hits = []
     for action_id, title, icon in actions or []:

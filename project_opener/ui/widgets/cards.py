@@ -19,8 +19,8 @@ from project_opener.core import models as M
 from project_opener.core.health import ProjectHealth
 from project_opener.ui import icons, theme
 from project_opener.ui.widgets.common import (
+    Badge,
     Button,
-    Chip,
     ColorDot,
     ElidedLabel,
     IconButton,
@@ -34,10 +34,46 @@ def plural(n: int, word: str) -> str:
     return f"{n} {word}" if n == 1 else f"{n} {word}s"
 
 
+KIND_WORDS = {"file": "file", "folder": "folder", "url": "link", "app": "application", "command": "command"}
+
+
+def kinds_summary(project: M.Project) -> str:
+    """"2 files · 1 folder · 1 link": what the project holds, by kind, in order of count."""
+    counts: dict[str, int] = {}
+    for it in project.items:
+        k = KIND_WORDS.get(it.kind, it.kind)
+        counts[k] = counts.get(k, 0) + 1
+    if not counts:
+        return "No items yet"
+    return " · ".join(plural(n, k) for k, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+def subtitle_line(project: M.Project) -> str:
+    """The card's second line, never blank: client (when the job number is in the title) and
+    description, else what the project holds."""
+    parts = []
+    if project.job_number.strip() and project.client.strip():
+        parts.append(project.client.strip())
+    if project.description.strip():
+        parts.append(project.description.strip())
+    return " · ".join(parts) or kinds_summary(project)
+
+
+def health_line(project: M.Project) -> str:
+    """"6 items · opened just now", "4 of 6 items · opened 2 d ago", "1 item · never opened".
+
+    The enabled count appears only when some items are switched off, so the line never
+    reads like a launch result ("4 opened") beside the launch sheet."""
+    total, enabled = len(project.items), len(project.enabled_items)
+    count = plural(total, "item") if enabled == total else f"{enabled} of {total} items"
+    when = f"opened {relative_time(project.last_opened).lower()}" if project.last_opened else "never opened"
+    return f"{count} · {when}"
+
+
 def relative_time(iso: str | None) -> str:
     dt = M.parse_iso(iso)
     if not dt:
-        return "Never opened"
+        return "Never opened"   # callers lower-case it mid-sentence
     from datetime import datetime
     delta = datetime.now(UTC) - dt
     s = int(delta.total_seconds())
@@ -63,12 +99,12 @@ def _mix(a: str, b: str, t: float) -> QColor:
     )
 
 
-def _tag_chip(text: str) -> Chip:
-    c = Chip(text, checkable=False)
-    c.setFixedHeight(22)
-    c.setStyleSheet("QPushButton#chip { min-height: 20px; max-height: 20px; padding: 0 9px; }")
-    c.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-    return c
+def _tag_chip(text: str) -> Badge:
+    """A tag on a card: a pale neutral pill, no border (an outlined box per tag was a counted tell)."""
+    b = Badge(text, level="neutral")
+    b.setFixedHeight(20)
+    b.setFont(theme.ui_font(9, 500))
+    return b
 
 
 class HoverCard(QFrame):
@@ -169,8 +205,8 @@ class ProjectCard(HoverCard):
         top.setSpacing(10)
         self.icon = IconCircle(project.icon, project.color, 20)
         top.addWidget(self.icon, 0, Qt.AlignmentFlag.AlignVCenter)
-        self.title = ElidedLabel(project.name, mode=Qt.TextElideMode.ElideRight)
-        self.title.setFont(theme.ui_font(t.font_size + 1, 600))
+        self.title = ElidedLabel(project.title, mode=Qt.TextElideMode.ElideRight)
+        self.title.setFont(theme.ui_font(t.font_size + 1, 600))   # the job number first; tnum stays on figures that line up
         top.addWidget(self.title, 1)
         self.pin_btn = IconButton("fa5s.thumbtack", "Pin", size=14,
                                   color=t.text if project.pinned else t.text_faint)
@@ -182,8 +218,8 @@ class ProjectCard(HoverCard):
         top.addWidget(self.fav_btn)
         lay.addLayout(top)
 
-        # row 2: client · job number (or description)
-        sub = " · ".join(x for x in (project.client, project.job_number) if x) or project.description or " "
+        # row 2: the client (when the job number took the title), the description, else what the project holds
+        sub = subtitle_line(project)
         self.subtitle = ElidedLabel(sub, mode=Qt.TextElideMode.ElideRight)
         self.subtitle.setObjectName("muted")
         lay.addWidget(self.subtitle)
@@ -203,7 +239,7 @@ class ProjectCard(HoverCard):
         meta = QHBoxLayout()
         meta.setSpacing(8)
         self.health_dot, self.meta = _health_line(meta)
-        self.meta.setText(f"{len(project.enabled_items)}/{len(project.items)} items · {relative_time(project.last_opened)}")
+        self.meta.setText(health_line(project))
         lay.addLayout(meta)
 
         # row 5: Open (secondary), launch sets, more
@@ -244,7 +280,7 @@ class ProjectCard(HoverCard):
         else:
             offline = any(p.status == "offline" for p in problems)
             self.health_dot.set_color(t.danger if offline else t.warning)
-            self.health_dot.setToolTip(f"{len(problems)} item(s) need attention")
+            self.health_dot.setToolTip(f"{plural(len(problems), 'path')} need{'s' if len(problems) == 1 else ''} attention")
 
 
 class ProjectRow(QFrame):
@@ -265,11 +301,10 @@ class ProjectRow(QFrame):
         lay.setContentsMargins(16, 0, 10, 0)
         lay.setSpacing(12)
         lay.addWidget(IconCircle(project.icon, project.color, 18), 0, Qt.AlignmentFlag.AlignVCenter)
-        name = QLabel(project.name)
+        name = QLabel(project.title)
         name.setFont(theme.ui_font(t.font_size, 600))
         lay.addWidget(name)
-        sub = " · ".join(x for x in (project.client, project.job_number) if x) or project.description
-        sl = ElidedLabel(sub or plural(len(project.items), "item"), mode=Qt.TextElideMode.ElideRight)
+        sl = ElidedLabel(subtitle_line(project), mode=Qt.TextElideMode.ElideRight)
         sl.setObjectName("muted")
         lay.addWidget(sl, 1)
         for tag in project.tags[:2]:
@@ -277,7 +312,7 @@ class ProjectRow(QFrame):
         meta_row = QHBoxLayout()
         meta_row.setSpacing(8)
         self.health_dot, meta = _health_line(meta_row)
-        meta.setText(f"{len(project.enabled_items)}/{len(project.items)} · {relative_time(project.last_opened)}")
+        meta.setText(health_line(project))
         meta.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         lay.addLayout(meta_row)
         if project.pinned:

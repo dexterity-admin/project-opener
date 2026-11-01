@@ -187,6 +187,19 @@ class TeamHub:
         except OSError:
             pass
 
+    def display_name_for(self, user: str) -> str:
+        """The display name a colleague chose, from their presence file; the login when unknown."""
+        if not user:
+            return ""
+        if user == self.user and self.display_name:
+            return self.display_name
+        try:
+            d = read_json(self.root / "users" / f"{user}.json", {}) if self.root else {}  # type: ignore[operator]
+        except OSError:
+            d = {}
+        name = str(d.get("display_name", "")) if isinstance(d, dict) else ""
+        return name or user
+
     def peers(self) -> list[Peer]:
         if not self.reachable():
             return []
@@ -229,7 +242,7 @@ class TeamHub:
         write_json_atomic(path, payload)
         project.origin = M.Origin(source="team", author=self.user, published_id=pid,
                                   published_at=payload["published_at"], revision=revision)
-        self.pulse("published", project.name)
+        self.pulse("published", f"{project.title} rev {revision}" + (f" (was rev {revision - 1})" if revision > 1 else ""))
         return PublishedProject(pid, self.user, payload["published_at"], revision, M.Project.from_dict(data),
                                 payload["description"], path)
 
@@ -288,7 +301,7 @@ class TeamHub:
                 "schema": HUB_SCHEMA, "id": mid, "from": self.user, "from_name": self.display_name, "to": to_user,
                 "sent_at": M.now_iso(), "message": message, "project": data,
             })
-            self.pulse("sent", f"{project.name} → {to_user}")
+            self.pulse("sent", f"{project.title} → {self.display_name_for(to_user)}")
             return True
         except OSError as exc:
             log.warning("send failed: %s", exc)

@@ -117,3 +117,42 @@ names each screen's question and main job. Checks run on the result:
 
 Known limits: the site shows the version the GitHub API reports (3.0.0 until the 3.1.0 release is
 published by CI); the smoke screenshots are demo data.
+
+## 10. 3.2.0 - "10 on 10" pass, launch sheet, user guide (1 Nov 2026)
+
+**Method.** Two agents implemented, an independent juror agent scored each surface from its own fresh
+captures (not the implementer's pictures) against `taste-skill` and `impeccable`, and the loop
+repeated until the juror's list was empty. The implementers' self-scores were never accepted: the
+first juror passes found the app at 7.2 and the landing page at 7.6 where both implementers had
+claimed 10. Juror reports live with the session's scratch files; the per-round critiques are
+summarised in `docs/DESIGN.md` (rules that came out of them) and `CHANGELOG.md` (what changed).
+
+| Round | App (design · usability · creativity · content) | Landing page |
+|---|---|---|
+| Implementer's first claim | 10 · 10 · 9 · 10 | 10 · 10 · 10 · 10 |
+| Juror 1 | 7.5 · 7 · 7 · 7 | 7.5 · 7 · 8.5 · 8 |
+| Juror 2 | 8.5 · 8.5 · 7 · 8.5 | 8.5 · 9 · 9.5 · 9 |
+| Juror 3 | 9 · 9.5 · 9 · 9 | final pass: see below |
+| Juror 4 | 9.5 · 9 · 10 · 9.5 | |
+| Juror 5 | 9.5 · 10 · 10 · 10 (one half-point: drive-row elision, fixed) | |
+
+**What the loop produced in the app** (all in `CHANGELOG.md` 3.2.0): the launch sheet; the job
+number as the spine of every title; Drives on this PC (health by cause, with each letter's mapping);
+launch sets as numbered steps with an order; revisions as figures on the hub and an Activity
+register; one dialog grammar with inline validation and safe Enter defaults (a destructive confirm
+defaults to Cancel); every page fits the 1040×660 minimum (`tools/smoke_ui.py` raises if not, and
+`tests/test_ui_polish.py` checks it); 105 tests, contrast and ruff green, 0 Qt warnings in six smoke
+runs, scripted click-through 0 errors.
+
+**Captures.** Every public picture (README screenshots, the landing page's proofs, the guide's
+figures) is produced by a script from the seeded demo workspace with office-shaped paths
+(`PO_DEMO_ROOT`, `PO_DEMO_HUB`, `PO_DEMO_SERVER_ROOT`) and a substituted demo drive map, so no
+capture can show this PC's temp folders, machine name or the office servers. The first captures of
+the drive map did show a real NAS address; that is why the substitution exists.
+
+**User guide.** `docs/Project-Opener-User-Guide.pdf` (25 pages, 17 sections, 24 figures at 2×,
+document no. DDSP-IT-POP-UG-001 rev 0) is built by `tools/build_guide.py` from `docs/guide/guide.html`
+with headless Chrome and PyMuPDF (two passes so the contents page carries real page numbers; PDF
+outline set). Figures come from `tools/guide_figures.py`. The text was written from a line-by-line
+fact sheet of the code (every label and tooltip cited) and re-checked against the final captures.
+A text scan of the PDF finds no temp path, machine name, IP address, login name or 3.1.0 label.

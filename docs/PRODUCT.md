@@ -14,10 +14,10 @@ Everyone is on Windows 10/11 with mapped drives that differ from PC to PC.
 
 | Screen | Its one question | Most frequent action |
 |---|---|---|
-| Home | Which job do I open now, and is anything wrong with it? | Open a pinned or recent project |
+| Home | Which job do I open now, and which drive, share or variable is down on this PC? | Open a pinned or recent project |
 | Projects | Where is the project I am looking for? | Search, then Open |
 | Project | What is in this job and does every path still resolve? | Open project / open one item |
-| Team Hub | Who is online, what did the team publish, what is in my inbox? | Clone, Accept, Publish |
+| Team Hub | Who is in which job, which revision did the team publish, what is in my inbox? | Clone, Accept, Publish |
 | Updates | Am I on the current version, and can I update the office? | Check for updates, Mirror |
 | Settings | Where is the hub, how does it look, what runs at start-up? | Toggle, Browse |
 

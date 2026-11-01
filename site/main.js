@@ -1,59 +1,24 @@
 /* Project Opener 3 · landing page
-   1. Newer release from GitHub (the markup already carries v3.1.0 and its direct links)
-   2. The launch sequence (the live thing): autoplay once in view, replay on the button
-   3. Reveals, the path check and the office map (one IntersectionObserver)
-   4. The ending wordmark fitted to the page width
-   Everything on the page is readable with this file absent. */
+   1. The launch sequence (the live thing): autoplay once in view on a desktop, replay on the button
+   2. Reveals, the path check and the office map (one IntersectionObserver)
+   3. The ending wordmark fitted to the page width (desktop and tablet)
+   Nothing is fetched: the markup carries the release's version and direct links, and the page loads from
+   its own origin only. Everything on the page is readable with this file absent. */
 (function () {
   "use strict";
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var touchLayout = function () { return window.innerWidth < 1024; }; // tablet and phone: the sheet would cover the button
 
-  /* ---------- 1. A newer release only ---------- */
-  var RELEASES = "https://api.github.com/repos/dexterity-admin/project-opener/releases/latest";
-  var SHIPPED = "3.1.0";
-
-  function newer(a, b) { // a > b, dotted versions
-    var x = a.split(".").map(Number), y = b.split(".").map(Number);
-    for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); }
-    return false;
-  }
-  function mb(bytes) { return Math.round(bytes / 1048576) + " MB"; }
-
-  function applyRelease(version, assets) {
-    var byName = {};
-    assets.forEach(function (a) { byName[a.name] = a; });
-    var installer = byName["ProjectOpener-Setup-" + version + ".exe"];
-    var portable = byName["ProjectOpener-Portable-" + version + ".zip"];
-    if (!installer || !portable) return; // never half-swap: the shipped links stay
-    document.querySelectorAll("[data-version]").forEach(function (n) { n.textContent = version; });
-    document.querySelectorAll("[data-dl]").forEach(function (a) {
-      var kind = a.getAttribute("data-dl");
-      a.href = kind === "installer" ? installer.browser_download_url : portable.browser_download_url;
-    });
-    document.querySelectorAll("[data-size]").forEach(function (n) {
-      var asset = n.getAttribute("data-size") === "installer" ? installer : portable;
-      if (asset.size) n.textContent = mb(asset.size);
-    });
-  }
-
-  if (window.fetch) {
-    fetch(RELEASES, { headers: { Accept: "application/vnd.github+json" } })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (rel) {
-        if (!rel || !rel.tag_name || !rel.assets) return;
-        var v = String(rel.tag_name).replace(/^v/i, "");
-        if (!/^\d+\.\d+\.\d+$/.test(v) || !newer(v, SHIPPED)) return;
-        applyRelease(v, rel.assets);
-      })
-      .catch(function () { /* the markup already says 3.1.0 */ });
-  }
-
-  /* ---------- 2. The launch sequence ---------- */
+  /* ---------- 1. The launch sequence ---------- */
   var openBtn = document.getElementById("open-p12513");
   var sheet = document.getElementById("launch");
   var timers = [];
   var played = false;
+  // One item per timestamp, as the real sheet reports them: three local items at once, the offline share
+  // after its timeout, then the link and the missing reference. The footer's 4.0 s is this schedule's length.
+  var SCHEDULE = [220, 480, 740, 3000, 3300, 3600];
+  var TOTAL_MS = 4000;
 
   function clearTimers() { timers.forEach(clearTimeout); timers = []; }
 
@@ -62,13 +27,12 @@
     sheet.classList.add("is-done");
     var foot = sheet.querySelector("[data-foot-main]");
     if (foot) foot.textContent = counts.opened + " opened";
-    // The Home screen reacts: the finding line, the KPI strip, the card's count.
-    var k = document.querySelector("[data-launches]");
-    if (k && !k.dataset.bumped) { k.textContent = String(parseInt(k.textContent, 10) + 1); k.dataset.bumped = "1"; }
+    // The Home screen reacts the way the app does: the finding line counts the launch.
     var f = document.querySelector("[data-finding]");
-    if (f && k) f.textContent = "2 items need attention · " + k.textContent + " launches today";
-    var c = document.querySelector("[data-count]");
-    if (c) c.textContent = "6/6 items · Just now";
+    if (f && !f.dataset.bumped) {
+      f.textContent = f.textContent.replace(/(\d+) launches today/, function (m, n) { return (parseInt(n, 10) + 1) + " launches today"; });
+      f.dataset.bumped = "1";
+    }
     openBtn.removeAttribute("aria-busy");
   }
 
@@ -110,14 +74,13 @@
 
     sheet.classList.add("is-playing");
     var bar = sheet.querySelector(".launch__bar i");
-    if (bar) { bar.style.transition = "none"; bar.style.width = "0"; void bar.offsetWidth; bar.style.transition = ""; bar.style.width = "100%"; }
-    var step = 260;
+    if (bar) { bar.style.transition = "none"; bar.style.width = "0"; void bar.offsetWidth; bar.style.transition = "width " + TOTAL_MS + "ms linear"; bar.style.width = "100%"; }
     for (var n = 0; n < items.length; n++) {
-      (function (el, idx) {
-        timers.push(setTimeout(function () { el.classList.add("is-lit"); }, 220 + idx * step));
-      })(items[n], n);
+      (function (el, at) {
+        timers.push(setTimeout(function () { el.classList.add("is-lit"); }, at));
+      })(items[n], SCHEDULE[n] || TOTAL_MS);
     }
-    timers.push(setTimeout(function () { finish(counts); }, 220 + items.length * step + 120));
+    timers.push(setTimeout(function () { finish(counts); }, TOTAL_MS));
   }
 
   if (openBtn && sheet) {
@@ -126,7 +89,7 @@
     if (close) close.addEventListener("click", closeSheet);
   }
 
-  /* ---------- 3. One observer: reveals, autoplay, the path check, the office map ---------- */
+  /* ---------- 2. One observer: reveals, autoplay, the path check, the office map ---------- */
   var win = document.getElementById("demo");
   var pathcard = document.getElementById("pathcard");
   var office = document.getElementById("office");
@@ -143,6 +106,8 @@
 
   function onEnter(el) {
     if (el === win) {
+      // On a tablet or a phone the sheet opens over or under the button, so it waits for the press.
+      if (touchLayout()) return;
       if (!played && !openBtn.hasAttribute("aria-busy")) {
         if (reduceMotion) play(); else timers.push(setTimeout(function () { if (!played) play(); }, 1200));
       }
@@ -153,7 +118,7 @@
       for (var i = 0; i < lines.length; i++) {
         (function (line, idx) {
           if (reduceMotion) line.classList.add("is-done");
-          else setTimeout(function () { line.classList.add("is-done"); }, 200 + idx * 300);
+          else setTimeout(function () { line.classList.add("is-done"); }, 300 + idx * 300);
         })(lines[i], i);
       }
       return;
@@ -191,11 +156,12 @@
     if (office) office.classList.add("is-in");
   }
 
-  /* ---------- 4. The wordmark fitted to the page width ---------- */
+  /* ---------- 3. The wordmark fitted to the page width (the phone sets it on two lines in CSS) ---------- */
   var fit = document.querySelector(".end__fit");
   var name = document.querySelector(".end__name");
   function fitName() {
     if (!fit || !name) return;
+    if (window.innerWidth < 768) { name.style.fontSize = ""; return; }
     name.style.fontSize = "100px";
     var w = fit.getBoundingClientRect().width;
     var avail = name.getBoundingClientRect().width;

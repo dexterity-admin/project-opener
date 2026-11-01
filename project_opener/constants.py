@@ -14,7 +14,7 @@ from project_opener import __app_name__, __company__, __version__
 APP_NAME = __app_name__
 APP_ID = "ProjectOpener"
 COMPANY = __company__
-COMPANY_SHORT = "Dexterity Design"
+COMPANY_SHORT = "Dexterity Design Services"
 VERSION = __version__
 
 # GitHub repository the updater talks to.  Releases are public, so no token is

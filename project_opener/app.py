@@ -20,6 +20,20 @@ from project_opener.ui.main_window import MainWindow, _system_dark
 log = logging.getLogger(__name__)
 
 
+def deep_link_key(text: str) -> str:
+    """The project id or name inside a ``projectopener://open/<key>`` link, URL-decoded.
+
+    Windows passes the link exactly as registered, so a name with spaces
+    arrives as ``%20``; the stored name never does.  Anything else gives "".
+    """
+    from urllib.parse import unquote
+    text = (text or "").strip()
+    prefix = f"{C.URI_SCHEME}://open/"
+    if not text.startswith(prefix):
+        return ""
+    return unquote(text[len(prefix):].strip("/"))
+
+
 def _forward_to_running_instance(argv: list[str]) -> bool:
     sock = QLocalSocket()
     sock.connectToServer(C.SINGLE_INSTANCE_KEY)
@@ -96,8 +110,8 @@ def main(argv: list[str] | None = None) -> int:
             data = bytes(conn.readAll()).decode("utf-8", "ignore").split("\n")
             window.show_normal()
             for line in data:
-                if line.startswith(f"{C.URI_SCHEME}://open/"):
-                    key = line.split("/open/", 1)[1].strip("/")
+                key = deep_link_key(line)
+                if key:
                     proj = ctx.store.get(key) or ctx.store.by_name(key)
                     if proj:
                         ctx.launch(proj, parent=window)
@@ -111,8 +125,8 @@ def main(argv: list[str] | None = None) -> int:
         window.show()
     winutil.apply_dark_title_bar(int(window.winId()), dark)
     QTimer.singleShot(50, ctx.start)
-    if args.target and args.target.startswith(f"{C.URI_SCHEME}://open/"):
-        key = args.target.split("/open/", 1)[1].strip("/")
+    key = deep_link_key(args.target or "")
+    if key:
         proj = ctx.store.get(key) or ctx.store.by_name(key)
         if proj:
             QTimer.singleShot(600, lambda: ctx.launch(proj, parent=window))

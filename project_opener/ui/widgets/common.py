@@ -124,6 +124,54 @@ class ElidedLabel(QLabel):
         p.end()
 
 
+class SegmentLabel(QLabel):
+    """One line of " · "-joined facts that drops whole segments from the right when the width
+    is short, so it never says half a word ("2 launch s…just now")."""
+
+    SEP = " · "
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._segments: list[str] = []
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+
+    def set_segments(self, segments: list[str], drop_order: list[int] | None = None) -> None:
+        """``drop_order`` lists the indices to remove first when the line is too long; indices not
+        listed are kept as long as anything else can go (the health fact, for example)."""
+        self._segments = [s for s in segments if s]
+        kept = [i for i, s in enumerate(segments) if s]
+        remap = {old: new for new, old in enumerate(kept)}
+        self._drop = [remap[i] for i in (drop_order or []) if i in remap]
+        self.setToolTip(self.SEP.join(self._segments))
+        self._fit()
+
+    def segments(self) -> list[str]:
+        return list(self._segments)
+
+    def fitted_text(self, width: int) -> str:
+        fm = QFontMetrics(self.font())
+        parts: list[str | None] = list(self._segments)
+        order = list(getattr(self, "_drop", [])) + [i for i in range(len(parts) - 1, -1, -1) if i not in getattr(self, "_drop", [])]
+
+        def text() -> str:
+            return self.SEP.join(p for p in parts if p is not None)
+        for i in order:
+            if fm.horizontalAdvance(text()) <= width or sum(p is not None for p in parts) <= 1:
+                break
+            parts[i] = None
+        return text()
+
+    def _fit(self) -> None:
+        self.setText(self.fitted_text(max(40, self.width() - 2)))
+
+    def resizeEvent(self, e) -> None:  # noqa: N802
+        super().resizeEvent(e)
+        self._fit()
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        return QSize(120, QFontMetrics(self.font()).height() + 2)
+
+
 def label(text: str, kind: str = "", wrap: bool = False) -> QLabel:
     lbl = QLabel(text)
     if kind:
@@ -149,7 +197,8 @@ def hline() -> QFrame:
 
 # ------------------------------------------------------------------- switch
 class ToggleSwitch(QAbstractButton):
-    """Animated toggle, 40 x 22: ink track when on, strong border when off."""
+    """Animated toggle, 40 x 22: ink track when on (near-black on light, white on dark),
+    strong-border track when off.  Colour stays on data; a switch is chrome (DESIGN.md)."""
 
     W, H = 40, 22
 
@@ -189,7 +238,7 @@ class ToggleSwitch(QAbstractButton):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(0, 0, self.width(), self.height())
-        track = _mix(t.border_strong, t.accent, self._pos)
+        track = _mix(t.border_strong, t.text, self._pos)
         if self.isDown():
             track = _mix(track.name(), t.text_muted, 0.2)
         if not self.isEnabled():
@@ -203,7 +252,7 @@ class ToggleSwitch(QAbstractButton):
         p.drawRoundedRect(r, self.H / 2, self.H / 2)
         knob_d = self.H - 6
         knob_x = 3 + self._pos * (self.width() - knob_d - 6)
-        knob = _mix(t.surface, t.bg, self._pos)
+        knob = _mix(t.surface, t.bg if not t.dark else t.bg, self._pos)
         if not self.isEnabled():
             knob.setAlpha(200)
         p.setBrush(knob)

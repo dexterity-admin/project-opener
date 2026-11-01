@@ -30,6 +30,7 @@ class Sidebar(QFrame):
         super().__init__(parent)
         self.setObjectName("sidebar")
         self._collapsed = collapsed
+        self._hub_text, self._hub_ok = "", False
         self._buttons: dict[str, QPushButton] = {}
         self._labels: dict[str, str] = {}
         t = theme.current()
@@ -50,24 +51,20 @@ class Sidebar(QFrame):
         name = QLabel(C.APP_NAME)
         name.setFont(theme.ui_font(t.font_size, 600))
         bt.addWidget(name)
-        ver = QLabel(f"v{C.VERSION} · Dexterity")
-        ver.setObjectName("faint")
-        bt.addWidget(ver)
         brand.addWidget(self.brand_text, 1)
         self.collapse_btn = IconButton("fa5s.angle-double-left", "Collapse sidebar", size=16)
         self.collapse_btn.clicked.connect(self.toggle)
         brand.addWidget(self.collapse_btn)
         lay.addLayout(brand)
-        lay.addSpacing(14)
+        self.company = QLabel(C.COMPANY_SHORT)   # the company on its own line under the brand; the legal name is on Updates → Diagnostics
+        self.company.setObjectName("faint")
+        self.company.setContentsMargins(0, 2, 0, 0)
+        lay.addWidget(self.company)
+        lay.addSpacing(12)
 
-        self.new_btn = QPushButton("New project")
-        self.new_btn.setIcon(icons.icon("fa5s.plus", t.text))
-        self.new_btn.setIconSize(QSize(16, 16))
-        self.new_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.new_btn.clicked.connect(self.new_project.emit)
-        lay.addWidget(self.new_btn)
-
-        self.search_btn = QPushButton("Search · Ctrl+K")
+        # No "New project" here: the title row of Home and Projects carries the one filled primary
+        # (DESIGN.md), and Ctrl+N and the palette reach it from every page.
+        self.search_btn = QPushButton("Search")
         self.search_btn.setObjectName("nav")
         self.search_btn.setIcon(icons.icon("fa5s.search"))
         self.search_btn.setIconSize(QSize(16, 16))
@@ -139,11 +136,15 @@ class Sidebar(QFrame):
         self.avatar.set_name(label)
 
     def set_hub_text(self, text: str, ok: bool) -> None:
+        self._hub_text, self._hub_ok = text, ok
+        self._render_hub()
+
+    def _render_hub(self) -> None:
         t = theme.current()
-        dot = "●"
-        color = t.success if ok else t.text_faint
-        self.hub_dot.setText(f"<span style='color:{color}'>{dot}</span> {text}" if not self._collapsed else f"<span style='color:{color}'>{dot}</span>")
-        self.hub_dot.setToolTip(text)
+        color = t.success if self._hub_ok else t.text_faint
+        dot = f"<span style='color:{color}'>●</span>"
+        self.hub_dot.setText(dot if self._collapsed else f"{dot} {self._hub_text}")
+        self.hub_dot.setToolTip(self._hub_text)
 
     def set_inbox_count(self, n: int) -> None:
         self._inbox = int(n or 0)
@@ -196,13 +197,14 @@ class Sidebar(QFrame):
         else:
             self.setMaximumWidth(target)
         self.brand_text.setVisible(not self._collapsed)
+        self.company.setVisible(not self._collapsed)
         self.user_lbl.setVisible(not self._collapsed)
         self.collapse_btn.refresh("fa5s.angle-double-right" if self._collapsed else "fa5s.angle-double-left")
-        self.new_btn.setText("" if self._collapsed else "New project")
-        self.new_btn.setToolTip("New project  (Ctrl+N)" if self._collapsed else "")
-        self.search_btn.setText("" if self._collapsed else "Search · Ctrl+K")
+        self.search_btn.setText("" if self._collapsed else "Search")
+        self.search_btn.setToolTip("Search  (Ctrl+K)")
         for route, b in self._buttons.items():
             b.setText("" if self._collapsed else self._labels[route])
             b.setToolTip(self._labels[route] if self._collapsed else "")
         self.profile.setToolTip(self.user_lbl.text() if self._collapsed else "")
+        self._render_hub()
         self._place_badge()

@@ -3,6 +3,46 @@
 All notable changes to Project Opener. The version in `project_opener/__init__.py`
 is the single source of truth; CI publishes a release when a new version lands on `main`.
 
+## 3.2.0 - 2026-11-01
+
+### Added
+- **The job number is the spine**: every card, row, palette hit, launch-sheet title, hub card and
+  the project page's title read "P12513 · As-built isometrics", the number first in tabular figures
+  (the client stands in when a job has no number; `Project.title`).
+- **Drives on this PC** (Home): the paths of every project grouped by what they depend on (a drive
+  letter, a `\\server` share, a `{VARIABLE}`), built from the health results. Only the roots that
+  are down are listed, each with its pill (Not found, Server offline, Undefined variable), the
+  letter's mapping ("Z: → \\nas01\Project"; a mapped letter counts under its server, so a server that
+  is down appears once), which job uses it ("1 project · P12513" or "2 projects") and the office's
+  verb ("Open P12513", or "2 projects" to open the Projects page filtered by that root); the
+  reachable ones fold behind "N drives reachable". Needs attention keeps the paths a root does not
+  explain (a file gone from a drive that answers).
+- **Launch sets as a checklist**: items are numbered steps in their launch order under their group
+  label, in the launch sheet and in the project page's Launch sets panel; the launch set editor has
+  Move up / Move down and the order is saved with the set.
+- **Revisions on the hub**: published cards show "rev 2" as a figure beside the name, and a cloned
+  project's banner says which revision you have and which is available.
+- **Activity as a register**: the Team Hub's Activity tab is grouped under each project with the
+  columns Event · Rev · By · When; repeated launches by one person on one day fold into
+  "opened 3× today".
+- Home's drive map and Team pulse stack under each other below 960 px, and every page is checked
+  (smoke test and unit test) to fit the 1040 × 660 minimum window.
+- The Projects search understands `root:` ("root:\\nas01", "root:Z:", "root:{SERVER_ROOT}") to list
+  the projects that depend on a drive, share or variable.
+- **Launch sheet**: opening a project (card Open, "Open project", a launch set, the tray, a deep
+  link, start-up) shows a sheet over the content area with one row per item whose status pill
+  changes live as each item is tried (Opening… → Opened, Not found, Server offline, Undefined
+  variable, Skipped, Failed), a footer with the counts and the elapsed time, and the project's
+  launch sets as pills. It closes itself when everything opened and stays otherwise (× or Esc).
+  Items now open on the worker thread, one launch after another, and report per-item progress.
+
+### Changed
+- Dropping onto a project page accepts files, folders, applications, web links and `cmd:` lines.
+- One filled control per screen on Updates: "Download update" while an update is offered,
+  "Install and restart" once it is downloaded, otherwise "Check for updates".
+- The result toast after a launch is replaced by the launch sheet. The tray balloon summary is kept
+  for launches made while the window is hidden or minimised.
+
 ## 3.1.0 - 2026-11-01
 
 ### Changed

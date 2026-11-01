@@ -206,9 +206,21 @@ class Project:
     def item_by_id(self, item_id: str) -> Item | None:
         return next((i for i in self.items if i.id == item_id), None)
 
+    @property
+    def spine(self) -> str:
+        """What the office reads first: the job number, else the client, else nothing."""
+        return self.job_number.strip() or self.client.strip()
+
+    @property
+    def title(self) -> str:
+        """"P12513 · As-built isometrics": the job number (or client) first, then the name."""
+        spine = self.spine
+        return f"{spine} · {self.name}" if spine and spine.lower() not in self.name.lower() else self.name
+
     def items_for_set(self, launch_set: LaunchSet) -> list[Item]:
-        wanted = set(launch_set.item_ids)
-        return [i for i in self.items if i.id in wanted]
+        """The set's items in its launch order (the order of ``item_ids``)."""
+        by_id = {i.id: i for i in self.items}
+        return [by_id[i] for i in launch_set.item_ids if i in by_id]
 
     def touch(self) -> None:
         self.updated_at = now_iso()

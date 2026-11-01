@@ -10,17 +10,27 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shlex
 import subprocess
 import sys
 import time
 import webbrowser
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from project_opener.core import models as M
+from project_opener.core import winutil
 from project_opener.core.pathvars import PathResolver
 
 log = logging.getLogger(__name__)
+
+UNC_HOST_RE = re.compile(r"^\\\\([^\\]+)\\")
+
+# Fine-grained outcome of one item (``LaunchResult.code``).  ``status`` stays
+# the coarse category the history and the summary count: ``offline`` and
+# ``variable`` are both ``missing`` there.
+CODES = ("opened", "missing", "offline", "variable", "skipped", "failed")
 
 
 @dataclass
@@ -29,6 +39,11 @@ class LaunchResult:
     resolved: str
     status: str          # opened | missing | failed | skipped
     message: str = ""
+    code: str = ""       # opened | missing | offline | variable | skipped | failed (defaults to status)
+
+    def __post_init__(self) -> None:
+        if not self.code:
+            self.code = self.status
 
 
 @dataclass
@@ -71,29 +86,43 @@ class Launcher:
         self.dry_run = dry_run
 
     # --------------------------------------------------------------- public
-    def launch(self, items: list[M.Item]) -> LaunchReport:
+    def launch(self, items: list[M.Item],
+               progress: Callable[[int, LaunchResult], None] | None = None,
+               starting: Callable[[int], None] | None = None) -> LaunchReport:
+        """Open ``items`` one after another.
+
+        ``starting(index)`` is called just before an item is tried and
+        ``progress(index, result)`` as soon as it has been tried, in order, on
+        the calling thread.  Both are optional; neither may raise into here.
+        """
         report = LaunchReport()
+        hosts: dict[str, bool] = {}
         for idx, item in enumerate(items):
-            report.results.append(self.open_item(item))
+            if starting:
+                starting(idx)
+            result = self.open_item(item, hosts)
+            report.results.append(result)
+            if progress:
+                progress(idx, result)
             if idx < len(items) - 1 and self.delay_ms and not self.dry_run:
                 time.sleep(self.delay_ms / 1000.0)
         return report
 
-    def open_item(self, item: M.Item) -> LaunchResult:
+    def open_item(self, item: M.Item, host_cache: dict[str, bool] | None = None) -> LaunchResult:
         raw = item.path.strip()
         if not raw:
             return LaunchResult(item, "", "skipped", "empty path")
         res = self.resolver.resolve(raw)
         target = res.resolved
         if res.unresolved:
-            return LaunchResult(item, target, "missing", f"unknown variable {', '.join(res.unresolved)}")
+            return LaunchResult(item, target, "missing", f"unknown variable {', '.join(res.unresolved)}", code="variable")
         try:
             if item.kind == "url" or _is_url(target):
                 return self._open_url(item, target)
             if item.kind == "command":
                 return self._run_command(item, target)
             if not os.path.exists(target):
-                return LaunchResult(item, target, "missing", "path not found")
+                return self._not_found(item, target, host_cache if host_cache is not None else {})
             if item.kind == "app" or target.lower().endswith((".exe", ".bat", ".cmd")):
                 return self._run_app(item, target)
             return self._shell_open(item, target)
@@ -102,6 +131,18 @@ class Launcher:
             return LaunchResult(item, target, "failed", str(exc))
 
     # -------------------------------------------------------------- private
+    @staticmethod
+    def _not_found(item: M.Item, target: str, host_cache: dict[str, bool]) -> LaunchResult:
+        """``offline`` when the UNC host does not answer, else ``missing`` (same probe as core.health)."""
+        m = UNC_HOST_RE.match(target)
+        if m:
+            host = m.group(1)
+            if host not in host_cache:
+                host_cache[host] = winutil.host_reachable(host)
+            if not host_cache[host]:
+                return LaunchResult(item, target, "missing", f"{host} is not reachable", code="offline")
+        return LaunchResult(item, target, "missing", "path not found")
+
     def _open_url(self, item: M.Item, url: str) -> LaunchResult:
         if "://" not in url and not url.lower().startswith("mailto:"):
             url = "https://" + url

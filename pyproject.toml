@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "project-opener"
-version = "3.1.0"
+version = "3.2.0"
 description = "Dexterity Design Services workspace launcher: open every file, folder, link and tool a project needs in one click, and share it over the office LAN."
 readme = "README.md"
 requires-python = ">=3.11"

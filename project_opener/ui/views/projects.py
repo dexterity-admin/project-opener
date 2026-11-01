@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QButtonGroup, QComboBox, QHBoxLayout, QLabel, QLineEdit, QVBoxLayout, QWidget
 
 from project_opener.core import models as M
+from project_opener.core.health import path_root, root_key
 from project_opener.core.search import search_projects
 from project_opener.ui import icons, theme
 from project_opener.ui.context import AppContext
@@ -15,6 +16,12 @@ from project_opener.ui.widgets.cards import ProjectCard, ProjectRow
 from project_opener.ui.widgets.common import Button, Chip, IconButton, label
 from project_opener.ui.widgets.empty import EmptyState
 from project_opener.ui.widgets.flow import FlowLayout
+
+
+def uses_root(project: M.Project, root: str, drive_map: dict | None = None) -> bool:
+    """Whether any item of ``project`` sits under ``root`` (a mapped letter counts under its server)."""
+    want = root_key(root, drive_map)[0].lower()
+    return any(root_key(path_root(i.path), drive_map)[0].lower() == want for i in project.items if path_root(i.path))
 
 
 class ProjectsPage(Page):
@@ -79,11 +86,14 @@ class ProjectsPage(Page):
         self.flow = FlowLayout(self.host, 0, 16, 16, justify=True)
         self.list_lay = QVBoxLayout()
         self.list_lay.setSpacing(8)
+        self.empty_host = QVBoxLayout()
         self.content.addWidget(self.host)
         self.content.addLayout(self.list_lay)
+        self.content.addLayout(self.empty_host)
         self.content.addStretch(1)
-        self.drop_hint = label("Drop files or folders anywhere here to create a project from them.", "faint")
+        self.drop_hint = label("Release to start a project from these items", "faint")
         self.drop_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.drop_hint.hide()                 # shown only while something is dragged over the page
         self.content.addWidget(self.drop_hint)
 
         self.bind(ctx.projects_changed, self.refresh)
@@ -115,6 +125,19 @@ class ProjectsPage(Page):
             self._tag_filter.discard(tag)
         self.refresh()
 
+    def _clear_filters(self) -> None:
+        self._tag_filter.clear()
+        self._only_favorites = False
+        self.fav_btn.setChecked(False)
+        self.search.clear()
+        self.refresh()
+
+    def on_show(self, payload=None) -> None:
+        """A "root:…" payload (from Home's drive map) prefills the search with that root."""
+        if isinstance(payload, str) and payload.lower().startswith("root:"):
+            self.search.setText(payload)
+            self.refresh()
+
     def focus_search(self) -> None:
         self.search.setFocus()
         self.search.selectAll()
@@ -140,7 +163,9 @@ class ProjectsPage(Page):
 
         query = self.search.text().strip()
         projects = store.sorted_projects(self.sort.currentData() or "smart")
-        if query:
+        if query.lower().startswith("root:"):            # "root:\\nas01" / "root:Z:" / "root:{SERVER_ROOT}": by drive, share or variable
+            projects = [p for p in projects if uses_root(p, query[5:].strip(), self.ctx.resolver.drive_map)]
+        elif query:
             hits = search_projects(query, projects, limit=500)
             projects = [h.project for h in hits if h.project]
         if self._tag_filter:
@@ -156,16 +181,20 @@ class ProjectsPage(Page):
 
         self.flow.clear()
         clear_layout(self.list_lay)
+        clear_layout(self.empty_host)
         self._cards.clear()
         if not store.projects:
-            self.flow.addWidget(EmptyState("fa5s.folder-plus", "Your workspace is empty",
-                                           "Create a project, drop some files here, or import your Project Opener 1.x / 2.x data from Settings → Data.",
-                                           "New project", lambda: self.ctx.navigate.emit("new_project", None)))
-            self.host.setVisible(True)
+            self.host.setVisible(False)
+            self.empty_host.addWidget(EmptyState(
+                "fa5s.folder-plus", "No projects yet", "",
+                "New project", lambda: self.ctx.navigate.emit("new_project", None)))
             return
         if not projects:
-            self.flow.addWidget(EmptyState("fa5s.search", "No projects match", "Try a different search or clear the tag filters."))
-            self.host.setVisible(True)
+            self.host.setVisible(False)
+            what = f"“{query}”" if query else "these filters"
+            self.empty_host.addWidget(EmptyState("fa5s.search", f"Nothing matches {what}",
+                                                 "Search looks at the name, client, job number, tags and item paths.",
+                                                 "Clear search and filters", self._clear_filters, action_icon="fa5s.times"))
             return
         grid = self.ctx.settings.view_mode == "grid"
         self.host.setVisible(grid)
@@ -189,14 +218,14 @@ class ProjectsPage(Page):
     def dragEnterEvent(self, e) -> None:  # noqa: N802
         if e.mimeData().hasUrls():
             e.acceptProposedAction()
-            self.drop_hint.setText("Release to create a project from the dropped items")
+            self.drop_hint.show()
 
     def dragLeaveEvent(self, e) -> None:  # noqa: N802
-        self.drop_hint.setText("Drop files or folders anywhere here to create a project from them.")
+        self.drop_hint.hide()
 
     def dropEvent(self, e) -> None:  # noqa: N802
         paths = [u.toLocalFile() for u in e.mimeData().urls() if u.toLocalFile()]
-        self.drop_hint.setText("Drop files or folders anywhere here to create a project from them.")
+        self.drop_hint.hide()
         if not paths:
             return
         e.acceptProposedAction()

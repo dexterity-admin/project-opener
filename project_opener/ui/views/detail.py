@@ -4,7 +4,16 @@ from __future__ import annotations
 import os
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QPlainTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QBoxLayout,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QPlainTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from project_opener.core import models as M
 from project_opener.core import winutil
@@ -14,8 +23,10 @@ from project_opener.ui import icons, theme
 from project_opener.ui.context import AppContext
 from project_opener.ui.views.base import Page, badge, clear_layout, icon_container, make_transparent, section_label
 from project_opener.ui.widgets.cards import relative_time
-from project_opener.ui.widgets.common import Button, ElidedLabel, IconButton, ToggleSwitch, hline, label
+from project_opener.ui.widgets.common import Button, ElidedLabel, IconButton, SegmentLabel, ToggleSwitch, hline, label
 from project_opener.ui.widgets.dialogs import ItemEditor, LaunchSetEditor, confirm
+
+NARROW_W = 1000      # page width below which the side column stacks under the items (1040-px window → 808)
 
 # health status -> (pill level, text); one status mark per row
 STATUS_META = {
@@ -24,6 +35,25 @@ STATUS_META = {
     "offline": ("bad", "Server offline"),
     "variable": ("warn", "Undefined variable"),
 }
+
+
+def steps_line(project: M.Project, launch_set: M.LaunchSet) -> str:
+    """The set as the trade's checklist: its items numbered in launch order."""
+    items = project.items_for_set(launch_set)
+    return " · ".join(f"{n} {it.display_name}" for n, it in enumerate(items, start=1)) or "No items"
+
+
+def dropped_paths(mime) -> list[str]:
+    """Every droppable thing in a drag: local files and folders, web links, and lines of text
+    (a UNC path, a link or a ``cmd:`` command typed somewhere and dragged in)."""
+    out: list[str] = []
+    if mime.hasUrls():
+        for u in mime.urls():
+            local = u.toLocalFile()
+            out.append(local if local else u.toString())
+    elif mime.hasText():
+        out.extend(line.strip() for line in mime.text().splitlines() if line.strip())
+    return out
 
 
 class ItemRow(QFrame):
@@ -47,7 +77,7 @@ class ItemRow(QFrame):
         lay.addWidget(ic)
         col = QVBoxLayout()
         col.setSpacing(0)
-        name = QLabel(item.display_name)
+        name = ElidedLabel(item.display_name, mode=Qt.TextElideMode.ElideRight)   # elides, so a long name never widens the page
         name.setFont(theme.ui_font(weight=500))
         if not item.enabled:
             name.setObjectName("faint")
@@ -67,10 +97,15 @@ class ItemRow(QFrame):
         open_b = IconButton("fa5s.external-link-alt", "Open this item", size=13)
         open_b.clicked.connect(lambda: page.ctx.open_single(project, item))
         lay.addWidget(open_b)
-        reveal = IconButton("fa5s.folder-open", "Show in Explorer", size=13)
-        reveal.clicked.connect(self._reveal)
-        lay.addWidget(reveal)   # parent first: setVisible on an orphan creates a native window
-        reveal.setVisible(item.kind in ("file", "folder", "app"))
+        if item.kind in ("file", "folder", "app"):
+            reveal = IconButton("fa5s.folder-open", "Show in Explorer", size=13)
+            reveal.clicked.connect(self._reveal)
+            lay.addWidget(reveal)
+        else:                       # same width as the button, so every pill ends on one line
+            slot = QWidget()
+            slot.setFixedSize(30, 30)
+            make_transparent(slot)
+            lay.addWidget(slot)
         more = IconButton("fa5s.ellipsis-v", "More", size=13)
         more.clicked.connect(lambda: self._menu(more))
         lay.addWidget(more)
@@ -118,13 +153,16 @@ class ProjectPage(Page):
         self.content.addLayout(top)
 
         head = QHBoxLayout()
-        head.setSpacing(16)
-        # The one tinted icon container in the app (DESIGN.md).
-        self.icon = icon_container("fa5s.folder", theme.current().accent, 56)
+        head.setSpacing(12)
+        # The one tinted icon container in the app (DESIGN.md), inline with the title so the
+        # title, its line, the tags and the meta line share one left edge.
+        self.icon = icon_container("fa5s.folder", theme.current().accent, 32)
         head.addWidget(self.icon, 0, Qt.AlignmentFlag.AlignTop)
         col = QVBoxLayout()
         col.setSpacing(4)
-        self.title_label = label("", "h1")
+        self.title_label = ElidedLabel("", mode=Qt.TextElideMode.ElideRight)
+        self.title_label.setObjectName("h1")
+        self.title_label.setFont(theme.ui_font(theme.current().font_size + 8, 600))
         col.addWidget(self.title_label)
         self.desc = ElidedLabel("", mode=Qt.TextElideMode.ElideRight)
         self.desc.setObjectName("muted")
@@ -132,6 +170,10 @@ class ProjectPage(Page):
         self.tag_row = QHBoxLayout()
         self.tag_row.setSpacing(6)
         col.addLayout(self.tag_row)
+        self.meta_label = SegmentLabel()          # one line: whole facts drop from the right, never half a word
+        self.meta_label.setObjectName("muted")
+        self.meta_label.setFont(theme.ui_font(tabular=True))
+        col.addWidget(self.meta_label)
         head.addLayout(col, 1)
         actions = QHBoxLayout()
         actions.setSpacing(8)
@@ -147,36 +189,40 @@ class ProjectPage(Page):
         head.addLayout(actions)
         head.setAlignment(actions, Qt.AlignmentFlag.AlignTop)
         self.content.addLayout(head)
-
-        self.meta_label = label("", "muted", wrap=True)
-        self.meta_label.setFont(theme.ui_font(tabular=True))
-        self.content.addWidget(self.meta_label)
         self.origin_host = QVBoxLayout()
         self.content.addLayout(self.origin_host)
 
         # Box layouts, not a QGridLayout: grids with height-for-width children
         # (word-wrapped labels) make every layout pass exponentially slow.
-        cols = QHBoxLayout()
-        cols.setSpacing(16)
+        # Below NARROW_W the side column stacks under the items so the identity column
+        # (item names, paths) keeps its width instead of being the one that is cut.
+        self.cols = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        self.cols.setSpacing(16)
         self.items_panel, self.items_lay = self.panel()
         self.sets_panel, self.sets_lay = self.panel()
         self.notes_panel, self.notes_lay = self.panel()
-        cols.addWidget(self.items_panel, 3, Qt.AlignmentFlag.AlignTop)
-        side = QVBoxLayout()
-        side.setSpacing(16)
-        side.addWidget(self.sets_panel)
-        side.addWidget(self.notes_panel)
-        side.addStretch(1)
-        cols.addLayout(side, 2)
-        self.content.addLayout(cols)
+        self.cols.addWidget(self.items_panel, 3, Qt.AlignmentFlag.AlignTop)
+        self.side = QVBoxLayout()
+        self.side.setSpacing(16)
+        self.side.addWidget(self.sets_panel)
+        self.side.addWidget(self.notes_panel)
+        self.side.addStretch(1)
+        self.cols.addLayout(self.side, 2)
+        self.content.addLayout(self.cols)
         self.content.addStretch(1)
+        self._stacked = False
 
         # The notes editor is built once and kept: rebuilding it on every
         # project_updated would steal focus mid-typing (the autosave itself
         # emits that signal).
-        self.notes_lay.addWidget(section_label("Notes"))
+        nh = QHBoxLayout()
+        nh.setSpacing(8)
+        nh.addWidget(section_label("Notes"))
+        nh.addWidget(label("Saved as you type", "faint"))
+        nh.addStretch(1)
+        self.notes_lay.addLayout(nh)
         self.notes_edit = QPlainTextEdit()
-        self.notes_edit.setPlaceholderText("Contacts, conventions, reminders… saved automatically.")
+        self.notes_edit.setPlaceholderText("Contacts, conventions, reminders")
         self.notes_edit.setMinimumHeight(120)
         self.notes_edit.textChanged.connect(self._notes_changed)
         self.notes_lay.addWidget(self.notes_edit)
@@ -187,6 +233,19 @@ class ProjectPage(Page):
 
         self.bind(ctx.health_updated, self._health_changed)
         self.bind(ctx.project_updated, self._project_changed)
+    def resizeEvent(self, e) -> None:  # noqa: N802
+        super().resizeEvent(e)
+        self.set_stacked(self.width() < NARROW_W)
+
+    def set_stacked(self, stacked: bool) -> None:
+        """Side column beside the items (wide) or under them (narrow)."""
+        if stacked == self._stacked:
+            return
+        self._stacked = stacked
+        self.cols.setDirection(QBoxLayout.Direction.TopToBottom if stacked else QBoxLayout.Direction.LeftToRight)
+        self.cols.setStretch(0, 0 if stacked else 3)
+        self.cols.setStretch(1, 0 if stacked else 2)
+
     # ---------------------------------------------------------------- load
     def load(self, project: M.Project) -> None:
         self._flush_notes()
@@ -255,18 +314,18 @@ class ProjectPage(Page):
         if not p:
             return
         self.icon.set(p.icon, p.color)
-        self.title_label.setText(p.name)
-        desc = " · ".join(x for x in (p.client, p.job_number, p.description) if x)
+        self.title_label.setText(p.title)
+        desc = " · ".join(x for x in ((p.client if p.job_number.strip() else ""), p.description) if x)
         self.desc.setText(desc)
         self.desc.setVisible(bool(desc))
         clear_layout(self.tag_row)
         for tag in p.tags:
             self.tag_row.addWidget(badge(tag, "neutral"))
-        if p.pinned:
-            self.tag_row.addWidget(badge("Pinned", "neutral"))
         if p.auto_launch:
-            self.tag_row.addWidget(badge("Auto-launch", "neutral"))
+            self.tag_row.addWidget(badge("Opens at start-up", "neutral"))
         self.tag_row.addStretch(1)
+        self.launch_btn.setEnabled(bool(p.enabled_items))
+        self.launch_btn.setToolTip("" if p.enabled_items else ("Add an item first" if not p.items else "Every item is switched off"))
         self._render_meta()
         self._render_origin()
         self._render_items()
@@ -280,18 +339,22 @@ class ProjectPage(Page):
         h = self.ctx.health_for(p.id)
         problems = len(h.problems) if h else None
         sets = len(p.launch_sets)
+        if not p.items:
+            self.meta_label.set_segments([f"{sets} launch set{'s' if sets != 1 else ''}", "never opened"])
+            return
         if problems is None:
             health = "checking paths…"
         elif problems == 0:
-            health = "all paths reachable"
+            health = "every path reachable"
         else:
-            health = f"{problems} item{'s' if problems != 1 else ''} need{'' if problems != 1 else 's'} attention"
-        self.meta_label.setText(" · ".join([
+            health = f"{problems} path{'s' if problems != 1 else ''} need{'' if problems != 1 else 's'} attention"
+        opened = f"opened {p.open_count}×, last {relative_time(p.last_opened).lower()}" if p.open_count else "never opened"
+        self.meta_label.set_segments([
             f"{len(p.enabled_items)} of {len(p.items)} items enabled",
             f"{sets} launch set{'s' if sets != 1 else ''}",
-            f"Opened {p.open_count}× · last {relative_time(p.last_opened).lower()}",
+            opened,
             health,
-        ]))
+        ], drop_order=[2, 1, 0])          # the opened count goes first, then launch sets; health stays
 
     def _render_origin(self) -> None:
         clear_layout(self.origin_host)
@@ -308,9 +371,10 @@ class ProjectPage(Page):
         ic.setPixmap(icons.pixmap("fa5s.users", 16, t.info))
         lay.addWidget(ic)
         if p.origin.source == "team":
-            txt = f"Team project published by <b>{p.origin.author}</b> · revision {p.origin.revision}"
+            author = self.ctx.hub.display_name_for(p.origin.author)
             newer = self.ctx.hub.newer_revision(p) if self.ctx.hub.reachable() else None
-            lbl = QLabel(txt + (f" · <b>revision {newer.revision} available</b>" if newer else ""))
+            txt = f"Published by <b>{author}</b> · you have revision {p.origin.revision}"
+            lbl = QLabel(txt + (f" · <b>revision {newer.revision} available</b>" if newer else " · the latest"))
             lbl.setTextFormat(Qt.TextFormat.RichText)
             lay.addWidget(lbl, 1)
             if newer:
@@ -336,19 +400,23 @@ class ProjectPage(Page):
         head.setSpacing(8)
         head.addWidget(section_label("Items"))
         head.addStretch(1)
-        add_file = Button("File", "fa5s.file")
+        add_file = Button("Add files", "fa5s.file")
         add_file.clicked.connect(self._add_files)
-        add_folder = Button("Folder", "fa5s.folder-open")
-        add_folder.clicked.connect(self._add_folder)
-        add_link = Button("Link", "fa5s.link")
-        add_link.clicked.connect(lambda: self.edit_item_dialog(None, kind="url")())
-        add_any = Button("Add…", "fa5s.plus")
-        add_any.clicked.connect(self.edit_item_dialog(None))
-        for b in (add_file, add_folder, add_link, add_any):
-            head.addWidget(b)
+        head.addWidget(add_file)
+        add_more = Button("Add other", "fa5s.plus")
+        add_more.setStyleSheet(f"QPushButton::menu-indicator {{ image: url(\"{theme.caret_image(theme.current().text_muted)}\");"
+                               " width: 12px; height: 12px; subcontrol-position: right center; subcontrol-origin: padding; right: 10px; }"
+                               "QPushButton { padding-right: 28px; }")
+        menu = QMenu(add_more)
+        menu.addAction(icons.icon("fa5s.folder-open"), "Folder…", self._add_folder)
+        menu.addAction(icons.icon("fa5s.link"), "Link…", lambda: self.edit_item_dialog(None, kind="url")())
+        menu.addAction(icons.icon("fa5s.rocket"), "Application…", lambda: self.edit_item_dialog(None, kind="app")())
+        menu.addAction(icons.icon("fa5s.terminal"), "Command…", lambda: self.edit_item_dialog(None, kind="command")())
+        add_more.setMenu(menu)
+        head.addWidget(add_more)
         self.items_lay.addLayout(head)
         if not p.items:
-            self.items_lay.addWidget(label("No items yet. Add files, folders, links, applications or commands — or drag and drop them onto this page.", "muted", wrap=True))
+            self.items_lay.addWidget(label("No items yet.", "muted"))
             return
         health = self.ctx.health_for(p.id)
         groups = p.groups()
@@ -376,7 +444,7 @@ class ProjectPage(Page):
         head.addWidget(add)
         self.sets_lay.addLayout(head)
         if not p.launch_sets:
-            self.sets_lay.addWidget(label("Launch sets open a chosen subset of items together — for example 'Checking' or 'Submission pack'.", "muted", wrap=True))
+            self.sets_lay.addWidget(label("No launch sets.", "muted"))
             return
         for n, s in enumerate(p.launch_sets):
             if n:
@@ -391,12 +459,16 @@ class ProjectPage(Page):
             ic.setPixmap(icons.pixmap(s.icon, 16, theme.current().text_muted))
             ic.setFixedWidth(20)
             lay.addWidget(ic)
-            nm = QLabel(s.name)
+            col = QVBoxLayout()
+            col.setSpacing(0)
+            nm = ElidedLabel(s.name, mode=Qt.TextElideMode.ElideRight)
             nm.setFont(theme.ui_font(weight=500))
-            lay.addWidget(nm)
-            n = len(s.item_ids)
-            lay.addWidget(label(f"{n} item{'s' if n != 1 else ''}", "muted"))
-            lay.addStretch(1)
+            col.addWidget(nm)
+            steps = ElidedLabel(steps_line(p, s), mode=Qt.TextElideMode.ElideRight)   # "1 Iso checklist.pdf · 2 Line list.xlsx"
+            steps.setObjectName("faint")
+            steps.setFont(theme.ui_font(9, tabular=True))
+            col.addWidget(steps)
+            lay.addLayout(col, 1)
             play = Button("Open", "fa5s.play")
             play.clicked.connect(lambda _=False, ls=s: self.ctx.launch(p, ls, parent=self))
             lay.addWidget(play)
@@ -468,24 +540,29 @@ class ProjectPage(Page):
             self._add_paths([d])
 
     def _add_paths(self, paths: list[str]) -> None:
+        """Add dropped or chosen things: files, folders, applications, links and ``cmd:`` commands."""
         p = self.project
         if not p or not paths:
             return
         existing = {i.path.lower() for i in p.items}
         added = 0
         for raw in paths:
-            norm = os.path.normpath(raw)
+            raw = raw.strip()
+            if not raw:
+                continue
+            kind = M.guess_kind(raw)
+            norm = raw if kind in ("url", "command") else os.path.normpath(raw)
             if norm.lower() in existing:
                 continue
-            p.items.append(M.Item(path=norm, kind=M.guess_kind(norm)))
+            p.items.append(M.Item(path=norm, kind=kind))
             existing.add(norm.lower())
             added += 1
         if added and self.save_project():
-            self.ctx.toast.emit(f"Added {added} item(s)", p.name, "success")
+            self.ctx.toast.emit(f"Added {added} item{'s' if added != 1 else ''}", p.name, "success")
 
     def remove_item(self, item: M.Item) -> None:
         p = self.project
-        if p and confirm(self, "Remove item", f"Remove '{item.display_name}' from {p.name}?"):
+        if p and confirm(self, "Remove item", f"Remove ‘{item.display_name}’ from {p.name}? The file itself is not touched.", danger=True, ok_text="Remove item"):
             p.items = [i for i in p.items if i.id != item.id]
             for s in p.launch_sets:
                 s.item_ids = [i for i in s.item_ids if i != item.id]
@@ -496,7 +573,7 @@ class ProjectPage(Page):
         if not p:
             return
         if not p.items and ls is None:
-            self.ctx.toast.emit("Add items first", "A launch set needs items to choose from.", "warning")
+            self.ctx.toast.emit("Add items first", "A launch set picks from the project's items.", "warning")
             return
         dlg = LaunchSetEditor(p, ls, self)
         if dlg.exec():
@@ -506,7 +583,7 @@ class ProjectPage(Page):
 
     def _delete_set(self, ls: M.LaunchSet) -> None:
         p = self.project
-        if p and confirm(self, "Delete launch set", f"Delete '{ls.name}'? Items stay in the project."):
+        if p and confirm(self, "Delete launch set", f"Delete ‘{ls.name}’? Its items stay in the project.", danger=True, ok_text="Delete launch set"):
             p.launch_sets = [s for s in p.launch_sets if s.id != ls.id]
             self.save_project()
 
@@ -517,9 +594,9 @@ class ProjectPage(Page):
 
     # ------------------------------------------------------------- drag/drop
     def dragEnterEvent(self, e) -> None:  # noqa: N802
-        if e.mimeData().hasUrls() and self.project:
+        if (e.mimeData().hasUrls() or e.mimeData().hasText()) and self.project:
             e.acceptProposedAction()
 
     def dropEvent(self, e) -> None:  # noqa: N802
-        self._add_paths([u.toLocalFile() for u in e.mimeData().urls() if u.toLocalFile()])
+        self._add_paths(dropped_paths(e.mimeData()))
         e.acceptProposedAction()

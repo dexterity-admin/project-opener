@@ -19,6 +19,7 @@ from project_opener.ui.views.settings import SettingsPage
 from project_opener.ui.views.team import TeamPage
 from project_opener.ui.views.updates import UpdatesPage
 from project_opener.ui.widgets.dialogs import ProjectEditor, PublishDialog, SendToDialog, confirm
+from project_opener.ui.widgets.launch_sheet import LaunchSheet
 from project_opener.ui.widgets.palette import CommandPalette
 from project_opener.ui.widgets.sidebar import Sidebar
 from project_opener.ui.widgets.toast import ToastManager
@@ -65,17 +66,18 @@ class MainWindow(QMainWindow):
         self._route_history: list[str] = ["home"]
 
         self.toasts = ToastManager(self)
+        self.sheet: LaunchSheet | None = None      # built on the first launch, rebuilt on retheme
         self.palette = CommandPalette(self, lambda: ctx.store.projects, PALETTE_ACTIONS)
         self.palette.hit_chosen.connect(self._palette_hit)
 
         # wiring
         self.sidebar.route_changed.connect(self.go)
-        self.sidebar.new_project.connect(lambda: self.new_project())
         self.sidebar.palette_requested.connect(self.open_palette)
         self.sidebar.profile_clicked.connect(lambda: self.go("settings", "profile"))
         ctx.navigate.connect(self._navigate)
         ctx.toast.connect(self._toast)
         ctx.toast_action.connect(self._toast_with_action)
+        ctx.launch_started.connect(self._launch_started)
         ctx.hub_changed.connect(self._hub_status)
         ctx.projects_changed.connect(self._rebuild_tray_menu)
 
@@ -98,7 +100,7 @@ class MainWindow(QMainWindow):
         hook = getattr(page, "on_show", None)
         if hook:
             try:
-                hook(payload) if route in ("settings", "team") else hook()
+                hook(payload) if route in ("settings", "team", "projects") else hook()
             except TypeError:
                 hook()
 
@@ -152,19 +154,31 @@ class MainWindow(QMainWindow):
             self.retheme()
         elif action_id == "recheck":
             self.ctx.refresh_all_health()
-            self._toast("Re-checking paths…", "", "info")
+            self._toast("Re-checking all paths", "", "info")
         elif action_id == "updates":
             self.go("updates")
             self.ctx.check_updates(silent=False)
         else:
             self.go(action_id)
 
+    # --------------------------------------------------------- launch sheet
+    def launch_sheet(self) -> LaunchSheet:
+        if self.sheet is None:
+            self.sheet = LaunchSheet(self, area_fn=lambda: self.stack.geometry(),
+                                     compact=self.ctx.settings.density == "compact")
+            self.sheet.set_requested.connect(lambda project, ls: self.ctx.launch(project, ls, parent=self))
+        return self.sheet
+
+    def _launch_started(self, run) -> None:
+        """Live feedback for a launch: the sheet while the window shows; the tray balloon keeps the hidden case."""
+        if not (self.isVisible() and not self.isMinimized()):
+            return
+        run.sheet_shown = True
+        self.launch_sheet().begin(run, localise=self.ctx.resolver.localise)
+
     # ------------------------------------------------------------- projects
     def new_project(self, template: M.Project | None = None) -> None:
-        dlg = ProjectEditor(template, self.ctx.store.all_tags(), self)
-        if template is not None:
-            dlg.setWindowTitle("New project")
-            dlg.heading.setText("New project")
+        dlg = ProjectEditor(template, self.ctx.store.all_tags(), self, is_new=True)
         if dlg.exec():
             proj = self.ctx.store.add(dlg.project)
             self._toast("Project created", proj.name, "success")
@@ -188,7 +202,7 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction(icons.icon("fa5s.thumbtack"), "Unpin" if project.pinned else "Pin to top", lambda: self.ctx.store.toggle_pin(project.id))
         m.addAction(icons.icon("fa5s.star"), "Remove from favourites" if project.favorite else "Add to favourites", lambda: self.ctx.store.toggle_favorite(project.id))
-        auto = m.addAction(icons.icon("fa5s.power-off"), "Auto-launch at start-up")
+        auto = m.addAction(icons.icon("fa5s.power-off"), "Open at start-up")
         auto.setCheckable(True)
         auto.setChecked(project.auto_launch)
         auto.triggered.connect(lambda on: self._set_auto(project, on))
@@ -206,7 +220,7 @@ class MainWindow(QMainWindow):
         self.ctx.store.update(project)
 
     def delete_project(self, project: M.Project) -> None:
-        if confirm(self, "Delete project", f"Delete '{project.name}'? The files themselves are not touched.", danger=True):
+        if confirm(self, "Delete project", f"Delete ‘{project.name}’ from your workspace? The files themselves are not touched.", danger=True, ok_text="Delete project"):
             self.ctx.store.remove(project.id)
             self._toast("Project deleted", project.name, "info")
             if self.stack.currentWidget() is self.pages["project"]:
@@ -254,7 +268,7 @@ class MainWindow(QMainWindow):
         if not names:
             self._toast("No projects to publish", "", "info")
             return
-        choice, ok = QInputDialog.getItem(self, "Publish", "Project to publish:", names, 0, False)
+        choice, ok = QInputDialog.getItem(self, "Publish to Team Hub", "Project to publish", names, 0, False)
         if ok and choice:
             proj = self.ctx.store.by_name(choice)
             if proj:
@@ -270,7 +284,7 @@ class MainWindow(QMainWindow):
             self._toast("Sent" if ok else "Send failed", f"{project.name} → {dlg.recipient}", "success" if ok else "error")
 
     def update_from_hub(self, project: M.Project, pub) -> None:
-        if not confirm(self, "Update from hub", f"Replace items and launch sets of '{project.name}' with revision {pub.revision} from {pub.author}? Your notes and settings are kept."):
+        if not confirm(self, "Update from Team Hub", f"Replace the items and launch sets of ‘{project.name}’ with revision {pub.revision} from {self.ctx.hub.display_name_for(pub.author)}? Your notes and settings are kept.", ok_text=f"Replace with revision {pub.revision}"):
             return
         fresh = pub.project
         project.items = [M.Item.from_dict(i.to_dict()) for i in fresh.items]
@@ -291,7 +305,7 @@ class MainWindow(QMainWindow):
             self.sidebar.set_hub_text("Hub unreachable", False)
         self.sidebar.set_inbox_count(st.inbox)
         if st.inbox and getattr(self, "_last_inbox", 0) < st.inbox:
-            self._toast_with_action(f"{st.inbox} project(s) in your inbox", "Accept them from the Team Hub inbox.",
+            self._toast_with_action(f"{st.inbox} project{'s' if st.inbox != 1 else ''} in your inbox", "Accept or dismiss them in the Team Hub inbox.",
                                     "info", "Open inbox", ("team", "inbox"))
         self._last_inbox = st.inbox
 
@@ -313,6 +327,10 @@ class MainWindow(QMainWindow):
             self.stack.removeWidget(page)
             page.deleteLater()
         self.pages.clear()
+        if self.sheet is not None:
+            self.sheet.hide()
+            self.sheet.deleteLater()
+            self.sheet = None
         for cls in (HomePage, ProjectsPage, TeamPage, UpdatesPage, SettingsPage, ProjectPage):
             page = cls(self.ctx)
             self.pages[cls.route] = page
@@ -321,7 +339,6 @@ class MainWindow(QMainWindow):
         self.sidebar = Sidebar(self.ctx.display_name(), s.sidebar_collapsed)
         self.centralWidget().layout().insertWidget(0, self.sidebar)
         self.sidebar.route_changed.connect(self.go)
-        self.sidebar.new_project.connect(lambda: self.new_project())
         self.sidebar.palette_requested.connect(self.open_palette)
         self.sidebar.profile_clicked.connect(lambda: self.go("settings", "profile"))
         self.palette = CommandPalette(self, lambda: self.ctx.store.projects, PALETTE_ACTIONS)
@@ -369,7 +386,7 @@ class MainWindow(QMainWindow):
         m = self.tray_menu
         m.clear()
         m.addAction(icons.icon("fa5s.window-maximize"), "Show Project Opener", self.show_normal)
-        m.addAction(icons.icon("fa5s.search"), "Search…  (Ctrl+K)", lambda: (self.show_normal(), self.open_palette()))
+        m.addAction(icons.icon("fa5s.search"), "Search  (Ctrl+K)", lambda: (self.show_normal(), self.open_palette()))
         m.addSeparator()
         quick = [p for p in self.ctx.store.sorted_projects("smart")][:10]
         if quick:
@@ -418,7 +435,7 @@ class MainWindow(QMainWindow):
         s = self.ctx.settings
         if self.ctx.store.migrated_from:
             self._toast(f"Imported from {self.ctx.store.migrated_from}",
-                        f"{len(self.ctx.store.projects)} project(s) brought across. Backups stay untouched.", "success")
+                        f"{len(self.ctx.store.projects)} project{'s' if len(self.ctx.store.projects) != 1 else ''} brought across. Backups stay untouched.", "success")
         if s.last_seen_version != C.VERSION:
             s.last_seen_version = C.VERSION
             s.save()
@@ -435,7 +452,7 @@ class MainWindow(QMainWindow):
         for p in projects:
             self.ctx.launch(p)
         if projects:
-            self._toast(f"Auto-launched {len(projects)} project(s)", ", ".join(p.name for p in projects), "success")
+            self._toast(f"Opened {len(projects)} project{'s' if len(projects) != 1 else ''} at start-up", ", ".join(p.name for p in projects), "success")
 
     # ------------------------------------------------------------- window
     def _restore_geometry(self) -> None:
@@ -449,6 +466,8 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, e) -> None:  # noqa: N802
         super().resizeEvent(e)
         self.toasts.host_resized()
+        if self.sheet is not None and self.sheet.isVisible():
+            self.sheet.reposition()
 
     def changeEvent(self, e: QEvent) -> None:  # noqa: N802
         super().changeEvent(e)

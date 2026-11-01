@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from PySide6.QtWidgets import QMessageBox, QWidget
 from project_opener import constants as C
 from project_opener.core import health as H
 from project_opener.core import models as M
-from project_opener.core.launcher import Launcher, LaunchReport
+from project_opener.core.launcher import Launcher, LaunchReport, LaunchResult
 from project_opener.core.pathvars import PathResolver
 from project_opener.core.settings import Settings
 from project_opener.core.store import WorkspaceStore
@@ -46,6 +47,36 @@ class _Job(QRunnable):
             self.done(result)
 
 
+class LaunchRun(QObject):
+    """One launch of a project: what is being opened and how it is going.
+
+    The launcher runs on the pool; every signal below is emitted on the GUI
+    thread, in order: ``item_started(i)``, ``item_finished(i, result)`` per
+    item, then ``finished(report)`` once.  ``sheet_shown`` is set by whoever
+    takes the run as live feedback (the launch sheet), so the context knows
+    whether a summary toast is still owed.
+    """
+    item_started = Signal(int)
+    item_finished = Signal(int, object)      # index, LaunchResult
+    finished = Signal(object)                # LaunchReport
+
+    def __init__(self, project: M.Project, items: list[M.Item], launch_set: M.LaunchSet | None):
+        super().__init__()
+        self.project = project
+        self.items = items
+        self.launch_set = launch_set
+        self.set_name = launch_set.name if launch_set else ""
+        self.results: list[LaunchResult | None] = [None] * len(items)
+        self.report: LaunchReport | None = None
+        self.started_at = 0.0
+        self.elapsed = 0.0
+        self.sheet_shown = False
+
+    @property
+    def done(self) -> bool:
+        return self.report is not None
+
+
 class AppContext(QObject):
     projects_changed = Signal()
     project_updated = Signal(str)            # project id
@@ -58,6 +89,7 @@ class AppContext(QObject):
     update_failed = Signal(str)
     toast = Signal(str, str, str)            # title, body, level
     toast_action = Signal(str, str, str, str, object)  # title, body, level, button label, navigate (route, payload)
+    launch_started = Signal(object)          # LaunchRun, emitted before its first item is tried
     navigate = Signal(str, object)           # route, payload
     _invoke = Signal(object)                 # run callable on the GUI thread
 
@@ -82,6 +114,8 @@ class AppContext(QObject):
         self.downloaded: Path | None = None          # verified installer from the last download
         self.current_project_name = ""
         self._seen_revisions: set[tuple[str, int]] = set()
+        self._launch_queue: list[LaunchRun] = []
+        self._launch_active: LaunchRun | None = None
         self.window: QWidget | None = None
         self._lock = threading.Lock()
         self._invoke.connect(self._run_on_gui)
@@ -193,7 +227,13 @@ class AppContext(QObject):
 
     # -------------------------------------------------------------- launch
     def launch(self, project: M.Project, launch_set: M.LaunchSet | None = None, items: list[M.Item] | None = None,
-               parent: QWidget | None = None) -> LaunchReport | None:
+               parent: QWidget | None = None) -> LaunchRun | None:
+        """Open a project (or one of its launch sets) on the worker thread.
+
+        Returns the ``LaunchRun`` whose signals report progress, or ``None``
+        when there was nothing to open or the user declined.  Launches are
+        serialised so start-up projects open one after another.
+        """
         if items is None:
             items = project.items_for_set(launch_set) if launch_set else project.enabled_items
         items = [i for i in items if i.path.strip()]
@@ -207,25 +247,71 @@ class AppContext(QObject):
                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             if ans != QMessageBox.StandardButton.Yes:
                 return None
-        report = self.launcher.launch(items)
-        set_name = launch_set.name if launch_set else ""
-        self.store.record_launch(project, items, set_name, ok=len(report.opened), missing=len(report.missing))
+        run = LaunchRun(project, items, launch_set)
+        self._launch_queue.append(run)
+        self._next_launch()
+        return run
+
+    def _next_launch(self) -> None:
+        if self._launch_active is not None or not self._launch_queue:
+            return
+        run = self._launch_queue.pop(0)
+        self._launch_active = run
+        launcher = self.launcher
+        run.started_at = time.monotonic()
+        self.launch_started.emit(run)
+
+        def starting(idx: int) -> None:
+            self.run_on_gui(lambda: run.item_started.emit(idx))
+
+        def progress(idx: int, result: LaunchResult) -> None:
+            def deliver() -> None:
+                run.results[idx] = result
+                run.elapsed = time.monotonic() - run.started_at
+                run.item_finished.emit(idx, result)
+            self.run_on_gui(deliver)
+
+        def work() -> LaunchReport:
+            return launcher.launch(run.items, progress=progress, starting=starting)
+
+        def done(report: LaunchReport) -> None:
+            self._launch_active = None
+            self._finish_launch(run, report)
+            self._next_launch()
+
+        def fail(exc: Exception) -> None:
+            self._launch_active = None
+            log.error("launch failed: %s", exc)
+            report = LaunchReport([r if r is not None else LaunchResult(it, it.path, "failed", str(exc))
+                                   for it, r in zip(run.items, run.results, strict=False)])
+            self._finish_launch(run, report)
+            self._next_launch()
+
+        self.run_async(work, done, fail)
+
+    def _finish_launch(self, run: LaunchRun, report: LaunchReport) -> None:
+        """History, open count, pulse and the summary (as before), once the worker is done."""
+        project, set_name = run.project, run.set_name
+        run.report = report
+        run.elapsed = time.monotonic() - run.started_at
+        self.store.record_launch(project, run.items, set_name, ok=len(report.opened), missing=len(report.missing))
         self.current_project_name = project.name
         if self.settings.hub_share_pulse:
-            self.run_async(lambda: self.hub.pulse("launched", project.name + (f" › {set_name}" if set_name else "")))
+            self.run_async(lambda: self.hub.pulse("launched", project.title + (f" › {set_name}" if set_name else "")))
             self.run_async(lambda: self.hub.heartbeat(current_project=project.name))
             if self.beacon:
                 self.beacon.current_project = project.name
-        if report.ok:
-            self.toast.emit(f"Opened {project.name}", f"{len(report.opened)} item(s)" + (f" · {set_name}" if set_name else ""), "success")
-        else:
-            problems = report.missing + report.failed
-            body = "\n".join(f"• {r.item.display_name}: {r.message}" for r in problems[:5])
-            if len(problems) > 5:
-                body += f"\n… and {len(problems) - 5} more"
-            self.toast.emit(f"{project.name}: {report.summary()}", body, "warning")
+        run.finished.emit(report)
+        if not run.sheet_shown:        # no live sheet took the run (window hidden): the summary toast / tray balloon
+            if report.ok:
+                self.toast.emit(f"Opened {project.name}", f"{len(report.opened)} item(s)" + (f" · {set_name}" if set_name else ""), "success")
+            else:
+                problems = report.missing + report.failed
+                body = "\n".join(f"• {r.item.display_name}: {r.message}" for r in problems[:5])
+                if len(problems) > 5:
+                    body += f"\n… and {len(problems) - 5} more"
+                self.toast.emit(f"{project.name}: {report.summary()}", body, "warning")
         self.schedule_health(project)
-        return report
 
     def open_single(self, project: M.Project, item: M.Item) -> None:
         res = self.launcher.open_item(item)

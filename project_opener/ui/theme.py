@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
 from PySide6.QtWidgets import QApplication
@@ -162,6 +163,24 @@ _current: Tokens = build_tokens(False)
 _fonts_loaded = False
 
 
+def caret_image(color: str) -> str:
+    """Path (forward slashes, for QSS ``url()``) of a 12 px chevron in ``color``.
+
+    QSS cannot draw a glyph, so the combo-box arrow is a tiny SVG written once
+    per colour into the user's temp folder.
+    """
+    import tempfile
+    folder = Path(tempfile.gettempdir()) / "project-opener-ui"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"caret-{color.lstrip('#').lower()}.svg"
+    if not path.exists():
+        path.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12">'
+            f'<path d="M2.5 4.5 L6 8 L9.5 4.5" fill="none" stroke="{color}" stroke-width="1.5" '
+            'stroke-linecap="round" stroke-linejoin="round"/></svg>', encoding="utf-8")
+    return path.as_posix()
+
+
 def current() -> Tokens:
     return _current
 
@@ -223,6 +242,8 @@ def build_qss(t: Tokens) -> str:
     font = preferred_font()
     fs = t.font_size
     pill = t.control_h // 2
+    caret = caret_image(t.text_muted)
+    caret_faint = caret_image(t.text_faint)
     return f"""
     * {{ outline: none; }}
     QWidget {{
@@ -246,6 +267,8 @@ def build_qss(t: Tokens) -> str:
     QLabel#kpi {{ font-size: {fs + 8}pt; font-weight: 400; }}
     QLabel#muted {{ color: {t.text_muted}; }}
     QLabel#faint {{ color: {t.text_faint}; font-size: {fs - 1}pt; }}
+    QLabel#field_label {{ color: {t.text}; font-weight: 500; }}
+    QLabel#error {{ color: {t.danger}; }}
     QLabel#eyebrow {{ color: {t.text_muted}; font-size: {fs - 1}pt; font-weight: 500; }}
     QLabel#kicker {{ color: {t.text_muted}; font-size: {fs - 1}pt; font-weight: 500; }}
 
@@ -283,10 +306,14 @@ def build_qss(t: Tokens) -> str:
     QLineEdit, QSpinBox, QComboBox {{ min-height: {t.control_h - 16}px; }}
     QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QComboBox:focus {{ border: 2px solid {t.accent}; padding: 6px 10px; }}
     QLineEdit:disabled, QTextEdit:disabled {{ color: {t.text_faint}; background-color: {t.surface_2}; }}
+    QLineEdit[invalid="true"], QComboBox[invalid="true"], QPlainTextEdit[invalid="true"], QListWidget[invalid="true"],
+    QLineEdit[invalid="true"]:focus, QComboBox[invalid="true"]:focus, QPlainTextEdit[invalid="true"]:focus, QListWidget[invalid="true"]:focus {{ border: 2px solid {t.danger}; padding: 6px 10px; }}
     QLineEdit#search {{ padding-left: 34px; border-radius: {pill}px; }}
     QLineEdit#search:focus {{ padding-left: 33px; }}
-    QComboBox::drop-down {{ border: none; width: 26px; }}
-    QComboBox::down-arrow {{ image: none; }}
+    QComboBox {{ padding-right: 28px; }}
+    QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: center right; border: none; width: 28px; }}
+    QComboBox::down-arrow {{ image: url("{caret}"); width: 12px; height: 12px; }}
+    QComboBox::down-arrow:disabled {{ image: url("{caret_faint}"); }}
     QComboBox QAbstractItemView {{
         background-color: {t.surface}; border: 1px solid {t.border}; border-radius: {t.radius_sm}px;
         selection-background-color: {t.surface_2}; selection-color: {t.text}; padding: 4px; outline: 0;
@@ -313,7 +340,8 @@ def build_qss(t: Tokens) -> str:
     QPushButton#primary:focus {{ border: 2px solid {t.text}; }}
     QPushButton#primary:disabled {{ background-color: {t.surface_3}; color: {t.text_faint}; border-color: {t.surface_3}; }}
     QPushButton#danger {{ background-color: {t.surface}; color: {t.danger}; border: 1px solid {t.border_strong}; }}
-    QPushButton#danger:hover {{ background-color: {t.pill_bad_bg}; border-color: {t.pill_bad_bg}; }}
+    QPushButton#danger:hover {{ background-color: {t.pill_bad_bg}; border-color: {t.pill_bad_bg}; color: {t.pill_bad_ink}; }}
+    QPushButton#danger:focus {{ border: 2px solid {t.danger}; }}
     QPushButton#ghost {{ background: transparent; border: 1px solid transparent; color: {t.text_muted}; }}
     QPushButton#ghost:hover {{ background-color: {t.surface_2}; color: {t.text}; }}
     QPushButton#icon {{ background: transparent; border: 1px solid transparent; padding: 0; min-width: 30px; min-height: 30px; max-height: 30px; border-radius: 15px; }}

@@ -27,7 +27,7 @@ from project_opener.ui import theme
 from project_opener.ui.context import AppContext
 from project_opener.ui.views.base import Page, section_label
 from project_opener.ui.widgets.common import Button, IconButton, SwitchRow, label
-from project_opener.ui.widgets.dialogs import confirm
+from project_opener.ui.widgets.dialogs import confirm, field_block
 
 
 class SettingsPage(Page):
@@ -43,13 +43,15 @@ class SettingsPage(Page):
         p, lay = self.panel()
         self._anchors["profile"] = p
         lay.addWidget(section_label("You"))
+        lay.addWidget(label("Shown to colleagues on the Team Hub.", "muted"))
         row = QHBoxLayout()
+        row.setSpacing(12)
         self.display_name = QLineEdit(s.display_name)
-        self.display_name.setPlaceholderText(f"Display name (Windows user: {ctx.user})")
+        self.display_name.setPlaceholderText(ctx.user)
         self.role = QLineEdit(s.role)
-        self.role.setPlaceholderText("Role, e.g. Piping designer / Checker / Admin")
-        row.addWidget(self.display_name, 1)
-        row.addWidget(self.role, 1)
+        self.role.setPlaceholderText("Piping designer, Checker, Admin")
+        row.addWidget(field_block("Display name", self.display_name), 1)
+        row.addWidget(field_block("Role", self.role), 1)
         lay.addLayout(row)
         self.display_name.editingFinished.connect(self._save_profile)
         self.role.editingFinished.connect(self._save_profile)
@@ -60,8 +62,15 @@ class SettingsPage(Page):
         self._anchors["appearance"] = p
         lay.addWidget(section_label("Appearance"))
         trow = QHBoxLayout()
-        trow.setSpacing(8)
-        trow.addWidget(label("Theme", "muted"))
+        trow.setSpacing(12)
+        trow.setAlignment(Qt.AlignmentFlag.AlignTop)
+        control_h = theme.current().control_h
+        theme_w = QWidget()
+        theme_w.setFixedHeight(control_h)              # every control row the combo's height, contents centred
+        theme_row = QHBoxLayout(theme_w)
+        theme_row.setContentsMargins(0, 0, 0, 0)
+        theme_row.setSpacing(8)
+        theme_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         self.theme_group = QButtonGroup(self)
         for key, text in (("dark", "Dark"), ("light", "Light"), ("system", "Follow Windows")):
             b = QPushButton(text)
@@ -70,27 +79,38 @@ class SettingsPage(Page):
             b.setChecked(s.theme == key)
             b.clicked.connect(lambda _=False, k=key: self._set_theme(k))
             self.theme_group.addButton(b)
-            trow.addWidget(b)
-        trow.addSpacing(20)
-        trow.addWidget(label("Accent", "muted"))
+            theme_row.addWidget(b)
+        theme_row.addStretch(1)
+        trow.addWidget(field_block("Theme", theme_w))
+        accent_w = QWidget()
+        accent_w.setFixedHeight(control_h)
+        accent_row = QHBoxLayout(accent_w)
+        accent_row.setContentsMargins(0, 0, 0, 0)
+        accent_row.setSpacing(6)
+        accent_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         for c, name in theme.ACCENTS:
             b = QPushButton()
             b.setFixedSize(22, 22)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setToolTip(name)
-            ring = theme.current().text if c.lower() == s.accent.lower() else "transparent"
+            t = theme.current()
+            ring = t.text if c.lower() == s.accent.lower() else t.border_strong   # a ring keeps "Ink" visible on dark
             b.setStyleSheet(f"QPushButton {{ background-color: {c}; border: 2px solid {ring}; border-radius: 11px;"
-                            f" min-height: 18px; max-height: 18px; padding: 0; }}")
+                            f" min-height: 18px; max-height: 18px; padding: 0; }}"
+                            f"QPushButton:hover {{ border-color: {t.text_muted}; }}"
+                            f"QPushButton:focus {{ border-color: {t.accent}; }}")
             b.clicked.connect(lambda _=False, cc=c: self._set_accent(cc))
-            trow.addWidget(b)
-        trow.addSpacing(20)
-        trow.addWidget(label("Density", "muted"))
+            accent_row.addWidget(b)
+        accent_row.addStretch(1)
+        trow.addWidget(field_block("Accent", accent_w))
         self.density = QComboBox()
         self.density.addItem("Comfortable", "comfortable")
         self.density.addItem("Compact", "compact")
         self.density.setCurrentIndex(max(0, self.density.findData(s.density)))
         self.density.currentIndexChanged.connect(self._set_density)
-        trow.addWidget(self.density)
+        self.density.setMinimumWidth(132)
+        self.density.setFixedHeight(control_h)
+        trow.addWidget(field_block("Density", self.density))
         trow.addStretch(1)
         lay.addLayout(trow)
         self.content.addWidget(p)
@@ -102,36 +122,34 @@ class SettingsPage(Page):
         self.sw_startup = SwitchRow("Start with Windows", "Launch Project Opener minimised to the tray when you sign in.", winutil.is_run_at_startup())
         self.sw_startup.toggled.connect(self._set_startup)
         lay.addWidget(self.sw_startup)
-        self.sw_autolaunch = SwitchRow("Run auto-launch projects at start-up", "Projects marked 'Auto-launch' open their enabled items when the app starts.", s.auto_launch_on_start)
+        self.sw_autolaunch = SwitchRow("Open start-up projects", "Projects marked ‘Open at start-up’ open their enabled items when the app starts.", s.auto_launch_on_start)
         self.sw_autolaunch.toggled.connect(lambda v: self._set("auto_launch_on_start", v))
         lay.addWidget(self.sw_autolaunch)
-        self.sw_tray = SwitchRow("Minimise to tray on close", "Keep running in the notification area for instant launches.", s.minimise_to_tray)
+        self.sw_tray = SwitchRow("Keep running in the tray on close", "The window closes; the tray icon stays for instant launches.", s.minimise_to_tray)
         self.sw_tray.toggled.connect(lambda v: self._set("minimise_to_tray", v))
         lay.addWidget(self.sw_tray)
         self.sw_start_min = SwitchRow("Start minimised", "Open in the tray instead of showing the window when the app starts.", s.start_minimised)
         self.sw_start_min.toggled.connect(lambda v: self._set("start_minimised", v))
         lay.addWidget(self.sw_start_min)
-        self.sw_toasts = SwitchRow("Show notifications", "Toasts for launches, updates and hub events.", s.show_toasts)
+        self.sw_toasts = SwitchRow("Show notifications", "Launches, updates and hub events. Errors always show.", s.show_toasts)
         self.sw_toasts.toggled.connect(lambda v: self._set("show_toasts", v))
         lay.addWidget(self.sw_toasts)
         nrow = QHBoxLayout()
-        nrow.addWidget(label("Pause between items", "muted"))
+        nrow.setSpacing(12)
         self.delay = QSpinBox()
         self.delay.setRange(0, 5000)
         self.delay.setSingleStep(50)
         self.delay.setSuffix(" ms")
         self.delay.setValue(s.launch_delay_ms)
         self.delay.valueChanged.connect(lambda v: self._set("launch_delay_ms", v, rebuild=True))
-        nrow.addWidget(self.delay)
-        nrow.addSpacing(20)
-        nrow.addWidget(label("Confirm when opening more than", "muted"))
+        nrow.addWidget(field_block("Pause between items", self.delay), 1)
         self.confirm_n = QSpinBox()
         self.confirm_n.setRange(0, 200)
         self.confirm_n.setValue(s.confirm_launch_over)
         self.confirm_n.setSuffix(" items")
         self.confirm_n.valueChanged.connect(lambda v: self._set("confirm_launch_over", v))
-        nrow.addWidget(self.confirm_n)
-        nrow.addStretch(1)
+        nrow.addWidget(field_block("Confirm when opening more than", self.confirm_n), 1)
+        nrow.addStretch(2)
         lay.addLayout(nrow)
         self.content.addWidget(p)
 
@@ -139,8 +157,8 @@ class SettingsPage(Page):
         p, lay = self.panel()
         self._anchors["hub"] = p
         lay.addWidget(section_label("Team Hub"))
-        lay.addWidget(label("Pick any folder on a shared drive that every colleague can read and write (for example "
-                            r"\\nas01\Project\_ProjectOpenerHub). No server is needed.", "muted", wrap=True))
+        lay.addWidget(label("Any folder on a shared drive that every colleague can read and write, for example "
+                            r"\\nas01\Project\_ProjectOpenerHub. No server is needed.", "muted", wrap=True))
         hrow = QHBoxLayout()
         self.hub_path = QLineEdit(s.hub_path)
         self.hub_path.setPlaceholderText(r"\\server\share\_ProjectOpenerHub")
@@ -211,16 +229,13 @@ class SettingsPage(Page):
         srow.addStretch(1)
         lay.addWidget(self.skip_row)
         self._refresh_skip_row()
-        trow = QHBoxLayout()
         self.token = QLineEdit()
         self.token.setEchoMode(QLineEdit.EchoMode.Password)
-        self.token.setPlaceholderText("Optional GitHub token (raises the API rate limit; stored encrypted with Windows DPAPI)")
+        self.token.setPlaceholderText("Optional")
         self.token.setText(s.github_token)
-        trow.addWidget(self.token, 1)
-        save_tok = Button("Save token", "fa5s.key")
-        save_tok.clicked.connect(self._save_token)
-        trow.addWidget(save_tok)
-        lay.addLayout(trow)
+        self.token.editingFinished.connect(self._save_token)     # every control saves itself (one save model)
+        lay.addWidget(field_block("GitHub token", self.token,
+                                  "Raises the API rate limit. Stored encrypted for this Windows account."))
         crow = QHBoxLayout()
         crow.addWidget(label("Channel", "muted"))
         self.channel = QComboBox()
@@ -237,7 +252,7 @@ class SettingsPage(Page):
         p, lay = self.panel()
         self._anchors["data"] = p
         lay.addWidget(section_label("Data and backups"))
-        lay.addWidget(label(f"Workspace: {ctx.store.path}", "muted", wrap=True))
+        lay.addWidget(label(f"Workspace file: {ctx.store.path}", "muted", wrap=True))
         drow = QHBoxLayout()
         exp = Button("Export workspace…", "fa5s.file-export")
         exp.clicked.connect(self._export)
@@ -252,7 +267,7 @@ class SettingsPage(Page):
         drow.addStretch(1)
         lay.addLayout(drow)
         brow = QHBoxLayout()
-        brow.addWidget(label("Backups are kept automatically before every save.", "muted"))
+        brow.addWidget(label("A backup is written before every save.", "muted"))
         rb = Button("Restore a backup…", "fa5s.undo")
         rb.clicked.connect(self._restore)
         brow.addWidget(rb)
@@ -394,9 +409,12 @@ class SettingsPage(Page):
 
     # -------------------------------------------------------------- token
     def _save_token(self) -> None:
-        self.ctx.settings.github_token = self.token.text().strip()
+        value = self.token.text().strip()
+        if value == self.ctx.settings.github_token:
+            return
+        self.ctx.settings.github_token = value
         self.ctx.apply_settings()
-        self.ctx.toast.emit("Token saved" if self.token.text().strip() else "Token cleared", "Stored encrypted for this Windows account.", "success")
+        self.ctx.toast.emit("Token saved" if value else "Token cleared", "Stored encrypted for this Windows account.", "success")
 
     # --------------------------------------------------------------- data
     def _export(self) -> None:
@@ -423,7 +441,9 @@ class SettingsPage(Page):
         box.setText("Merge with the current workspace, or replace it?")
         merge = box.addButton("Merge", QMessageBox.ButtonRole.AcceptRole)
         replace = box.addButton("Replace everything", QMessageBox.ButtonRole.DestructiveRole)
-        box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        cancel = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(merge)        # Enter merges (non-destructive); Esc cancels
+        box.setEscapeButton(cancel)
         box.exec()
         if box.clickedButton() is merge:
             a, u = self.ctx.store.import_bundle(data, "merge")
@@ -451,6 +471,6 @@ class SettingsPage(Page):
         from PySide6.QtWidgets import QInputDialog
         names = [b.name for b in backups[:30]]
         choice, ok = QInputDialog.getItem(self, "Restore backup", "Choose a backup (newest first):", names, 0, False)
-        if ok and choice and confirm(self, "Restore", f"Replace the current workspace with {choice}?", danger=True):
+        if ok and choice and confirm(self, "Restore backup", f"Replace the current workspace with {choice}? A backup of the current state is taken first.", danger=True, ok_text="Restore backup"):
             if self.ctx.store.restore_backup(backups[names.index(choice)]):
                 self.ctx.toast.emit("Backup restored", choice, "success")

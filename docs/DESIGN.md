@@ -86,7 +86,157 @@ flat choices that each pass 4.5:1 with white text.
 - KPIs: one card divided by 1 px rules, label (12 px grey) over value (24 px 400). No icons, no
   sparklines, no deltas without their window.
 - Rows 44-56 px; two-line rows 56+; one status mark per row; numbers right-aligned tabular.
-- Empty states keep the frame and the heading and say the next step in one sentence.
+- Empty states keep the frame and the heading, span the block they stand in (never a narrow
+  island in a flow), say in one sentence what the block will hold, and offer one action where
+  the data will appear (`widgets/empty.py`). Text measure 420 px.
+- Tags on cards and rows are pale neutral pills (`Badge`, 20 px, no border); an outlined 1 px box
+  per tag was a counted tell. Outlined chips are only for *interactive* filters (Projects page).
+- Columns inside list rows are real columns: trailing actions take a fixed slot per row (a hidden
+  button still reserves its 30 px), so every status pill ends on one line.
+- Two panels that share a row share a bottom edge: both stretch, content top-aligned, rows capped
+  (Home: 4) so neither carries a blank band. A lone count leads each panel's heading in grey,
+  tabular, instead of a KPI strip above them all (app-screens §5: a strip whose every cell names a
+  panel below is dropped).
+- Every page's title row carries the page's one primary and nothing the sidebar already offers
+  (no second Search button).
+- Combo boxes draw a 12 px chevron (`theme.caret_image`); a control that opens says so.
+- **Toggles are chrome, so they carry no colour**: the on-state track is `text` ink (near-black on
+  light, white on dark) with the knob in `bg`; off is the `border_strong` track. The accent stays on
+  data, the one primary and the focus ring (app-screens §8.1: "the on colour is a semantic green or
+  near-black, not the brand accent"; our accent is the brand green, so ink it is).
+- **One "New project" control per screen**: the filled primary in the title row of Home and Projects.
+  The sidebar carries none (Ctrl+N and the palette reach it from every page). The sidebar names the
+  product and the company, never the version: the version lives on Updates.
+- **Card grids** (`FlowLayout(justify=True)`): rows of equal columns; the last row's cards share the
+  full width so no card stands beside empty ground; every card in a row takes the row's height, with
+  its action pinned to the foot, so a row has one bottom edge. A card's second line is never blank:
+  client · job, else the description, else what the project holds ("2 links · 1 command").
+- **Home**: Quick launch shows one row (3 cards) with "All projects" in its heading, so Needs attention
+  and Team pulse, the rows that answer "is anything wrong", sit on the first screen. Needs attention
+  lists one row per path with the same status pill as the project page and the launch sheet (the
+  product's signature element on the first screen). Announcements: the newest only, as one band with
+  the body on one line and "+N more" to the right; the rest live on the Team Hub.
+- **Project page**: the 32 px icon tile sits inline with the title so the title, its line, the tags and
+  the meta line share one left edge; the back link and the card titles share the other. Below 1180 px
+  page width the side column (launch sets, notes) stacks under the items so the identity column keeps
+  its width. "Open project" is disabled, with the reason in its tooltip, when nothing is enabled.
+- **Dialogs** float over a 40 % ink scrim on the main window (`_Scrim`), so the page behind reads as
+  behind.
+- **Progress** bars are 4 px, full width under their label, never centred in a well.
+- **People** are shown by display name everywhere (`TeamHub.display_name_for`), the login only in a
+  tooltip. A fact appears once per screen: the version in the Updates subtitle only; an item count as
+  "6 of 6 items" on the project page; on cards and rows the health line reads "6 items · opened
+  just now", "4 of 6 items · opened 2 d ago" only when some items are switched off, and "never
+  opened" when never opened (`cards.health_line`), so it never reads like a launch result beside
+  the launch sheet's "4 opened".
+- **Launch sheet** footer: "N opened · N not opened · N skipped": "not opened" counts items that failed,
+  were not found, whose server was offline or whose variable is undefined; "skipped" only items the
+  launcher skipped on purpose.
+- A drag target ("Release to start a project from these items") shows only while something is
+  dragged over the page; no instruction sits in empty ground otherwise.
+- **The office's own objects organise the screens** (round 3):
+  - *Job number first.* `Project.title` is "P12513 · As-built isometrics" (the client when there is no
+    job number; nothing added when it is already in the name). Every title, card, row, palette hit,
+    hub card and launch-sheet heading uses it, set in tabular figures at title weight. The card's
+    second line then carries the client and description, else what the project holds.
+  - *Health by cause, then by symptom.* Home's left column is "Drives on this PC" over "Needs
+    attention". The drive map lists only the roots that are down (drive letter, `\\server` share,
+    `{VARIABLE}`), worst first, each with its pill, the letter's mapping as a faint subline
+    ("Z: → \\nas01\Project"; a mapped letter folds into its server so a server down is one row),
+    which job uses it ("1 project · P12513" / "2 projects") and an action only where the row needs
+    doing: "Open P12513" for one project, "2 projects" (the Projects page filtered with
+    `root:<root>`) for more; rows without an action keep the action column's width. Reachable roots
+    fold behind one ghost line "N drives reachable" that expands on click. Needs attention lists
+    only paths a root does not explain and is hidden when there are none. Re-check sits in the
+    drive map's heading and disappears with no projects. The same pills everywhere (`STATUS_META`).
+  - *A launch set is a checklist.* Items are numbered steps in launch order under their group label
+    (launch sheet, Launch sets panel "1 Iso checklist.pdf · 2 Line list.xlsx"); the editor's list order
+    is the launch order (Move up / Move down) and is saved in `LaunchSet.item_ids`.
+  - *Revision is a figure.* "rev 2" tabular in the hub card's corner; the clone banner "you have
+    revision 1 · revision 2 available". Activity is a register, not a feed: grouped under the
+    project title with the columns Event · Rev · By · When (figures and times right-aligned,
+    tabular), launches by one person on one day folded into "opened 3× today"
+    (`team.activity_register`).
+  - *Tabular figures are for figures that line up* (rows, pills, the rev column, the meta line,
+    the sheet footer), never for a title: a title lines up with nothing and `tnum` letter-spaces
+    the job number.
+  - *A line of facts drops whole facts.* The project meta line (`SegmentLabel`) removes " · "
+    segments from the right when the width is short; it never elides inside a word.
+- Empty states are one trade-word line and the action, never a description of what the block is for
+  ("No projects published yet." + Publish a project; "Nothing sent to you yet."; the hub: "Pick a
+  shared folder, for example \\nas01\Project\_ProjectOpenerHub." + Connect). A control that can do
+  nothing is hidden (Re-check with no projects, Refresh with no hub).
+- Settings rows use one grammar: every control has its label above it (`field_block`), including
+  Theme | Accent | Density, whose three blocks sit on one top with every control row at the
+  control height (34 px) and its contents centred.
+- The sidebar names the product and the company on one line each ("Dexterity Design Services");
+  the legal name lives on Updates → Diagnostics only. Pulses (opened, published, sent) carry the
+  project's title, so one object has one name across Team pulse and Activity.
+- Once a newer installer is downloaded, the "mirror the current version" control under LAN mirror
+  is hidden: the one mirror action on the screen is the downloaded version's.
+- A lone card in the last row of a grid keeps its column width, left-aligned; two or more share the row.
+- **Every page fits the 1040 × 660 minimum window**: `tools/smoke_ui.py` fails when any page's minimum
+  width exceeds the content area beside the sidebar, and `test_every_page_fits_the_minimum_window`
+  checks the same. Home's two side-by-side blocks (the drive map, Team pulse) stack below 960 px of
+  page width, as the project page's side column does below 1000 px; names, mappings and usage on
+  rows are `ElidedLabel`s so no row can widen a page.
+- The register's By column is identity text: fixed width, left-aligned, header the same; Rev and
+  When stay right-aligned figures.
+- A drive row used by several projects names the jobs in its cell ("P12513 · ANTEO", up to two,
+  then "+N") while the button carries the count; a single project reads "1 project · P12513".
+- The project meta line drops facts by priority: the opened count first, then launch sets, then
+  the enabled count; the health fact is the last one standing (`SegmentLabel.set_segments(…,
+  drop_order=)`).
+- The launch-sheet footer omits the elapsed time under 0.1 s. Busy progress (no size yet) uses the
+  indeterminate bar on a tinted well; a determinate bar shows the true ratio.
+
+## Dialogs
+
+One form grammar (`widgets/dialogs.py`, `_BaseDialog`):
+
+- Heading 16 pt 600; an optional grey line under it naming the object ("P12513 As-built
+  isometrics"), never the object inside the heading in quotes.
+- Labels **above** fields (`field_block`), 500 weight; placeholders are examples, never labels.
+  One faint help line under a field only where it earns its place; it says what the field does,
+  not what the interface is.
+- Two short fields share a row (Client | Job number, Type | Group); everything else is one column.
+  A dialog stays under 640 px tall so it fits a 768 px laptop: Notes are edited on the project page.
+- Validation is inline: `show_error(text, widget)` puts the sentence above the buttons, outlines
+  the field in the negative colour (`[invalid="true"]`) and focuses it; the outline clears as the
+  user types. No `QMessageBox`.
+- Buttons right-aligned: Cancel, then the confirming button named for its action ("Create
+  project", "Add item", "Send", "Publish", "Post"). The confirming button is the default, so Enter
+  accepts and Esc cancels. A field that uses Enter itself (the tag editor) consumes the key.
+- Confirmations (`ConfirmDialog`, via `confirm(..., ok_text=)`): the question names the object and
+  its consequence; the confirming button names the action. For a destructive action it is outlined
+  in the negative colour and **Cancel takes the default and focus**, so Enter never deletes. Qt's
+  own Import-mode box keeps Merge (AcceptRole) as the safe default.
+- Command palette rows are grouped under grey headings (Projects, Launch sets, Items, Actions);
+  arrow keys skip headings; actions show their shortcut on the right; a miss says
+  "Nothing matches “…”".
+
+## Launch sheet
+
+Opening a project is the product's one moment, so it gets live feedback instead of a result toast
+(`widgets/launch_sheet.py`):
+
+- One frameless surface, 640 px wide, centred over the content area (never over the sidebar), with
+  the toast's drop shadow (the floating things are the only ones with a shadow). Title "Opening
+  <project>" (16 px 600) and one grey line "<N items> · <client> · <job>" (the launch set's name
+  sits after the count when a set is opened).
+- One row per item **in this launch** (enabled items, or the set's items): group (faint, left),
+  kind icon, name over the resolved path (faint, elided in the middle), status pill on the right.
+  The pill is the project page's pill, same levels and words: queued rows have none, the item
+  being tried shows "Opening…" (neutral), then Opened (ok), Not found (warn), Server offline
+  (bad), Undefined variable (warn), Skipped (neutral) or Failed (bad, tooltip says why).
+- A 3 px progress line under the heading; the list scrolls past 60 % of the window height.
+- Footer: bold "N opened" · "M skipped" · elapsed seconds (tabular figures); on the right the
+  project's launch sets as small ghost pills that open that set.
+- It closes itself 2.5 s after every item has **Opened**; when anything did not, it stays until
+  × or Esc. A new launch replaces its content. Tab reaches × and the launch-set pills.
+- It is feedback, not a notification: it shows with "Show notifications" off. When the window is
+  hidden or minimised (a tray launch) there is no sheet and the tray balloon summarises as before.
+- Compact density tightens the rows (40 px instead of 48).
 
 ## Motion
 
@@ -98,8 +248,15 @@ picture; everything has a `prefers-reduced-motion` fallback that keeps the conte
 ## Copy
 
 Sentence case. Controls name their action ("Open project", "Publish to Team Hub", "Download for
-Windows"). Errors name the problem and the recovery. No genre verbs (unlock, seamless, supercharge).
-The product's own words: project, launch set, item, hub, inbox, revision.
+Windows"). Errors name the problem and the recovery, once (never the same message in two
+banners). No genre verbs (unlock, seamless, supercharge). The product's own words: project, launch
+set, item, hub, inbox, revision, path. Plurals are spelled out by `cards.plural` ("1 item",
+"2 items"), never "item(s)". Status words are the pill's words everywhere ("not found", "server
+offline", "undefined variable"), not the status keys. Relative times are lower-case mid-sentence
+("opened 15×, last just now"); a count of zero says the true thing ("never opened", "No items
+yet") instead of "0 of 0"; an empty workspace never claims "every path is reachable" ("No paths to
+check yet."). Quotation marks are curly (‘…’). No line describes the interface ("this page shows…"); a sentence under
+a heading is a finding, a count or the next step.
 
 ## Icon
 
@@ -111,4 +268,6 @@ sizes and `app.ico`.
 
 Contrast computed, not eyeballed (`tools/check_contrast.py`); one filled accent per screen; no
 eyebrow, no icon circle, no gradient, no resting shadow; every number tabular; the screen names the
-product and offers its main job in one click; both themes screenshotted by `tools/smoke_ui.py`.
+product and offers its main job in one click; both themes screenshotted by `tools/smoke_ui.py`,
+including every dialog and state (`--all`), compact density (`--density compact`) and 2×
+(`--scale 2`), with no Qt warnings in its output.
