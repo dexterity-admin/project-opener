@@ -27,7 +27,7 @@ from project_opener.ui import icons, theme
 from project_opener.ui.context import AppContext
 from project_opener.ui.views.base import Page, badge, clear_layout, row_widget, section_label
 from project_opener.ui.widgets.cards import relative_time
-from project_opener.ui.widgets.common import Button, Spinner, label
+from project_opener.ui.widgets.common import Button, ElidedLabel, Spinner, label
 from project_opener.update.updater import CheckResult, UpdateInfo
 
 
@@ -72,10 +72,14 @@ class UpdatesPage(Page):
         dl.addWidget(section_label("Diagnostics"))
         info = QVBoxLayout()
         info.setSpacing(2)
-        info.addWidget(label(f"{C.APP_NAME} {C.VERSION} · {C.COMPANY}", "muted"))
-        info.addWidget(label(f"Data folder: {C.data_dir()}", "muted"))
-        info.addWidget(label(f"Executable: {C.bundle_dir()}", "muted"))
-        info.addWidget(label(f"Machine: {__import__('socket').gethostname()} · user {ctx.user}", "muted"))
+        for text in (f"{C.APP_NAME} {C.VERSION} · {C.COMPANY}",
+                     f"Data folder: {C.data_dir()}",
+                     f"Executable: {C.bundle_dir()}",
+                     f"Machine: {__import__('socket').gethostname()} · user {ctx.user}"):
+            line = ElidedLabel(text, mode=Qt.TextElideMode.ElideMiddle)   # long paths elide; they never widen the page
+            line.setObjectName("muted")
+            line.setToolTip(text)
+            info.addWidget(line)
         dl.addLayout(info)
         row = QHBoxLayout()
         ob = Button("Open data folder", "fa5s.folder-open")
