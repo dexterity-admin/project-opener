@@ -21,21 +21,24 @@ import argparse
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QRect
-from PySide6.QtGui import QImage
+from PySide6.QtCore import QRect, QRectF
+from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# name -> (source capture, x, y, width, height)  in 2× pixels
-CROPS: dict[str, tuple[str, int, int, int, int]] = {
+# name -> (source capture, x, y, width, height[, rounded])  in 2× pixels.
+# ``rounded`` = (full width, full height, radius): the box is a window onto a floating panel of that size
+# (same origin) with rounded corners; the pixels outside the panel's rounded rectangle (the captured shadow)
+# are filled with the page surface before the box is cut.
+CROPS: dict[str, tuple] = {
     # Paths: the Items card of the P12513 project page (toggle, icon, name, path, status pill)
     "project-items-2x.webp": ("light-2x-project.png", 473, 417, 1336, 1104),
     # Hub: Online now, the tabs and the first row of published projects, sidebar excluded
     "hub-strip-2x.webp": ("light-2x-team.png", 473, 180, 2262, 726),
     # Search: the palette with "check" typed (five results)
-    "palette-2x.webp": ("light-2x-palette.png", 721, 182, 1359, 920),   # at the palette's own 1 px border: no shadow inside the frame
+    "palette-2x.webp": ("light-2x-palette.png", 721, 182, 1359, 920, (1359, 920, 32)),   # at the palette's own 1 px border
     # Search, phone: the same palette at 343 CSS px, the query and the first two results (nothing cut mid-word)
-    "palette-phone-2x.webp": ("light-2x-palette.png", 721, 182, 686, 440),
+    "palette-phone-2x.webp": ("light-2x-palette.png", 721, 182, 686, 440, (1359, 920, 32)),
     # Updates: "This PC" and "Update sources" on the dark Updates page, up to date, both sources Reachable
     "updates-2x.webp": ("dark-2x-updates-uptodate.png", 473, 193, 2262, 692),
 }
@@ -44,7 +47,9 @@ CROPS: dict[str, tuple[str, int, int, int, int]] = {
 def cut(src_dir: Path, out_dir: Path, quality: int) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     failures = 0
-    for name, (source, x, y, w, h) in CROPS.items():
+    for name, spec in CROPS.items():
+        source, x, y, w, h = spec[:5]
+        rounded = spec[5] if len(spec) > 5 else None
         src = src_dir / source
         img = QImage(str(src))
         if img.isNull():
@@ -56,7 +61,21 @@ def cut(src_dir: Path, out_dir: Path, quality: int) -> int:
             print(f"{name}: box {box} is outside {source} ({img.width()}x{img.height()})", file=sys.stderr)
             failures += 1
             continue
-        crop = img.copy(box).convertToFormat(QImage.Format.Format_RGB32)
+        if rounded:
+            fw, fh, radius = rounded
+            panel = img.copy(QRect(x, y, fw, fh)).convertToFormat(QImage.Format.Format_ARGB32)
+            filled = QImage(fw, fh, QImage.Format.Format_RGB32)
+            filled.fill(QColor("#FFFFFF"))
+            painter = QPainter(filled)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            path = QPainterPath()
+            path.addRoundedRect(QRectF(0, 0, fw, fh), radius, radius)
+            painter.setClipPath(path)
+            painter.drawImage(0, 0, panel)
+            painter.end()
+            crop = filled.copy(QRect(0, 0, w, h))
+        else:
+            crop = img.copy(box).convertToFormat(QImage.Format.Format_RGB32)
         dest = out_dir / name
         if not crop.save(str(dest), "WEBP", quality):
             print(f"{name}: could not write {dest}", file=sys.stderr)
