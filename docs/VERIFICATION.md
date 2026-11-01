@@ -132,9 +132,14 @@ summarised in `docs/DESIGN.md` (rules that came out of them) and `CHANGELOG.md` 
 | Implementer's first claim | 10 · 10 · 9 · 10 | 10 · 10 · 10 · 10 |
 | Juror 1 | 7.5 · 7 · 7 · 7 | 7.5 · 7 · 8.5 · 8 |
 | Juror 2 | 8.5 · 8.5 · 7 · 8.5 | 8.5 · 9 · 9.5 · 9 |
-| Juror 3 | 9 · 9.5 · 9 · 9 | final pass: see below |
-| Juror 4 | 9.5 · 9 · 10 · 9.5 | |
+| Juror 3 | 9 · 9.5 · 9 · 9 | 9.5 · 10 · 10 · 9 (on the live site) |
+| Juror 4 | 9.5 · 9 · 10 · 9.5 | **10 · 10 · 10 · 10** (live site, commit 1dcfd8c) |
 | Juror 5 | 9.5 · 10 · 10 · 10 (one half-point: drive-row elision, fixed) | |
+| Juror 6 | **10 · 10 · 10 · 10** (confirming pass, commit b3816e9 tree) | |
+
+**Release.** v3.2.0 built and published by CI from b3816e9 + 77aa8b0 (installer 36,243,055 B,
+portable zip 55,100,997 B, latest.json, SHA256SUMS); the landing page's download pills carry those
+sizes; Pages deploys green; the live page, its proofs, the release asset and the guide link answer 200.
 
 **What the loop produced in the app** (all in `CHANGELOG.md` 3.2.0): the launch sheet; the job
 number as the spine of every title; Drives on this PC (health by cause, with each letter's mapping);
