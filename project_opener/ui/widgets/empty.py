@@ -1,11 +1,11 @@
-"""Empty-state placeholder with icon, text and an optional call to action."""
+"""Empty state: keeps the frame, names the next step in one sentence."""
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-from project_opener.ui import theme
-from project_opener.ui.widgets.common import Button, IconCircle, label
+from project_opener.ui import icons, theme
+from project_opener.ui.widgets.common import Button, label
 
 
 class EmptyState(QWidget):
@@ -14,20 +14,23 @@ class EmptyState(QWidget):
         t = theme.current()
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 40, 24, 40)
-        lay.setSpacing(10)
+        lay.setSpacing(8)
         lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(IconCircle(icon_name, t.accent, 72), 0, Qt.AlignmentFlag.AlignHCenter)
-        tl = label(title, "h2")
+        ic = QLabel()
+        ic.setPixmap(icons.pixmap(icon_name, 20, t.text_muted))
+        ic.setFixedSize(20, 20)
+        lay.addWidget(ic, 0, Qt.AlignmentFlag.AlignHCenter)
+        tl = label(title, "h3")
         tl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(tl)
         if text:
             bl = label(text, "muted", wrap=True)
             bl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            bl.setMaximumWidth(460)
+            bl.setMaximumWidth(420)
             lay.addWidget(bl, 0, Qt.AlignmentFlag.AlignHCenter)
         if action:
-            b = Button(action, "fa5s.plus", "primary")
+            b = Button(action, "fa5s.plus")
             if on_action:
                 b.clicked.connect(on_action)
-            lay.addSpacing(6)
+            lay.addSpacing(8)
             lay.addWidget(b, 0, Qt.AlignmentFlag.AlignHCenter)

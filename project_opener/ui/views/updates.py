@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QProgressBar, QVBoxLayout, QWidget
 
@@ -16,9 +16,9 @@ from project_opener.core import winutil
 from project_opener.core.logging_setup import RING
 from project_opener.ui import icons, theme
 from project_opener.ui.context import AppContext
-from project_opener.ui.views.base import Page, clear_layout
+from project_opener.ui.views.base import Page, badge, clear_layout, row_widget, section_label
 from project_opener.ui.widgets.cards import relative_time
-from project_opener.ui.widgets.common import Badge, Button, IconCircle, Spinner, label
+from project_opener.ui.widgets.common import Button, Spinner, label
 from project_opener.update.updater import CheckResult, UpdateInfo
 
 
@@ -37,40 +37,40 @@ class UpdatesPage(Page):
     def __init__(self, ctx: AppContext, parent=None):
         super().__init__(ctx, parent)
         self._mirroring = False
-        self.title_row("Updates", "Version, update sources and diagnostics", "APPLICATION")
+        row = self.title_row("Updates", f"{C.APP_NAME} {C.VERSION}")
+        self.last_check = self.subtitle_label       # "Project Opener 3.x.y · last checked …"
+        self.spinner = Spinner(18)
+        self.spinner.hide()
+        row.addWidget(self.spinner, 0, Qt.AlignmentFlag.AlignTop)
+        self.check_btn = Button("Check for updates", "fa5s.sync-alt", "primary")
+        self.check_btn.clicked.connect(lambda: self._check())
+        row.addWidget(self.check_btn, 0, Qt.AlignmentFlag.AlignTop)
 
         self.card, lay = self.panel()
         head = QHBoxLayout()
         head.setSpacing(14)
         logo = QLabel()
-        logo.setPixmap(icons.app_icon().pixmap(64, 64))
-        head.addWidget(logo)
+        logo.setPixmap(icons.app_icon().pixmap(48, 48))
+        logo.setFixedSize(48, 48)
+        head.addWidget(logo, 0, Qt.AlignmentFlag.AlignTop)
         col = QVBoxLayout()
         col.setSpacing(2)
         col.addWidget(label(f"{C.APP_NAME} {C.VERSION}", "h2"))
         col.addWidget(label(f"{C.COMPANY} · internal tool · built in-house", "muted"))
-        self.last_check = label("", "faint")
-        col.addWidget(self.last_check)
         head.addLayout(col, 1)
-        self.spinner = Spinner(18)
-        self.spinner.hide()
-        head.addWidget(self.spinner)
-        self.check_btn = Button("Check for updates", "fa5s.sync-alt", "primary")
-        self.check_btn.clicked.connect(lambda: self._check())
-        head.addWidget(self.check_btn)
         lay.addLayout(head)
         self.state_host = QVBoxLayout()
         lay.addLayout(self.state_host)
         self.content.addWidget(self.card)
 
         self.sources_panel, sl = self.panel()
-        sl.addWidget(label("UPDATE SOURCES", "eyebrow"))
+        sl.addWidget(section_label("Update sources"))
         self.sources_lay = QVBoxLayout()
         sl.addLayout(self.sources_lay)
         self.content.addWidget(self.sources_panel)
 
         diag, dl = self.panel()
-        dl.addWidget(label("DIAGNOSTICS", "eyebrow"))
+        dl.addWidget(section_label("Diagnostics"))
         info = QVBoxLayout()
         info.setSpacing(2)
         info.addWidget(label(f"Data folder: {C.data_dir()}", "muted"))
@@ -94,7 +94,7 @@ class UpdatesPage(Page):
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
         self.log_view.setMaximumHeight(160)
-        self.log_view.setStyleSheet("font-family: Consolas, 'Cascadia Mono', monospace; font-size: 9pt;")
+        self.log_view.setFont(theme.ui_font(9))
         dl.addWidget(self.log_view)
         self.content.addWidget(diag)
         self.content.addStretch(1)
@@ -265,13 +265,20 @@ class UpdatesPage(Page):
         clear_layout(self.state_host)
         t = theme.current()
         s = self.ctx.settings
-        self.last_check.setText(f"Last checked {relative_time(s.update_last_check).lower()}" if s.update_last_check else "Not checked yet")
+        checked = f"last checked {relative_time(s.update_last_check).lower()}" if s.update_last_check else "not checked yet"
+        self.set_subtitle(f"{C.APP_NAME} {C.VERSION} · {checked}")
         self.bar = None
         if error:
-            self.state_host.addWidget(self._banner("fa5s.exclamation-triangle", error, t.danger))
+            self.state_host.addWidget(self._banner("fa5s.exclamation-triangle", error, t.danger, "banner_danger"))
         res = self._result
         info = self._info
         installer = self._installer
+        # One filled control on the screen: "Install and restart" when an
+        # update is ready, otherwise "Check for updates".
+        self.check_btn.setObjectName("" if installer and not self._skipped else "primary")
+        self.check_btn.setIcon(icons.icon("fa5s.sync-alt", t.text_muted if installer and not self._skipped else t.accent_fg))
+        self.check_btn.style().unpolish(self.check_btn)
+        self.check_btn.style().polish(self.check_btn)
         if info and self._skipped:
             f = QFrame()
             f.setObjectName("panel2")
@@ -280,7 +287,7 @@ class UpdatesPage(Page):
             ic = QLabel()
             ic.setPixmap(icons.pixmap("fa5s.forward", 16, t.text_faint))
             lay.addWidget(ic)
-            lay.addWidget(label(f"Version {info.version} skipped. You will not be reminded about it; un-skip to see it again.", "", wrap=True), 1)
+            lay.addWidget(label(f"Version {info.version} skipped. You will not be reminded about it; un-skip to see it again.", "muted", wrap=True), 1)
             un = Button("Un-skip", "fa5s.undo", "ghost")
             un.clicked.connect(self._unskip)
             lay.addWidget(un)
@@ -291,7 +298,11 @@ class UpdatesPage(Page):
             lay = QVBoxLayout(f)
             lay.setContentsMargins(16, 12, 16, 12)
             head = QHBoxLayout()
-            head.addWidget(IconCircle("fa5s.arrow-circle-up", t.accent, 36))
+            head.setSpacing(10)
+            up = QLabel()
+            up.setPixmap(icons.pixmap("fa5s.arrow-circle-up", 16, t.info))
+            up.setFixedWidth(18)
+            head.addWidget(up, 0, Qt.AlignmentFlag.AlignTop)
             col = QVBoxLayout()
             col.setSpacing(0)
             col.addWidget(label(f"Version {info.version} is available", "h3"))
@@ -321,7 +332,7 @@ class UpdatesPage(Page):
                     mir.clicked.connect(self._mirror_downloaded)
                     row.addWidget(mir)
             elif not downloading:
-                dl = Button("Download update", "fa5s.cloud-download-alt", "primary")
+                dl = Button("Download update", "fa5s.cloud-download-alt")
                 dl.clicked.connect(self._download)
                 row.addWidget(dl)
                 skip = Button("Skip this version", "fa5s.forward", "ghost")
@@ -332,7 +343,8 @@ class UpdatesPage(Page):
             self.state_host.addWidget(f)
         elif res is not None and not res.available:
             msg = "You are on the latest version." if not res.errors else "Checked LAN hub; GitHub: " + "; ".join(res.errors)
-            self.state_host.addWidget(self._banner("fa5s.check-circle", msg, t.success if not res.errors else t.warning))
+            self.state_host.addWidget(self._banner("fa5s.check-circle", msg, t.success if not res.errors else t.warning,
+                                                   "banner" if not res.errors else "banner_warn"))
         if mirroring:
             box = QFrame()
             box.setObjectName("panel2")
@@ -347,12 +359,12 @@ class UpdatesPage(Page):
         # sources
         clear_layout(self.sources_lay)
         hub_dir = self.ctx.hub.updates_dir()
-        lan_text = f"LAN mirror: {hub_dir}" if hub_dir else "LAN mirror: no Team Hub folder configured"
         lan_ok = bool(hub_dir and self.ctx.hub.reachable())
-        self.sources_lay.addWidget(self._source_row("fa5s.network-wired", lan_text, "Checked first; works without internet. Anyone can mirror a release here.", lan_ok))
+        self.sources_lay.addWidget(self._source_row("fa5s.network-wired", "LAN mirror",
+                                                    str(hub_dir) if hub_dir else "No Team Hub folder configured · checked first; works without internet.", lan_ok))
         if self.ctx.hub.configured:
             mrow = QHBoxLayout()
-            mrow.setContentsMargins(42, 0, 0, 6)
+            mrow.setContentsMargins(28, 0, 0, 6)
             mc = Button(f"Mirror this version ({C.VERSION}) to the hub", "fa5s.share-alt")
             mc.setToolTip("Copies the installer for the version you are running into the hub's updates folder "
                           "(downloaded from GitHub if needed) so colleagues can update over the LAN.")
@@ -362,33 +374,36 @@ class UpdatesPage(Page):
             mrow.addStretch(1)
             self.sources_lay.addLayout(mrow)
         gh_ok = bool(s.github_token)
-        self.sources_lay.addWidget(self._source_row("fa5b.github", f"GitHub: {C.GITHUB_OWNER}/{C.GITHUB_REPO}",
-                                                    "Public releases; no token needed. " + ("Token configured (higher API rate limit)." if gh_ok else "A token in Settings → Updates is optional."), True))
+        self.sources_lay.addWidget(self._source_row("fa5b.github", "GitHub releases",
+                                                    f"{C.GITHUB_OWNER}/{C.GITHUB_REPO} · " + ("token configured (higher API rate limit)" if gh_ok else "public; a token in Settings → Updates is optional"), True))
 
-    def _banner(self, icon_name: str, text: str, color: str) -> QFrame:
+    def _banner(self, icon_name: str, text: str, color: str, kind: str = "banner") -> QFrame:
         f = QFrame()
-        f.setObjectName("panel2")
+        f.setObjectName(kind)
         lay = QHBoxLayout(f)
         lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(10)
         ic = QLabel()
         ic.setPixmap(icons.pixmap(icon_name, 16, color))
-        lay.addWidget(ic)
+        ic.setFixedWidth(18)
+        lay.addWidget(ic, 0, Qt.AlignmentFlag.AlignTop)
         lay.addWidget(label(text, "", wrap=True), 1)
         return f
 
     def _source_row(self, icon_name: str, title: str, sub: str, ok: bool) -> QWidget:
         t = theme.current()
-        w = QWidget()
-        lay = QHBoxLayout(w)
+        w, lay = row_widget(44)
         lay.setContentsMargins(0, 4, 0, 4)
-        lay.setSpacing(10)
-        lay.addWidget(IconCircle(icon_name, t.success if ok else t.text_faint, 32))
+        ic = QLabel()
+        ic.setPixmap(icons.pixmap(icon_name, 16, t.text_muted))
+        ic.setFixedWidth(18)
+        lay.addWidget(ic, 0, Qt.AlignmentFlag.AlignTop)
         col = QVBoxLayout()
         col.setSpacing(0)
         tl = QLabel(title)
-        tl.setStyleSheet("font-weight: 600;")
+        tl.setFont(theme.ui_font(weight=500))
         col.addWidget(tl)
         col.addWidget(label(sub, "faint", wrap=True))
         lay.addLayout(col, 1)
-        lay.addWidget(Badge("Ready" if ok else "Not set", t.success if ok else t.text_faint))
+        lay.addWidget(badge("Ready" if ok else "Not set", "ok" if ok else "neutral"), 0, Qt.AlignmentFlag.AlignTop)
         return w

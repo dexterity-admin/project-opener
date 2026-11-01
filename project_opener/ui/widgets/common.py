@@ -1,8 +1,8 @@
-"""Small reusable widgets: buttons, chips, switches, avatars, labels."""
+"""Small reusable widgets: buttons, chips, switches, avatars, labels, pills."""
 from __future__ import annotations
 
 from PySide6.QtCore import Property, QEasingCurve, QPoint, QPropertyAnimation, QRect, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
+from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
     QFrame,
@@ -17,6 +17,27 @@ from PySide6.QtWidgets import (
 from project_opener.ui import icons, theme
 
 
+def _mix(a: str, b: str, t: float) -> QColor:
+    ca, cb = QColor(a), QColor(b)
+    return QColor(
+        int(ca.red() + (cb.red() - ca.red()) * t),
+        int(ca.green() + (cb.green() - ca.green()) * t),
+        int(ca.blue() + (cb.blue() - ca.blue()) * t),
+    )
+
+
+def _ink_on(bg: str, hue: str, dark: bool) -> str:
+    """Ink of ``hue`` on the pale tint ``bg``: darkened (light) or lightened (dark),
+    then mixed towards the text colour until it reads at 4.5:1."""
+    t = theme.current()
+    ink = _mix(hue, "#0F1211" if not dark else "#FFFFFF", 0.45).name()
+    step = 0.0
+    while theme.contrast(ink, bg) < 4.5 and step < 1.0:
+        step += 0.1
+        ink = _mix(ink, t.text, step).name()
+    return ink
+
+
 # ------------------------------------------------------------------ buttons
 class Button(QPushButton):
     def __init__(self, text: str = "", icon_name: str = "", kind: str = "", parent=None, icon_color: str | None = None):
@@ -28,7 +49,7 @@ class Button(QPushButton):
             t = theme.current()
             color = icon_color or (t.accent_fg if kind == "primary" else t.text_muted)
             self.setIcon(icons.icon(icon_name, color))
-            self.setIconSize(QSize(15, 15))
+            self.setIconSize(QSize(16, 16))
 
 
 class IconButton(QPushButton):
@@ -57,7 +78,7 @@ class Chip(QPushButton):
         super().__init__(text, parent)
         self.setObjectName("chip")
         self.setCheckable(checkable)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor if checkable else Qt.CursorShape.ArrowCursor)
 
 
 # ------------------------------------------------------------------- labels
@@ -111,6 +132,14 @@ def label(text: str, kind: str = "", wrap: bool = False) -> QLabel:
     return lbl
 
 
+def kpi_value_label(text: str) -> QLabel:
+    """A KPI value: 18 pt regular, tabular figures (objectName "kpi")."""
+    lbl = QLabel(text)
+    lbl.setObjectName("kpi")
+    lbl.setFont(theme.ui_font(18, 400, tabular=True))
+    return lbl
+
+
 def hline() -> QFrame:
     f = QFrame()
     f.setObjectName("hline")
@@ -120,19 +149,22 @@ def hline() -> QFrame:
 
 # ------------------------------------------------------------------- switch
 class ToggleSwitch(QAbstractButton):
-    """Animated iOS-style toggle."""
+    """Animated toggle, 40 x 22: ink track when on, strong border when off."""
+
+    W, H = 40, 22
 
     def __init__(self, parent=None, checked: bool = False):
         super().__init__(parent)
         self.setCheckable(True)
         self.setChecked(checked)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._pos = 1.0 if checked else 0.0
         self._anim = QPropertyAnimation(self, b"knob", self)
         self._anim.setDuration(160)
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.toggled.connect(self._animate)
-        self.setFixedSize(42, 24)
+        self.setFixedSize(self.W, self.H)
 
     def _animate(self, on: bool) -> None:
         self._anim.stop()
@@ -150,28 +182,32 @@ class ToggleSwitch(QAbstractButton):
     knob = Property(float, get_knob, set_knob)
 
     def sizeHint(self) -> QSize:  # noqa: N802
-        return QSize(42, 24)
+        return QSize(self.W, self.H)
 
     def paintEvent(self, e) -> None:  # noqa: N802
         t = theme.current()
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(0, 0, self.width(), self.height())
-        track_off = QColor(t.border_strong)
-        track_on = QColor(t.accent)
-        track = QColor(
-            int(track_off.red() + (track_on.red() - track_off.red()) * self._pos),
-            int(track_off.green() + (track_on.green() - track_off.green()) * self._pos),
-            int(track_off.blue() + (track_on.blue() - track_off.blue()) * self._pos),
-        )
+        track = _mix(t.border_strong, t.accent, self._pos)
+        if self.isDown():
+            track = _mix(track.name(), t.text_muted, 0.2)
         if not self.isEnabled():
-            track.setAlpha(120)
+            track.setAlpha(110)
         p.setPen(Qt.PenStyle.NoPen)
+        if self.hasFocus():
+            p.setPen(QPen(QColor(t.accent), 2))
+            p.drawRoundedRect(r.adjusted(1, 1, -1, -1), self.H / 2 - 1, self.H / 2 - 1)
+            p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(track)
-        p.drawRoundedRect(r, 12, 12)
-        knob_x = 3 + self._pos * (self.width() - 24)
-        p.setBrush(QColor("#FFFFFF"))
-        p.drawEllipse(QRectF(knob_x, 3, 18, 18))
+        p.drawRoundedRect(r, self.H / 2, self.H / 2)
+        knob_d = self.H - 6
+        knob_x = 3 + self._pos * (self.width() - knob_d - 6)
+        knob = _mix(t.surface, t.bg, self._pos)
+        if not self.isEnabled():
+            knob.setAlpha(200)
+        p.setBrush(knob)
+        p.drawEllipse(QRectF(knob_x, 3, knob_d, knob_d))
         p.end()
 
 
@@ -201,6 +237,13 @@ class SwitchRow(QWidget):
 
 # ------------------------------------------------------------------- avatar
 class Avatar(QWidget):
+    """A person: pale disc of their own hue with initials in the same hue, darkened.
+
+    Identity, not data: six hues 60 degrees apart, chosen by a stable hash of the name.
+    """
+
+    HUES = [QColor.fromHsl(h, 150, 95).name() for h in range(0, 360, 60)]
+
     def __init__(self, name: str, size: int = 32, color: str | None = None, online: bool | None = None, parent=None):
         super().__init__(parent)
         self._name = name or "?"
@@ -219,25 +262,27 @@ class Avatar(QWidget):
 
     @staticmethod
     def color_for(name: str) -> str:
-        pal = ["#4F7DFF", "#8B5CF6", "#EC4899", "#F97316", "#10B981", "#14B8A6", "#F59E0B", "#6366F1"]
-        return pal[sum(ord(c) for c in name) % len(pal)]
+        key = (name or "?").strip().lower()
+        h = 0
+        for ch in key:
+            h = (h * 31 + ord(ch)) & 0xFFFFFFFF
+        return Avatar.HUES[h % len(Avatar.HUES)]
 
     def paintEvent(self, e) -> None:  # noqa: N802
+        t = theme.current()
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        color = QColor(self._color or self.color_for(self._name))
+        hue = self._color or self.color_for(self._name)
+        disc = theme.tint(hue, 0.18, t.dark)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(color)
+        p.setBrush(QColor(disc))
         p.drawEllipse(0, 0, self._size, self._size)
         parts = [x for x in self._name.replace(".", " ").replace("_", " ").split() if x]
         initials = "".join(x[0] for x in parts[:2]).upper() or "?"
-        f = QFont(theme.display_font(), max(7, int(self._size * 0.36)))
-        f.setBold(True)
-        p.setFont(f)
-        p.setPen(QColor(theme.readable_on(color.name())))
+        p.setFont(theme.ui_font(max(9, int(self._size * 0.34)), 600))
+        p.setPen(QColor(_ink_on(disc, hue, t.dark)))
         p.drawText(QRect(0, 0, self._size, self._size), Qt.AlignmentFlag.AlignCenter, initials)
         if self._online is not None:
-            t = theme.current()
             d = max(8, self._size // 4)
             p.setBrush(QColor(t.success if self._online else t.text_faint))
             p.setPen(QPen(QColor(t.surface), 2))
@@ -267,25 +312,46 @@ class ColorDot(QWidget):
 
 # ---------------------------------------------------------------- badge
 class Badge(QLabel):
-    def __init__(self, text: str, color: str | None = None, parent=None):
+    """Status pill: pale tint with dark ink of the same hue, 20-22 px tall.
+
+    ``level`` (ok | warn | bad | info | neutral) uses the theme's pill tokens; a
+    hex ``color`` is rendered as a pale tint of that colour with readable ink.
+    """
+
+    def __init__(self, text: str, color: str | None = None, level: str = "", parent=None):
         super().__init__(text, parent)
+        self._level = level
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setFont(theme.ui_font(9, 500))
+        self.setFixedHeight(22)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.set_color(color)
+
+    def set_level(self, level: str) -> None:
+        self._level = level
+        self.set_color(None)
 
     def set_color(self, color: str | None) -> None:
         t = theme.current()
-        c = color or t.accent
-        self.setStyleSheet(
-            f"background-color: {theme.alpha(c, 0.16)}; color: {c}; border-radius: 9px; padding: 2px 8px;"
-            f" font-size: {t.font_size - 1}pt; font-weight: 700;")
+        if color and QColor(color).isValid() and not self._level:
+            bg = theme.tint(color, 0.14, t.dark)
+            ink = _ink_on(bg, color, t.dark)
+        else:
+            bg, ink = theme.pill_colors(t, self._level or "neutral")
+        self.setStyleSheet(f"QLabel {{ background-color: {bg}; color: {ink}; border-radius: 11px; padding: 0 9px; }}")
 
 
 # ------------------------------------------------------------ icon circle
 class IconCircle(QWidget):
-    def __init__(self, icon_name: str, color: str, size: int = 40, parent=None):
+    """An icon drawn in ``color``.  Plain by default; ``container=True`` adds a pale
+    tinted rounded square (used once, on the Project detail header)."""
+
+    def __init__(self, icon_name: str, color: str, size: int = 40, parent=None, container: bool = False):
         super().__init__(parent)
         self._icon = icon_name
         self._color = color
         self._size = size
+        self._container = container
         self.setFixedSize(size, size)
 
     def set(self, icon_name: str | None = None, color: str | None = None) -> None:
@@ -296,15 +362,19 @@ class IconCircle(QWidget):
         self.update()
 
     def paintEvent(self, e) -> None:  # noqa: N802
+        t = theme.current()
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        bg = QColor(self._color)
-        bg.setAlpha(46)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(bg)
-        p.drawRoundedRect(QRectF(0, 0, self._size, self._size), self._size * 0.3, self._size * 0.3)
-        pm = icons.pixmap(self._icon, int(self._size * 0.5), self._color)
-        off = (self._size - pm.width() / pm.devicePixelRatio()) / 2
+        if self._container:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(theme.tint(self._color, 0.14, t.dark)))
+            p.drawRoundedRect(QRectF(0, 0, self._size, self._size), self._size * 0.3, self._size * 0.3)
+            px = int(self._size * 0.5)
+        else:
+            px = int(self._size * 0.8)
+        pm = icons.pixmap(self._icon, px, self._color)
+        w = pm.width() / pm.devicePixelRatio()
+        off = (self._size - w) / 2
         p.drawPixmap(QPoint(int(off), int(off)), pm)
         p.end()
 
@@ -338,7 +408,7 @@ class Spinner(QWidget):
         t = theme.current()
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pen = QPen(QColor(t.accent), 2.5)
+        pen = QPen(QColor(t.accent), 2)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         p.setPen(pen)
         r = QRectF(2, 2, self._size - 4, self._size - 4)

@@ -3,7 +3,20 @@
 All notable changes to Project Opener. The version in `project_opener/__init__.py`
 is the single source of truth; CI publishes a release when a new version lands on `main`.
 
-## Unreleased
+## 3.1.0 - 2026-11-01
+
+### Changed
+- **New visual system ("Aurora, disciplined")**, documented in `docs/DESIGN.md`: one bundled typeface
+  (Onest, with tabular figures), a single flat aurora-green accent, flat pastel colour fields, pill
+  controls, 16 px cards with a 1 px edge and no shadow, outline icons (Phosphor), status pills with a
+  pale tint and dark ink, one filled primary action per screen, sentence-case headings and no
+  eyebrow labels. Light and dark are each composed, not inverted.
+- Home shows the finding under the greeting and one divided KPI strip instead of four icon tiles.
+- New flat app icon (folder with an arrow leaving it) and a rebuilt landing page: a working Home
+  screen in the hero that plays the launch sequence, real screenshots, flat colour-field sections,
+  no WebGL.
+- Default accent moves from blue to aurora green; the old default is migrated on first start (a
+  custom accent is kept).
 
 ### Fixed
 - Theme changes no longer leave stale signal connections on destroyed pages (Ctrl+B, hub refresh

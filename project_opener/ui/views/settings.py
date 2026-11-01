@@ -25,11 +25,9 @@ from project_opener.core.jsonio import read_json, write_json_atomic
 from project_opener.core.pathvars import normalise_var_name
 from project_opener.ui import theme
 from project_opener.ui.context import AppContext
-from project_opener.ui.views.base import Page
+from project_opener.ui.views.base import Page, section_label
 from project_opener.ui.widgets.common import Button, IconButton, SwitchRow, label
 from project_opener.ui.widgets.dialogs import confirm
-
-ACCENTS = ["#4F7DFF", "#2F5BFF", "#19C8FF", "#8B5CF6", "#EC4899", "#F97316", "#10B981", "#14B8A6", "#F59E0B", "#EF4444"]
 
 
 class SettingsPage(Page):
@@ -37,14 +35,14 @@ class SettingsPage(Page):
 
     def __init__(self, ctx: AppContext, parent=None):
         super().__init__(ctx, parent)
-        self.title_row("Settings", "", "PREFERENCES")
+        self.title_row("Settings", "")
         s = ctx.settings
         self._anchors: dict[str, QWidget] = {}
 
         # ---------------------------------------------------------- profile
         p, lay = self.panel()
         self._anchors["profile"] = p
-        lay.addWidget(label("YOU", "eyebrow"))
+        lay.addWidget(section_label("You"))
         row = QHBoxLayout()
         self.display_name = QLineEdit(s.display_name)
         self.display_name.setPlaceholderText(f"Display name (Windows user: {ctx.user})")
@@ -60,9 +58,10 @@ class SettingsPage(Page):
         # ------------------------------------------------------- appearance
         p, lay = self.panel()
         self._anchors["appearance"] = p
-        lay.addWidget(label("APPEARANCE", "eyebrow"))
+        lay.addWidget(section_label("Appearance"))
         trow = QHBoxLayout()
-        trow.addWidget(label("Theme"))
+        trow.setSpacing(8)
+        trow.addWidget(label("Theme", "muted"))
         self.theme_group = QButtonGroup(self)
         for key, text in (("dark", "Dark"), ("light", "Light"), ("system", "Follow Windows")):
             b = QPushButton(text)
@@ -73,18 +72,19 @@ class SettingsPage(Page):
             self.theme_group.addButton(b)
             trow.addWidget(b)
         trow.addSpacing(20)
-        trow.addWidget(label("Accent"))
-        for c in ACCENTS:
+        trow.addWidget(label("Accent", "muted"))
+        for c, name in theme.ACCENTS:
             b = QPushButton()
             b.setFixedSize(22, 22)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setToolTip(c)
-            border = theme.current().text if c.lower() == s.accent.lower() else "transparent"
-            b.setStyleSheet(f"QPushButton {{ background-color: {c}; border: 2px solid {border}; border-radius: 11px; }}")
+            b.setToolTip(name)
+            ring = theme.current().text if c.lower() == s.accent.lower() else "transparent"
+            b.setStyleSheet(f"QPushButton {{ background-color: {c}; border: 2px solid {ring}; border-radius: 11px;"
+                            f" min-height: 18px; max-height: 18px; padding: 0; }}")
             b.clicked.connect(lambda _=False, cc=c: self._set_accent(cc))
             trow.addWidget(b)
         trow.addSpacing(20)
-        trow.addWidget(label("Density"))
+        trow.addWidget(label("Density", "muted"))
         self.density = QComboBox()
         self.density.addItem("Comfortable", "comfortable")
         self.density.addItem("Compact", "compact")
@@ -98,7 +98,7 @@ class SettingsPage(Page):
         # -------------------------------------------------------- behaviour
         p, lay = self.panel()
         self._anchors["behaviour"] = p
-        lay.addWidget(label("BEHAVIOUR", "eyebrow"))
+        lay.addWidget(section_label("Behaviour"))
         self.sw_startup = SwitchRow("Start with Windows", "Launch Project Opener minimised to the tray when you sign in.", winutil.is_run_at_startup())
         self.sw_startup.toggled.connect(self._set_startup)
         lay.addWidget(self.sw_startup)
@@ -115,7 +115,7 @@ class SettingsPage(Page):
         self.sw_toasts.toggled.connect(lambda v: self._set("show_toasts", v))
         lay.addWidget(self.sw_toasts)
         nrow = QHBoxLayout()
-        nrow.addWidget(label("Pause between items"))
+        nrow.addWidget(label("Pause between items", "muted"))
         self.delay = QSpinBox()
         self.delay.setRange(0, 5000)
         self.delay.setSingleStep(50)
@@ -124,7 +124,7 @@ class SettingsPage(Page):
         self.delay.valueChanged.connect(lambda v: self._set("launch_delay_ms", v, rebuild=True))
         nrow.addWidget(self.delay)
         nrow.addSpacing(20)
-        nrow.addWidget(label("Confirm when opening more than"))
+        nrow.addWidget(label("Confirm when opening more than", "muted"))
         self.confirm_n = QSpinBox()
         self.confirm_n.setRange(0, 200)
         self.confirm_n.setValue(s.confirm_launch_over)
@@ -138,7 +138,7 @@ class SettingsPage(Page):
         # -------------------------------------------------------- team hub
         p, lay = self.panel()
         self._anchors["hub"] = p
-        lay.addWidget(label("TEAM HUB", "eyebrow"))
+        lay.addWidget(section_label("Team Hub"))
         lay.addWidget(label("Pick any folder on a shared drive that every colleague can read and write (for example "
                             r"\\nas01\Project\_ProjectOpenerHub). No server is needed.", "muted", wrap=True))
         hrow = QHBoxLayout()
@@ -166,7 +166,7 @@ class SettingsPage(Page):
         p, lay = self.panel()
         self._anchors["variables"] = p
         head = QHBoxLayout()
-        head.addWidget(label("PATH VARIABLES", "eyebrow"))
+        head.addWidget(section_label("Path variables"))
         head.addStretch(1)
         sug = Button("Add my mapped drives", "fa5s.magic")
         sug.setToolTip("Creates {X_DRIVE} variables for every network drive on this PC so shared projects can swap drive letters for UNC paths.")
@@ -184,6 +184,8 @@ class SettingsPage(Page):
         self.vars.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.vars.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.vars.verticalHeader().setVisible(False)
+        self.vars.horizontalHeader().setHighlightSections(False)
+        self.vars.setShowGrid(False)
         self.vars.setMinimumHeight(140)
         self.vars.itemChanged.connect(lambda _i: self._save_vars())
         lay.addWidget(self.vars)
@@ -193,7 +195,7 @@ class SettingsPage(Page):
         # ---------------------------------------------------------- updates
         p, lay = self.panel()
         self._anchors["updates"] = p
-        lay.addWidget(label("UPDATES", "eyebrow"))
+        lay.addWidget(section_label("Updates"))
         self.sw_update = SwitchRow("Check for updates automatically", f"Every {C.UPDATE_CHECK_INTERVAL_H} hours: LAN hub first, then GitHub.", s.update_check)
         self.sw_update.toggled.connect(lambda v: self._set("update_check", v, rebuild=True))
         lay.addWidget(self.sw_update)
@@ -220,7 +222,7 @@ class SettingsPage(Page):
         trow.addWidget(save_tok)
         lay.addLayout(trow)
         crow = QHBoxLayout()
-        crow.addWidget(label("Channel"))
+        crow.addWidget(label("Channel", "muted"))
         self.channel = QComboBox()
         self.channel.addItem("Stable releases only", "stable")
         self.channel.addItem("Include pre-releases", "all")
@@ -234,7 +236,7 @@ class SettingsPage(Page):
         # ------------------------------------------------------------- data
         p, lay = self.panel()
         self._anchors["data"] = p
-        lay.addWidget(label("DATA", "eyebrow"))
+        lay.addWidget(section_label("Data and backups"))
         lay.addWidget(label(f"Workspace: {ctx.store.path}", "muted", wrap=True))
         drow = QHBoxLayout()
         exp = Button("Export workspace…", "fa5s.file-export")
@@ -250,7 +252,7 @@ class SettingsPage(Page):
         drow.addStretch(1)
         lay.addLayout(drow)
         brow = QHBoxLayout()
-        brow.addWidget(label("Backups are kept automatically before every save."))
+        brow.addWidget(label("Backups are kept automatically before every save.", "muted"))
         rb = Button("Restore a backup…", "fa5s.undo")
         rb.clicked.connect(self._restore)
         brow.addWidget(rb)
@@ -324,9 +326,7 @@ class SettingsPage(Page):
             self.ctx.toast.emit("Team Hub disconnected", "", "info")
 
     def _hub_status(self, st) -> None:
-        t = theme.current()
-        color = t.success if st.reachable else (t.text_faint if not st.configured else t.danger)
-        self.hub_status.setText(f"<span style='color:{color}'>●</span> {st.message}")
+        self.hub_status.setText(st.message)
 
     # ---------------------------------------------------------- variables
     def _load_vars(self) -> None:

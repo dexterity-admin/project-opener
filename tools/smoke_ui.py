@@ -120,6 +120,8 @@ def main() -> int:
     QTest.qWait(1500)
 
     def shot(name: str) -> None:
+        for toast in list(win.toasts._toasts):   # clean captures: no toast over the content
+            toast.dismiss()
         QTest.qWait(500)
         pm = win.grab()
         pm.save(str(out / f"{args.theme}-{name}.png"))
@@ -132,7 +134,13 @@ def main() -> int:
     win.pages["projects"].refresh()
     shot("projects-list")
     win.ctx.settings.view_mode = "grid"
-    win.open_project(ctx.store.projects[0])
+    first = ctx.store.projects[0]
+    win.open_project(first)
+    for _ in range(20):           # wait for the path-health pass so the pills show real states
+        if all(ctx.health_for(p.id) is not None for p in ctx.store.projects):
+            break
+        QTest.qWait(250)
+    QTest.qWait(300)
     shot("project")
     win.go("team")
     QTest.qWait(800)

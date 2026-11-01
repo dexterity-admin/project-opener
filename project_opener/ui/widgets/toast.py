@@ -1,13 +1,21 @@
-"""Non-blocking toast notifications stacked in the window's bottom-right."""
+"""Non-blocking toast notifications stacked in the window's bottom-right.
+
+A toast floats, so it is the one card with a shadow.  Qt allows one graphics
+effect per widget and drops a child's effect under a parent's, so the arrival
+motion is a short rise (not a fade), which keeps the shadow real.
+"""
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer, Signal
-from PySide6.QtWidgets import QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from project_opener.ui import icons, theme
 
 LEVEL_ICONS = {"info": "fa5s.info-circle", "success": "fa5s.check-circle", "warning": "fa5s.exclamation-triangle",
                "error": "fa5s.times-circle"}
+WIDTH = 380
+WIDTH_WITH_ACTION = 440
 
 
 class Toast(QFrame):
@@ -20,19 +28,20 @@ class Toast(QFrame):
         color = {"info": t.info, "success": t.success, "warning": t.warning, "error": t.danger}.get(level, t.info)
         self.setObjectName("toast")
         self.setStyleSheet(
-            f"QFrame#toast {{ background-color: {t.surface_2}; border: 1px solid {t.border_strong};"
-            f" border-left: 3px solid {color}; border-radius: 10px; }}")
-        self.setFixedWidth(420 if action else 360)
+            f"QFrame#toast {{ background-color: {t.surface}; border: 1px solid {t.border}; border-radius: 14px; }}")
+        self.setFixedWidth(WIDTH_WITH_ACTION if action else WIDTH)
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(12, 10, 10, 10)
-        lay.setSpacing(10)
+        lay.setContentsMargins(16, 14, 12, 14)
+        lay.setSpacing(12)
         ic = QLabel()
-        ic.setPixmap(icons.pixmap(LEVEL_ICONS.get(level, "fa5s.info-circle"), 18, color))
+        ic.setPixmap(icons.pixmap(LEVEL_ICONS.get(level, "fa5s.info-circle"), 16, color))
+        ic.setFixedSize(16, 20)
         lay.addWidget(ic, 0, Qt.AlignmentFlag.AlignTop)
         text = QVBoxLayout()
         text.setSpacing(2)
         tl = QLabel(title)
-        tl.setStyleSheet("font-weight: 700;")
+        tl.setFont(theme.ui_font(t.font_size, 600))
+        tl.setWordWrap(True)
         text.addWidget(tl)
         if body:
             bl = QLabel(body)
@@ -50,37 +59,43 @@ class Toast(QFrame):
         close = QPushButton()
         close.setObjectName("icon")
         close.setIcon(icons.icon("fa5s.times", t.text_faint))
+        close.setToolTip("Dismiss")
         close.setFixedSize(24, 24)
         close.clicked.connect(self.dismiss)
         lay.addWidget(close, 0, Qt.AlignmentFlag.AlignTop)
         # Wrapped labels report a height only once the width is known.
         lay.activate()
         self.setFixedHeight(max(52, lay.heightForWidth(self.width()) if lay.hasHeightForWidth() else lay.sizeHint().height()))
-        self._fx = QGraphicsOpacityEffect(self)
-        self._fx.setOpacity(0.0)
-        self.setGraphicsEffect(self._fx)
-        self._anim = QPropertyAnimation(self._fx, b"opacity", self)
-        self._anim.setDuration(220)
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(24)
+        shadow.setOffset(0, 8)
+        shadow.setColor(QColor(t.shadow))
+        self.setGraphicsEffect(shadow)
+        self._anim = QPropertyAnimation(self, b"pos", self)
+        self._anim.setDuration(200)
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._closing = False
         if timeout > 0:
             QTimer.singleShot(timeout, self.dismiss)
 
     def appear(self) -> None:
+        target = self.pos()
+        self.move(target + QPoint(0, 8))
         self.show()
         self._anim.stop()
-        self._anim.setStartValue(0.0)
-        self._anim.setEndValue(1.0)
+        self._anim.setStartValue(self.pos())
+        self._anim.setEndValue(target)
         self._anim.start()
 
     def dismiss(self) -> None:
-        if not self.isVisible():
+        if not self.isVisible() or self._closing:
             return
+        self._closing = True
         self._anim.stop()
-        self._anim.setStartValue(self._fx.opacity())
-        self._anim.setEndValue(0.0)
-        if not getattr(self, "_done_connected", False):
-            self._anim.finished.connect(self._done)
-            self._done_connected = True
+        self._anim.setDuration(150)
+        self._anim.setStartValue(self.pos())
+        self._anim.setEndValue(self.pos() + QPoint(0, 8))
+        self._anim.finished.connect(self._done)
         self._anim.start()
 
     def _done(self) -> None:
@@ -116,13 +131,13 @@ class ToastManager(QWidget):
         self._relayout()
 
     def _relayout(self) -> None:
-        margin = 18
+        margin = 24
         y = self.host.height() - margin
         for toast in reversed(self._toasts):
             toast.adjustSize()
             y -= toast.height()
             toast.move(QPoint(self.host.width() - toast.width() - margin, y))
-            y -= 10
+            y -= 12
 
     def host_resized(self) -> None:
         self._relayout()

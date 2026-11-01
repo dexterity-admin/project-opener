@@ -14,7 +14,7 @@ everyone on the same files, without a server.
 ![python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![qt](https://img.shields.io/badge/PySide6-Qt%206-41CD52?logo=qt&logoColor=white)
 ![windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white)
-![internal](https://img.shields.io/badge/Dexterity%20Design-internal%20tool-2F5BFF)
+![internal](https://img.shields.io/badge/Dexterity%20Design-internal%20tool-0E7C5B)
 
 [Landing page](https://dexterity-admin.github.io/project-opener/) ·
 [Download the latest release](https://github.com/dexterity-admin/project-opener/releases/latest) ·
@@ -26,12 +26,12 @@ everyone on the same files, without a server.
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/dark-home.png" alt="Dashboard, dark theme"></td>
-<td width="50%"><img src="docs/screenshots/light-projects.png" alt="Projects grid, light theme"></td>
+<td width="50%"><img src="docs/screenshots/light-home.png" alt="Home, light theme"></td>
+<td width="50%"><img src="docs/screenshots/dark-home.png" alt="Home, dark theme"></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/dark-project.png" alt="Project detail with path health"></td>
-<td><img src="docs/screenshots/dark-team.png" alt="Team Hub"></td>
+<td><img src="docs/screenshots/light-project.png" alt="Project detail with path health"></td>
+<td><img src="docs/screenshots/light-team.png" alt="Team Hub"></td>
 </tr>
 </table>
 
@@ -57,7 +57,7 @@ are dead, and it can be shared with a colleague over the LAN in two clicks.
 | 📡 | **LAN presence** | Optional UDP beacon for online status within seconds; the hub heartbeat remains the source of truth. |
 | ⬆️ | **In-app updates** | Checks the office **LAN mirror first**, then GitHub Releases (no token needed). SHA-256 verified, silent install, automatic restart. One admin clicks *Mirror to Team Hub* and the whole office updates offline. |
 | 🖥️ | **Desktop-native** | System tray with quick launch, start with Windows, single instance, `projectopener://open/<project>` deep links, drag-and-drop to create projects or add items, dark title bar. |
-| 🎨 | **Polished UI** | Dark / light / follow-Windows themes, ten accent colours, comfortable or compact density, animated cards, toggles and toasts, collapsible sidebar, keyboard shortcuts everywhere. |
+| 🎨 | **A designed UI** | One typeface (Onest), one flat accent, outline icons, pill controls, status pills you can read at a glance; dark, light or follow-Windows, ten accents, two densities. The rules live in [docs/DESIGN.md](docs/DESIGN.md). |
 | 🛡️ | **Crash-safe data** | Atomic writes, 30 rotating backups, one-click restore, export/import. Automatic migration from Project Opener 1.x and import of 2.x hub files. |
 
 ## Install

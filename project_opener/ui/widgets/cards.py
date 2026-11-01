@@ -1,4 +1,4 @@
-"""Project cards (grid), project rows (list) and stat tiles."""
+"""Project cards (grid), project rows (list), the KPI strip and stat tiles."""
 from __future__ import annotations
 
 from datetime import UTC
@@ -7,17 +7,26 @@ from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, QRectF, Q
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QFrame,
-    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
     QMenu,
+    QSizePolicy,
     QVBoxLayout,
+    QWidget,
 )
 
 from project_opener.core import models as M
 from project_opener.core.health import ProjectHealth
 from project_opener.ui import icons, theme
-from project_opener.ui.widgets.common import Badge, Button, ElidedLabel, IconButton, IconCircle
+from project_opener.ui.widgets.common import (
+    Button,
+    Chip,
+    ColorDot,
+    ElidedLabel,
+    IconButton,
+    IconCircle,
+    kpi_value_label,
+)
 
 
 def relative_time(iso: str | None) -> str:
@@ -40,8 +49,25 @@ def relative_time(iso: str | None) -> str:
     return dt.astimezone().strftime("%d %b %Y")
 
 
+def _mix(a: str, b: str, t: float) -> QColor:
+    ca, cb = QColor(a), QColor(b)
+    return QColor(
+        int(ca.red() + (cb.red() - ca.red()) * t),
+        int(ca.green() + (cb.green() - ca.green()) * t),
+        int(ca.blue() + (cb.blue() - ca.blue()) * t),
+    )
+
+
+def _tag_chip(text: str) -> Chip:
+    c = Chip(text, checkable=False)
+    c.setFixedHeight(22)
+    c.setStyleSheet("QPushButton#chip { min-height: 20px; max-height: 20px; padding: 0 9px; }")
+    c.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    return c
+
+
 class HoverCard(QFrame):
-    """A card with an animated hover lift and accent border."""
+    """A card: surface fill, 1 px border, no shadow.  On hover the border strengthens."""
 
     clicked = Signal()
 
@@ -52,21 +78,14 @@ class HoverCard(QFrame):
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._anim = QPropertyAnimation(self, b"hover", self)
-        self._anim.setDuration(160)
+        self._anim.setDuration(150)
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self._shadow = QGraphicsDropShadowEffect(self)
-        self._shadow.setBlurRadius(18)
-        self._shadow.setOffset(0, 4)
-        self._shadow.setColor(QColor(0, 0, 0, 70))
-        self.setGraphicsEffect(self._shadow)
 
     def get_hover(self) -> float:
         return self._hover
 
     def set_hover(self, v: float) -> None:
         self._hover = v
-        self._shadow.setBlurRadius(18 + 16 * v)
-        self._shadow.setOffset(0, 4 + 4 * v)
         self.update()
 
     hover = Property(float, get_hover, set_hover)
@@ -101,31 +120,21 @@ class HoverCard(QFrame):
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
         path = QPainterPath()
         path.addRoundedRect(r, t.radius, t.radius)
-        bg = QColor(t.surface)
-        hover_bg = QColor(t.surface_2)
-        mixed = QColor(
-            int(bg.red() + (hover_bg.red() - bg.red()) * self._hover),
-            int(bg.green() + (hover_bg.green() - bg.green()) * self._hover),
-            int(bg.blue() + (hover_bg.blue() - bg.blue()) * self._hover))
-        p.fillPath(path, mixed)
-        # colour glow strip at the top
-        accent = QColor(self._color)
-        strip = QPainterPath()
-        strip.addRoundedRect(QRectF(r.x(), r.y(), r.width(), 4), 2, 2)
-        p.fillPath(strip, accent)
-        glow = QColor(accent)
-        glow.setAlpha(int(18 + 30 * self._hover))
-        p.fillRect(QRectF(r.x(), r.y() + 4, r.width(), 46), glow)
-        border = QColor(t.border)
-        hb = QColor(self._color)
-        border = QColor(
-            int(border.red() + (hb.red() - border.red()) * self._hover * 0.7),
-            int(border.green() + (hb.green() - border.green()) * self._hover * 0.7),
-            int(border.blue() + (hb.blue() - border.blue()) * self._hover * 0.7))
-        p.setPen(QPen(border, 1))
+        p.fillPath(path, QColor(t.surface))
+        p.setPen(QPen(_mix(t.border, t.border_strong, self._hover), 1))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawPath(path)
         p.end()
+
+
+def _health_line(parent_layout, dot_size: int = 6) -> tuple[ColorDot, QLabel]:
+    dot = ColorDot(theme.current().text_faint, dot_size)
+    parent_layout.addWidget(dot, 0, Qt.AlignmentFlag.AlignVCenter)
+    meta = QLabel("")
+    meta.setObjectName("muted")
+    meta.setFont(theme.ui_font(9, 400, tabular=True))
+    parent_layout.addWidget(meta, 1)
+    return dot, meta
 
 
 class ProjectCard(HoverCard):
@@ -142,71 +151,67 @@ class ProjectCard(HoverCard):
     def __init__(self, project: M.Project, parent=None):
         super().__init__(project.color, parent)
         self.project = project
-        self.setFixedSize(self.WIDTH, self.HEIGHT)
+        self.setMinimumWidth(self.WIDTH)
+        self.setFixedHeight(self.HEIGHT)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         t = theme.current()
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 16, 16, 14)
+        lay.setContentsMargins(18, 16, 14, 14)
         lay.setSpacing(8)
 
+        # row 1: icon in the project colour, name, pin / star
         top = QHBoxLayout()
         top.setSpacing(10)
-        self.icon = IconCircle(project.icon, project.color, 40)
-        top.addWidget(self.icon)
-        title_col = QVBoxLayout()
-        title_col.setSpacing(1)
+        self.icon = IconCircle(project.icon, project.color, 20)
+        top.addWidget(self.icon, 0, Qt.AlignmentFlag.AlignVCenter)
         self.title = ElidedLabel(project.name, mode=Qt.TextElideMode.ElideRight)
-        self.title.setStyleSheet(f"font-size: {t.font_size + 2}pt; font-weight: 700;")
-        title_col.addWidget(self.title)
+        self.title.setFont(theme.ui_font(t.font_size + 1, 600))
+        top.addWidget(self.title, 1)
+        self.pin_btn = IconButton("fa5s.thumbtack", "Pin", size=14,
+                                  color=t.text if project.pinned else t.text_faint)
+        self.pin_btn.clicked.connect(lambda: self.pin_requested.emit(self.project))
+        top.addWidget(self.pin_btn)
+        self.fav_btn = IconButton("fa5s.star", "Favourite", size=14,
+                                  color=t.warning if project.favorite else t.text_faint)
+        self.fav_btn.clicked.connect(lambda: self.favorite_requested.emit(self.project))
+        top.addWidget(self.fav_btn)
+        lay.addLayout(top)
+
+        # row 2: client · job number (or description)
         sub = " · ".join(x for x in (project.client, project.job_number) if x) or project.description or " "
         self.subtitle = ElidedLabel(sub, mode=Qt.TextElideMode.ElideRight)
         self.subtitle.setObjectName("muted")
-        title_col.addWidget(self.subtitle)
-        top.addLayout(title_col, 1)
-        self.pin_btn = IconButton("fa5s.thumbtack", "Pin", size=13,
-                                  color=t.accent if project.pinned else t.text_faint)
-        self.pin_btn.clicked.connect(lambda: self.pin_requested.emit(self.project))
-        top.addWidget(self.pin_btn, 0, Qt.AlignmentFlag.AlignTop)
-        self.fav_btn = IconButton("fa5s.star" if project.favorite else "fa5r.star", "Favourite", size=13,
-                                  color=t.warning if project.favorite else t.text_faint)
-        self.fav_btn.clicked.connect(lambda: self.favorite_requested.emit(self.project))
-        top.addWidget(self.fav_btn, 0, Qt.AlignmentFlag.AlignTop)
-        lay.addLayout(top)
+        lay.addWidget(self.subtitle)
 
-        # tags row
+        # row 3: tags
         tags = QHBoxLayout()
         tags.setSpacing(6)
         for tag in project.tags[:3]:
-            tags.addWidget(Badge(tag, project.color))
+            tags.addWidget(_tag_chip(tag))
         if len(project.tags) > 3:
-            tags.addWidget(Badge(f"+{len(project.tags) - 3}", t.text_faint))
+            tags.addWidget(_tag_chip(f"+{len(project.tags) - 3}"))
         tags.addStretch(1)
         lay.addLayout(tags)
         lay.addStretch(1)
 
+        # row 4: health
         meta = QHBoxLayout()
-        meta.setSpacing(6)
-        self.health_dot = QLabel()
-        self.health_dot.setFixedSize(14, 14)
-        meta.addWidget(self.health_dot)
-        self.meta = QLabel(f"{len(project.enabled_items)}/{len(project.items)} items  ·  {relative_time(project.last_opened)}")
-        self.meta.setObjectName("faint")
-        meta.addWidget(self.meta, 1)
+        meta.setSpacing(8)
+        self.health_dot, self.meta = _health_line(meta)
+        self.meta.setText(f"{len(project.enabled_items)}/{len(project.items)} items · {relative_time(project.last_opened)}")
         lay.addLayout(meta)
 
+        # row 5: Open (secondary), launch sets, more
         actions = QHBoxLayout()
         actions.setSpacing(6)
-        self.launch_btn = Button("Open", "fa5s.play", "primary")
-        self.launch_btn.setFixedHeight(32)
+        self.launch_btn = Button("Open", "fa5s.play")
         self.launch_btn.clicked.connect(lambda: self.launch_requested.emit(self.project))
         actions.addWidget(self.launch_btn, 1)
         if project.launch_sets:
-            self.sets_btn = Button("", "fa5s.layer-group")
-            self.sets_btn.setFixedSize(34, 32)
-            self.sets_btn.setToolTip("Launch sets")
+            self.sets_btn = IconButton("fa5s.layer-group", "Launch sets", size=16)
             self.sets_btn.clicked.connect(self._show_sets)
             actions.addWidget(self.sets_btn)
-        self.more_btn = Button("", "fa5s.ellipsis-h")
-        self.more_btn.setFixedSize(34, 32)
+        self.more_btn = IconButton("fa5s.ellipsis-h", "More", size=16)
         self.more_btn.clicked.connect(lambda: self.menu_requested.emit(self.project, self.more_btn.mapToGlobal(self.more_btn.rect().bottomLeft())))
         actions.addWidget(self.more_btn)
         lay.addLayout(actions)
@@ -224,22 +229,21 @@ class ProjectCard(HoverCard):
     def set_health(self, health: ProjectHealth | None) -> None:
         t = theme.current()
         if health is None:
-            self.health_dot.setPixmap(icons.pixmap("fa5s.circle-notch", 11, t.text_faint))
+            self.health_dot.set_color(t.text_faint)
             self.health_dot.setToolTip("Checking paths…")
             return
         problems = health.problems
         if not problems:
-            self.health_dot.setPixmap(icons.pixmap("fa5s.check-circle", 12, t.success))
+            self.health_dot.set_color(t.success)
             self.health_dot.setToolTip("All paths reachable")
         else:
             offline = any(p.status == "offline" for p in problems)
-            color = t.danger if offline else t.warning
-            self.health_dot.setPixmap(icons.pixmap("fa5s.exclamation-circle", 12, color))
+            self.health_dot.set_color(t.danger if offline else t.warning)
             self.health_dot.setToolTip(f"{len(problems)} item(s) need attention")
 
 
 class ProjectRow(QFrame):
-    """Compact list representation."""
+    """Compact list representation: a 52 px card row."""
 
     launch_requested = Signal(object)
     open_requested = Signal(object)
@@ -250,40 +254,36 @@ class ProjectRow(QFrame):
         self.project = project
         self.setObjectName("card")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(58)
+        self.setFixedHeight(52)
         t = theme.current()
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(12, 8, 10, 8)
+        lay.setContentsMargins(16, 0, 10, 0)
         lay.setSpacing(12)
-        lay.addWidget(IconCircle(project.icon, project.color, 34))
-        col = QVBoxLayout()
-        col.setSpacing(0)
+        lay.addWidget(IconCircle(project.icon, project.color, 18), 0, Qt.AlignmentFlag.AlignVCenter)
         name = QLabel(project.name)
-        name.setStyleSheet("font-weight: 700;")
-        col.addWidget(name)
-        sub = " · ".join(x for x in (project.client, project.job_number, project.description) if x)
+        name.setFont(theme.ui_font(t.font_size, 600))
+        lay.addWidget(name)
+        sub = " · ".join(x for x in (project.client, project.job_number) if x) or project.description
         sl = ElidedLabel(sub or f"{len(project.items)} items", mode=Qt.TextElideMode.ElideRight)
         sl.setObjectName("muted")
-        col.addWidget(sl)
-        lay.addLayout(col, 1)
-        for tag in project.tags[:4]:
-            lay.addWidget(Badge(tag, project.color))
-        self.health_dot = QLabel()
-        self.health_dot.setFixedSize(14, 14)
-        lay.addWidget(self.health_dot)
-        meta = QLabel(f"{len(project.enabled_items)}/{len(project.items)} · {relative_time(project.last_opened)}")
-        meta.setObjectName("faint")
-        lay.addWidget(meta)
+        lay.addWidget(sl, 1)
+        for tag in project.tags[:2]:
+            lay.addWidget(_tag_chip(tag))
+        meta_row = QHBoxLayout()
+        meta_row.setSpacing(8)
+        self.health_dot, meta = _health_line(meta_row)
+        meta.setText(f"{len(project.enabled_items)}/{len(project.items)} · {relative_time(project.last_opened)}")
+        meta.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        lay.addLayout(meta_row)
         if project.pinned:
             pin = QLabel()
-            pin.setPixmap(icons.pixmap("fa5s.thumbtack", 12, t.accent))
+            pin.setPixmap(icons.pixmap("fa5s.thumbtack", 14, t.text_muted))
+            pin.setToolTip("Pinned")
             lay.addWidget(pin)
-        b = Button("Open", "fa5s.play", "primary")
-        b.setFixedHeight(30)
+        b = Button("Open", "fa5s.play")
         b.clicked.connect(lambda: self.launch_requested.emit(self.project))
         lay.addWidget(b)
-        more = Button("", "fa5s.ellipsis-h")
-        more.setFixedSize(32, 30)
+        more = IconButton("fa5s.ellipsis-h", "More", size=16)
         more.clicked.connect(lambda: self.menu_requested.emit(self.project, more.mapToGlobal(more.rect().bottomLeft())))
         lay.addWidget(more)
         self.set_health(None)
@@ -291,11 +291,12 @@ class ProjectRow(QFrame):
     def set_health(self, health: ProjectHealth | None) -> None:
         t = theme.current()
         if health is None:
-            self.health_dot.setPixmap(icons.pixmap("fa5s.circle-notch", 11, t.text_faint))
+            self.health_dot.set_color(t.text_faint)
         elif not health.problems:
-            self.health_dot.setPixmap(icons.pixmap("fa5s.check-circle", 12, t.success))
+            self.health_dot.set_color(t.success)
         else:
-            self.health_dot.setPixmap(icons.pixmap("fa5s.exclamation-circle", 12, t.warning))
+            offline = any(p.status == "offline" for p in health.problems)
+            self.health_dot.set_color(t.danger if offline else t.warning)
 
     def mouseReleaseEvent(self, e) -> None:  # noqa: N802
         # Single click opens the detail page; launching is the Open button's job.
@@ -304,26 +305,74 @@ class ProjectRow(QFrame):
         super().mouseReleaseEvent(e)
 
 
-class StatTile(QFrame):
-    def __init__(self, title: str, value: str, icon_name: str, color: str | None = None, parent=None):
+class KpiStrip(QFrame):
+    """One card divided by 1 px rules into equal columns: label over value.
+
+    ``items`` are ``(label, value)`` or ``(label, value, window)`` tuples; the
+    optional window ("today", "vs last week") is a faint third line.
+    """
+
+    def __init__(self, items: list[tuple], parent=None):
         super().__init__(parent)
         self.setObjectName("card")
         t = theme.current()
-        color = color or t.accent
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(16, 14, 16, 14)
-        lay.setSpacing(12)
-        lay.addWidget(IconCircle(icon_name, color, 40))
-        col = QVBoxLayout()
-        col.setSpacing(0)
-        self.value = QLabel(value)
-        self.value.setStyleSheet(f"font-size: {t.font_size + 8}pt; font-weight: 800; font-family: '{theme.display_font()}';")
-        col.addWidget(self.value)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+        self.values: list[QLabel] = []
+        for i, item in enumerate(items):
+            lbl, val = item[0], item[1]
+            window = item[2] if len(item) > 2 else ""
+            if i:
+                rule = QFrame()
+                rule.setObjectName("vrule")
+                rule.setFixedWidth(1)
+                rule.setStyleSheet(f"QFrame#vrule {{ background-color: {t.border}; border: none; }}")
+                lay.addWidget(rule)
+            col = QWidget()
+            cl = QVBoxLayout(col)
+            cl.setContentsMargins(t.pad, t.pad - 4, t.pad, t.pad - 4)
+            cl.setSpacing(2)
+            lab = QLabel(lbl)
+            lab.setObjectName("muted")
+            lab.setFont(theme.ui_font(9, 400))
+            cl.addWidget(lab)
+            v = kpi_value_label(val)
+            self.values.append(v)
+            cl.addWidget(v)
+            if window:
+                w = QLabel(window)
+                w.setObjectName("faint")
+                cl.addWidget(w)
+            cl.addStretch(1)
+            lay.addWidget(col, 1)
+
+    def set_values(self, values: list[str]) -> None:
+        for lbl, v in zip(self.values, values, strict=False):
+            lbl.setText(v)
+
+
+class StatTile(QFrame):
+    """Kept for compatibility: a single label-over-value card (no icon, no colour).
+
+    New code should use ``KpiStrip``.  ``icon_name`` and ``color`` are accepted
+    and ignored so existing callers keep working.
+    """
+
+    def __init__(self, title: str, value: str, icon_name: str = "", color: str | None = None, parent=None):
+        super().__init__(parent)
+        self.setObjectName("card")
+        t = theme.current()
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(t.pad, t.pad - 4, t.pad, t.pad - 4)
+        lay.setSpacing(2)
         self.title = QLabel(title)
         self.title.setObjectName("muted")
-        col.addWidget(self.title)
-        lay.addLayout(col, 1)
-        self.setMinimumWidth(170)
+        self.title.setFont(theme.ui_font(9, 400))
+        lay.addWidget(self.title)
+        self.value = kpi_value_label(value)
+        lay.addWidget(self.value)
+        self.setMinimumWidth(150)
 
     def set_value(self, v: str) -> None:
         self.value.setText(v)

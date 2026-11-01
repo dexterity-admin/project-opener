@@ -12,16 +12,17 @@ from project_opener.core.health import ItemHealth
 from project_opener.core.search import item_icon
 from project_opener.ui import icons, theme
 from project_opener.ui.context import AppContext
-from project_opener.ui.views.base import Page, clear_layout
+from project_opener.ui.views.base import Page, badge, clear_layout, icon_container, make_transparent, section_label
 from project_opener.ui.widgets.cards import relative_time
-from project_opener.ui.widgets.common import Badge, Button, ElidedLabel, IconButton, IconCircle, ToggleSwitch, label
+from project_opener.ui.widgets.common import Button, ElidedLabel, IconButton, ToggleSwitch, hline, label
 from project_opener.ui.widgets.dialogs import ItemEditor, LaunchSetEditor, confirm
 
+# health status -> (pill level, text); one status mark per row
 STATUS_META = {
-    "ok": ("fa5s.check-circle", "success", "Reachable"),
-    "missing": ("fa5s.exclamation-circle", "warning", "Not found"),
-    "offline": ("fa5s.plug", "danger", "Server offline"),
-    "variable": ("fa5s.question-circle", "warning", "Undefined variable"),
+    "ok": ("ok", "Reachable"),
+    "missing": ("warn", "Not found"),
+    "offline": ("bad", "Server offline"),
+    "variable": ("warn", "Undefined variable"),
 }
 
 
@@ -29,24 +30,27 @@ class ItemRow(QFrame):
     def __init__(self, page: ProjectPage, project: M.Project, item: M.Item, health: ItemHealth | None, parent=None):
         super().__init__(parent)
         self.page, self.project, self.item = page, project, item
-        self.setObjectName("panel2")
+        make_transparent(self)
         self.setAcceptDrops(False)
+        self.setFixedHeight(48)
         t = theme.current()
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(10, 6, 8, 6)
+        lay.setContentsMargins(2, 0, 0, 0)
         lay.setSpacing(10)
         self.switch = ToggleSwitch(checked=item.enabled)
         self.switch.setToolTip("Include when opening the whole project")
         self.switch.toggled.connect(self._toggle)
         lay.addWidget(self.switch)
         ic = QLabel()
-        ic.setPixmap(icons.pixmap(item_icon(item), 16, project.color if item.enabled else t.text_faint))
+        ic.setPixmap(icons.pixmap(item_icon(item), 16, t.text_muted if item.enabled else t.text_faint))
         ic.setFixedWidth(20)
         lay.addWidget(ic)
         col = QVBoxLayout()
         col.setSpacing(0)
         name = QLabel(item.display_name)
-        name.setStyleSheet("font-weight: 600;" + ("" if item.enabled else f" color: {t.text_faint};"))
+        name.setFont(theme.ui_font(weight=500))
+        if not item.enabled:
+            name.setObjectName("faint")
         col.addWidget(name)
         shown = page.ctx.resolver.localise(item.path)
         sub = ElidedLabel(shown + (f"   {item.args}" if item.args else ""), mode=Qt.TextElideMode.ElideMiddle)
@@ -54,11 +58,12 @@ class ItemRow(QFrame):
         col.addWidget(sub)
         lay.addLayout(col, 1)
         if health:
-            icon_name, color_key, text = STATUS_META.get(health.status, STATUS_META["ok"])
-            color = getattr(t, color_key)
-            b = Badge(text, color)
+            level, text = STATUS_META.get(health.status, STATUS_META["ok"])
+            b = badge(text, level)
             b.setToolTip(health.detail or health.resolved)
-            lay.addWidget(b)
+        else:
+            b = badge("Checking…", "neutral")
+        lay.addWidget(b)
         open_b = IconButton("fa5s.external-link-alt", "Open this item", size=13)
         open_b.clicked.connect(lambda: page.ctx.open_single(project, item))
         lay.addWidget(open_b)
@@ -105,7 +110,6 @@ class ProjectPage(Page):
         self._saving_notes = False
         self._fresh = False          # set by load(); on_show() skips its reload once
         self.setAcceptDrops(True)
-        self.content.setContentsMargins(28, 16, 28, 28)
         top = QHBoxLayout()
         back = Button("All projects", "fa5s.arrow-left", "ghost")
         back.clicked.connect(lambda: ctx.navigate.emit("projects", None))
@@ -114,13 +118,12 @@ class ProjectPage(Page):
         self.content.addLayout(top)
 
         head = QHBoxLayout()
-        head.setSpacing(14)
-        self.icon = IconCircle("fa5s.folder", "#3B82F6", 56)
+        head.setSpacing(16)
+        # The one tinted icon container in the app (DESIGN.md).
+        self.icon = icon_container("fa5s.folder", theme.current().accent, 56)
         head.addWidget(self.icon, 0, Qt.AlignmentFlag.AlignTop)
         col = QVBoxLayout()
-        col.setSpacing(2)
-        self.kicker = label("", "kicker")
-        col.addWidget(self.kicker)
+        col.setSpacing(4)
         self.title_label = label("", "h1")
         col.addWidget(self.title_label)
         self.desc = ElidedLabel("", mode=Qt.TextElideMode.ElideRight)
@@ -130,28 +133,24 @@ class ProjectPage(Page):
         self.tag_row.setSpacing(6)
         col.addLayout(self.tag_row)
         head.addLayout(col, 1)
-        actions = QVBoxLayout()
-        actions.setSpacing(6)
+        actions = QHBoxLayout()
+        actions.setSpacing(8)
         self.launch_btn = Button("Open project", "fa5s.play", "primary")
-        self.launch_btn.setFixedHeight(38)
         self.launch_btn.clicked.connect(lambda: self.ctx.launch(self.project, parent=self) if self.project else None)
         actions.addWidget(self.launch_btn)
-        row2 = QHBoxLayout()
-        row2.setSpacing(6)
         edit = Button("Edit", "fa5s.pen")
         edit.clicked.connect(lambda: self.ctx.navigate.emit("edit_project", self.project))
-        row2.addWidget(edit)
-        more = Button("", "fa5s.ellipsis-h")
-        more.setFixedWidth(36)
+        actions.addWidget(edit)
+        more = IconButton("fa5s.ellipsis-h", "More", size=16)
         more.clicked.connect(lambda: self.ctx.navigate.emit("project_menu", (self.project, more.mapToGlobal(more.rect().bottomLeft()))))
-        row2.addWidget(more)
-        actions.addLayout(row2)
+        actions.addWidget(more)
         head.addLayout(actions)
+        head.setAlignment(actions, Qt.AlignmentFlag.AlignTop)
         self.content.addLayout(head)
 
-        self.meta_row = QHBoxLayout()
-        self.meta_row.setSpacing(12)
-        self.content.addLayout(self.meta_row)
+        self.meta_label = label("", "muted", wrap=True)
+        self.meta_label.setFont(theme.ui_font(tabular=True))
+        self.content.addWidget(self.meta_label)
         self.origin_host = QVBoxLayout()
         self.content.addLayout(self.origin_host)
 
@@ -175,7 +174,7 @@ class ProjectPage(Page):
         # The notes editor is built once and kept: rebuilding it on every
         # project_updated would steal focus mid-typing (the autosave itself
         # emits that signal).
-        self.notes_lay.addWidget(label("NOTES", "eyebrow"))
+        self.notes_lay.addWidget(section_label("Notes"))
         self.notes_edit = QPlainTextEdit()
         self.notes_edit.setPlaceholderText("Contacts, conventions, reminders… saved automatically.")
         self.notes_edit.setMinimumHeight(120)
@@ -255,19 +254,18 @@ class ProjectPage(Page):
         p = self.project
         if not p:
             return
-        t = theme.current()
         self.icon.set(p.icon, p.color)
-        self.kicker.setText(" · ".join(x for x in (p.client, p.job_number) if x) or "PROJECT")
         self.title_label.setText(p.name)
-        self.desc.setText(p.description)
-        self.desc.setVisible(bool(p.description))
+        desc = " · ".join(x for x in (p.client, p.job_number, p.description) if x)
+        self.desc.setText(desc)
+        self.desc.setVisible(bool(desc))
         clear_layout(self.tag_row)
         for tag in p.tags:
-            self.tag_row.addWidget(Badge(tag, p.color))
+            self.tag_row.addWidget(badge(tag, "neutral"))
         if p.pinned:
-            self.tag_row.addWidget(Badge("Pinned", t.accent))
+            self.tag_row.addWidget(badge("Pinned", "neutral"))
         if p.auto_launch:
-            self.tag_row.addWidget(Badge("Auto-launch", t.info))
+            self.tag_row.addWidget(badge("Auto-launch", "neutral"))
         self.tag_row.addStretch(1)
         self._render_meta()
         self._render_origin()
@@ -276,33 +274,24 @@ class ProjectPage(Page):
         self._render_notes()
 
     def _render_meta(self) -> None:
-        clear_layout(self.meta_row)
         p = self.project
         if not p:
             return
-        t = theme.current()
         h = self.ctx.health_for(p.id)
         problems = len(h.problems) if h else None
-        bits = [
-            ("fa5s.link", f"{len(p.enabled_items)} of {len(p.items)} items enabled"),
-            ("fa5s.layer-group", f"{len(p.launch_sets)} launch set(s)"),
-            ("fa5s.history", f"Opened {p.open_count}× · last {relative_time(p.last_opened).lower()}"),
-            ("fa5s.heartbeat", "Checking paths…" if problems is None else ("All paths reachable" if problems == 0 else f"{problems} item(s) need attention")),
-        ]
-        for ic, text in bits:
-            w = QWidget()
-            row = QHBoxLayout(w)
-            row.setContentsMargins(0, 0, 0, 0)
-            row.setSpacing(6)
-            lab = QLabel()
-            color = t.text_muted
-            if ic == "fa5s.heartbeat" and problems is not None:
-                color = t.success if problems == 0 else t.warning
-            lab.setPixmap(icons.pixmap(ic, 13, color))
-            row.addWidget(lab)
-            row.addWidget(label(text, "muted"))
-            self.meta_row.addWidget(w)
-        self.meta_row.addStretch(1)
+        sets = len(p.launch_sets)
+        if problems is None:
+            health = "checking paths…"
+        elif problems == 0:
+            health = "all paths reachable"
+        else:
+            health = f"{problems} item{'s' if problems != 1 else ''} need{'' if problems != 1 else 's'} attention"
+        self.meta_label.setText(" · ".join([
+            f"{len(p.enabled_items)} of {len(p.items)} items enabled",
+            f"{sets} launch set{'s' if sets != 1 else ''}",
+            f"Opened {p.open_count}× · last {relative_time(p.last_opened).lower()}",
+            health,
+        ]))
 
     def _render_origin(self) -> None:
         clear_layout(self.origin_host)
@@ -314,8 +303,9 @@ class ProjectPage(Page):
         f.setObjectName("banner")
         lay = QHBoxLayout(f)
         lay.setContentsMargins(14, 8, 14, 8)
+        lay.setSpacing(10)
         ic = QLabel()
-        ic.setPixmap(icons.pixmap("fa5s.users", 14, t.accent))
+        ic.setPixmap(icons.pixmap("fa5s.users", 16, t.info))
         lay.addWidget(ic)
         if p.origin.source == "team":
             txt = f"Team project published by <b>{p.origin.author}</b> · revision {p.origin.revision}"
@@ -324,7 +314,7 @@ class ProjectPage(Page):
             lbl.setTextFormat(Qt.TextFormat.RichText)
             lay.addWidget(lbl, 1)
             if newer:
-                b = Button("Update from hub", "fa5s.sync-alt", "primary")
+                b = Button("Update from hub", "fa5s.sync-alt")
                 b.clicked.connect(lambda _=False, pub=newer: self.ctx.navigate.emit("update_from_hub", (p, pub)))
                 lay.addWidget(b)
             if p.origin.author == self.ctx.user:
@@ -343,7 +333,8 @@ class ProjectPage(Page):
         if not p:
             return
         head = QHBoxLayout()
-        head.addWidget(label("ITEMS", "eyebrow"))
+        head.setSpacing(8)
+        head.addWidget(section_label("Items"))
         head.addStretch(1)
         add_file = Button("File", "fa5s.file")
         add_file.clicked.connect(self._add_files)
@@ -351,7 +342,7 @@ class ProjectPage(Page):
         add_folder.clicked.connect(self._add_folder)
         add_link = Button("Link", "fa5s.link")
         add_link.clicked.connect(lambda: self.edit_item_dialog(None, kind="url")())
-        add_any = Button("Add…", "fa5s.plus", "primary")
+        add_any = Button("Add…", "fa5s.plus")
         add_any.clicked.connect(self.edit_item_dialog(None))
         for b in (add_file, add_folder, add_link, add_any):
             head.addWidget(b)
@@ -364,8 +355,12 @@ class ProjectPage(Page):
         for g in groups:
             items = [i for i in p.items if (i.group or "") == g]
             if len(groups) > 1 or g:
-                self.items_lay.addWidget(label(g or "Ungrouped", "faint"))
-            for it in items:
+                gl = label(g or "Ungrouped", "muted")
+                gl.setFont(theme.ui_font(9))
+                self.items_lay.addWidget(gl)
+            for n, it in enumerate(items):
+                if n:
+                    self.items_lay.addWidget(hline())
                 self.items_lay.addWidget(ItemRow(self, p, it, health.status_for(it.id) if health else None))
 
     def _render_sets(self) -> None:
@@ -374,39 +369,41 @@ class ProjectPage(Page):
         if not p:
             return
         head = QHBoxLayout()
-        head.addWidget(label("LAUNCH SETS", "eyebrow"))
+        head.addWidget(section_label("Launch sets"))
         head.addStretch(1)
-        add = IconButton("fa5s.plus", "New launch set", size=13)
+        add = IconButton("fa5s.plus", "New launch set", size=14)
         add.clicked.connect(lambda: self._edit_set(None))
         head.addWidget(add)
         self.sets_lay.addLayout(head)
         if not p.launch_sets:
             self.sets_lay.addWidget(label("Launch sets open a chosen subset of items together — for example 'Checking' or 'Submission pack'.", "muted", wrap=True))
             return
-        for s in p.launch_sets:
+        for n, s in enumerate(p.launch_sets):
+            if n:
+                self.sets_lay.addWidget(hline())
             f = QFrame()
-            f.setObjectName("panel2")
+            make_transparent(f)
+            f.setFixedHeight(48)
             lay = QHBoxLayout(f)
-            lay.setContentsMargins(10, 6, 6, 6)
+            lay.setContentsMargins(2, 0, 0, 0)
             lay.setSpacing(8)
             ic = QLabel()
-            ic.setPixmap(icons.pixmap(s.icon, 14, p.color))
+            ic.setPixmap(icons.pixmap(s.icon, 16, theme.current().text_muted))
+            ic.setFixedWidth(20)
             lay.addWidget(ic)
-            col = QVBoxLayout()
-            col.setSpacing(0)
             nm = QLabel(s.name)
-            nm.setStyleSheet("font-weight: 600;")
-            col.addWidget(nm)
-            col.addWidget(label(f"{len(s.item_ids)} item(s)", "faint"))
-            lay.addLayout(col, 1)
-            play = Button("Open", "fa5s.play", "primary")
-            play.setFixedHeight(28)
+            nm.setFont(theme.ui_font(weight=500))
+            lay.addWidget(nm)
+            n = len(s.item_ids)
+            lay.addWidget(label(f"{n} item{'s' if n != 1 else ''}", "muted"))
+            lay.addStretch(1)
+            play = Button("Open", "fa5s.play")
             play.clicked.connect(lambda _=False, ls=s: self.ctx.launch(p, ls, parent=self))
             lay.addWidget(play)
-            ed = IconButton("fa5s.pen", "Edit", size=12)
+            ed = IconButton("fa5s.pen", "Edit", size=14)
             ed.clicked.connect(lambda _=False, ls=s: self._edit_set(ls))
             lay.addWidget(ed)
-            rm = IconButton("fa5s.trash", "Delete", size=12)
+            rm = IconButton("fa5s.trash", "Delete", size=14)
             rm.clicked.connect(lambda _=False, ls=s: self._delete_set(ls))
             lay.addWidget(rm)
             self.sets_lay.addWidget(f)

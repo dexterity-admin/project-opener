@@ -1,4 +1,4 @@
-# Verification record - Project Opener 3.0.0
+# Verification record - Project Opener 3.0.0 and 3.1.0
 
 What was checked before calling 3.0.0 complete, and how. Dates are 31 Oct - 1 Nov 2026,
 an office Windows 10 Pro PC, Python 3.14 locally, Python 3.12 in CI.
@@ -91,3 +91,29 @@ reports version 3.0.0 from the GitHub channel with no errors.
 - Second-instance forwarding takes ~3 s because Qt starts before the single-instance check.
 - The UI smoke test exercises rendering and navigation, not every click path; dialogs were
   exercised manually through the demo workspace.
+
+## 9. 3.1.0 - UI/UX overhaul (1 Nov 2026)
+
+**Integrity first.** A code audit of every view found no missing handlers but 25 half-wired
+behaviours (theme-change crashes, stale detail page, hub actions reporting false success, update
+timer ignoring its switch, toasts without actions, …). All fixed, covered by 21 new offscreen tests
+(57 total), plus a scripted click-through of every route, dialog, palette action, two theme changes
+followed by hub refreshes and the tray menu (0 errors). Committed as 8702334 with green CI.
+
+**Design.** Three concept boards were produced; the owner chose "Aurora Glass" and asked for it to be
+improved with `taste-skill` and `impeccable`. The reconciled system is `docs/DESIGN.md`; `docs/PRODUCT.md`
+names each screen's question and main job. Checks run on the result:
+
+| Check | Result |
+|---|---|
+| `tools/check_contrast.py` (every text/surface pair, both themes, incl. the ten accents) | all pairs ≥ 4.5:1 |
+| Font: Onest variable loads on the windows and offscreen platforms; weights 400-700 resolve; `tnum` makes every digit 9 px wide (proportional: 4-9 px) | pass |
+| One filled accent control per screen (Home, Projects, Project, Team Hub, Updates, Settings) | pass, by screenshot |
+| No eyebrow labels, icon circles, gradients or resting shadows in the app | pass, by screenshot |
+| Cards end on the canvas edge (justified flow), lone hub card takes one column | pass |
+| `tools/smoke_ui.py` both themes (waits for the health pass; toasts dismissed before capture) | exit 0, 16 screenshots in `docs/screenshots/` |
+| Scripted click-through on the restyled app | 0 errors |
+| Landing page at 1440 / 390: fonts loaded (Unbounded 600, Onest 400-600), no console errors, no horizontal overflow, h1 two lines, hero demo plays the launch sequence with 4 opened · 2 skipped | pass |
+
+Known limits: the site shows the version the GitHub API reports (3.0.0 until the 3.1.0 release is
+published by CI); the smoke screenshots are demo data.

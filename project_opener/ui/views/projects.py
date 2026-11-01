@@ -26,20 +26,19 @@ class ProjectsPage(Page):
         self._cards: dict[str, QWidget] = {}
         self._tag_filter: set[str] = set()
         self._only_favorites = False
-        row = self.title_row("Projects", "", "WORKSPACE")
-        self.count_lbl = label("", "muted")
-        row.addWidget(self.count_lbl)
-        row.addStretch(1)
+        row = self.title_row("Projects", "")
+        self.count_lbl = self.subtitle_label      # "{n} projects · {m} pinned", tabular
         new = Button("New project", "fa5s.plus", "primary")
         new.clicked.connect(lambda: ctx.navigate.emit("new_project", None))
-        row.addWidget(new)
+        row.addWidget(new, 0, Qt.AlignmentFlag.AlignTop)
 
         tools = QHBoxLayout()
         tools.setSpacing(8)
         self.search = QLineEdit()
         self.search.setObjectName("search")
-        self.search.setPlaceholderText("Filter projects…  (name, client, job, tag, item)")
+        self.search.setPlaceholderText("Search name, client, job, tag or item")
         self.search.setClearButtonEnabled(True)
+        self.search.setFixedHeight(theme.current().control_h)
         self.search.textChanged.connect(self._debounced)
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -47,15 +46,16 @@ class ProjectsPage(Page):
         self._timer.timeout.connect(self.refresh)
         self._search_icon = QLabel(self.search)
         self._search_icon.setPixmap(icons.pixmap("fa5s.search", 14, theme.current().text_faint))
-        self._search_icon.move(10, 9)
+        self._search_icon.move(12, (theme.current().control_h - 14) // 2)
         tools.addWidget(self.search, 1)
         self.sort = QComboBox()
         for key, text in (("smart", "Pinned + recent"), ("name", "Name"), ("recent", "Last opened"), ("most_used", "Most used"), ("created", "Created")):
             self.sort.addItem(text, key)
         self.sort.setCurrentIndex(max(0, self.sort.findData(ctx.settings.sort_key)))
         self.sort.currentIndexChanged.connect(self._sort_changed)
+        self.sort.setFixedHeight(theme.current().control_h)
         tools.addWidget(self.sort)
-        self.fav_btn = IconButton("fa5s.star", "Only favourites", size=14, checkable=True, color=theme.current().warning)
+        self.fav_btn = IconButton("fa5s.star", "Only favourites", size=14, checkable=True)
         self.fav_btn.toggled.connect(self._toggle_fav)
         tools.addWidget(self.fav_btn)
         self.grid_btn = IconButton("fa5s.th-large", "Grid view", size=14, checkable=True)
@@ -66,8 +66,9 @@ class ProjectsPage(Page):
         grp.addButton(self.list_btn)
         (self.grid_btn if ctx.settings.view_mode == "grid" else self.list_btn).setChecked(True)
         self.grid_btn.toggled.connect(lambda on: self._view_changed("grid" if on else "list"))
-        tools.addWidget(self.grid_btn)
-        tools.addWidget(self.list_btn)
+        for b in (self.fav_btn, self.grid_btn, self.list_btn):
+            b.setFixedSize(theme.current().control_h, theme.current().control_h)
+            tools.addWidget(b)
         self.content.addLayout(tools)
 
         self.tags_host = QWidget()
@@ -75,7 +76,7 @@ class ProjectsPage(Page):
         self.content.addWidget(self.tags_host)
 
         self.host = QWidget()
-        self.flow = FlowLayout(self.host, 0, 14, 14)
+        self.flow = FlowLayout(self.host, 0, 16, 16, justify=True)
         self.list_lay = QVBoxLayout()
         self.list_lay.setSpacing(8)
         self.content.addWidget(self.host)
@@ -146,7 +147,12 @@ class ProjectsPage(Page):
             projects = [p for p in projects if self._tag_filter.issubset({t for t in p.tags})]
         if self._only_favorites:
             projects = [p for p in projects if p.favorite]
-        self.count_lbl.setText(f"{len(projects)} of {len(store.projects)}")
+        pinned = sum(1 for p in store.projects if p.pinned)
+        total = len(store.projects)
+        parts = [f"{total} project{'s' if total != 1 else ''}", f"{pinned} pinned"]
+        if len(projects) != total:
+            parts.insert(1, f"{len(projects)} shown")
+        self.set_subtitle(" · ".join(parts))
 
         self.flow.clear()
         clear_layout(self.list_lay)

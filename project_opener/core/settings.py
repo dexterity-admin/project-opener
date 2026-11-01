@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class Settings:
     theme: str = "dark"                 # dark | light | system
-    accent: str = "#4F7DFF"
+    accent: str = "#0E7C5B"
     density: str = "comfortable"        # comfortable | compact
     view_mode: str = "grid"             # grid | list
     sort_key: str = "smart"
@@ -66,6 +66,8 @@ class Settings:
                     setattr(s, k, v)
         if not isinstance(s.variables, dict):
             s.variables = {}
+        if s.accent in ("#4F7DFF", "#2F5BFF"):   # 3.0 default blue -> 3.1 default (docs/DESIGN.md)
+            s.accent = cls.accent
         s._root = root  # type: ignore[attr-defined]
         return s
 

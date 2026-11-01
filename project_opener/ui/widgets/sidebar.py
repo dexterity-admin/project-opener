@@ -1,4 +1,4 @@
-"""Collapsible navigation rail."""
+"""Collapsible navigation rail on the page ground (no border)."""
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QSize, Qt, Signal
@@ -16,7 +16,7 @@ NAV = [
     ("settings", "Settings", "fa5s.sliders-h"),
 ]
 
-EXPANDED = 228
+EXPANDED = 232
 COLLAPSED = 68
 
 
@@ -34,61 +34,58 @@ class Sidebar(QFrame):
         self._labels: dict[str, str] = {}
         t = theme.current()
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(12, 14, 12, 14)
-        lay.setSpacing(6)
+        lay.setContentsMargins(12, 16, 12, 16)
+        lay.setSpacing(4)
 
         brand = QHBoxLayout()
         brand.setSpacing(10)
         logo = QLabel()
-        logo.setPixmap(icons.app_icon().pixmap(34, 34))
-        logo.setFixedSize(34, 34)
+        logo.setPixmap(icons.app_icon().pixmap(28, 28))
+        logo.setFixedSize(28, 28)
         brand.addWidget(logo)
         self.brand_text = QWidget()
         bt = QVBoxLayout(self.brand_text)
         bt.setContentsMargins(0, 0, 0, 0)
         bt.setSpacing(0)
         name = QLabel(C.APP_NAME)
-        name.setStyleSheet(f"font-weight: 800; font-size: {t.font_size + 2}pt; font-family: '{theme.display_font()}';")
+        name.setFont(theme.ui_font(t.font_size, 600))
         bt.addWidget(name)
         ver = QLabel(f"v{C.VERSION} · Dexterity")
         ver.setObjectName("faint")
         bt.addWidget(ver)
         brand.addWidget(self.brand_text, 1)
-        self.collapse_btn = IconButton("fa5s.angle-double-left", "Collapse sidebar", size=13)
+        self.collapse_btn = IconButton("fa5s.angle-double-left", "Collapse sidebar", size=16)
         self.collapse_btn.clicked.connect(self.toggle)
         brand.addWidget(self.collapse_btn)
         lay.addLayout(brand)
-        lay.addSpacing(10)
+        lay.addSpacing(14)
 
-        self.new_btn = QPushButton("  New project")
-        self.new_btn.setObjectName("primary")
-        self.new_btn.setIcon(icons.icon("fa5s.plus", t.accent_fg))
-        self.new_btn.setIconSize(QSize(13, 13))
+        self.new_btn = QPushButton("New project")
+        self.new_btn.setIcon(icons.icon("fa5s.plus", t.text))
+        self.new_btn.setIconSize(QSize(16, 16))
         self.new_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.new_btn.setFixedHeight(36)
         self.new_btn.clicked.connect(self.new_project.emit)
         lay.addWidget(self.new_btn)
 
-        self.search_btn = QPushButton("  Search  ·  Ctrl+K")
+        self.search_btn = QPushButton("Search · Ctrl+K")
         self.search_btn.setObjectName("nav")
         self.search_btn.setIcon(icons.icon("fa5s.search"))
-        self.search_btn.setIconSize(QSize(14, 14))
+        self.search_btn.setIconSize(QSize(16, 16))
         self.search_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.search_btn.clicked.connect(self.palette_requested.emit)
         lay.addWidget(self.search_btn)
-        lay.addSpacing(8)
+        lay.addSpacing(10)
 
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
         self._inbox = 0
         for route, title, ic in NAV:
-            b = QPushButton("  " + title)
+            b = QPushButton(title)
             b.setObjectName("nav")
             b.setCheckable(True)
             b.setIcon(icons.icon(ic))
-            b.setIconSize(QSize(15, 15))
+            b.setIconSize(QSize(16, 16))
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setFixedHeight(38)
             b.clicked.connect(lambda _=False, r=route: self.route_changed.emit(r))
             self.group.addButton(b)
             self._buttons[route] = b
@@ -98,11 +95,7 @@ class Sidebar(QFrame):
                 # Count badge overlaid on the button so it survives collapse/expand.
                 self.inbox_badge = QLabel(b)
                 self.inbox_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.inbox_badge.setFixedHeight(18)
-                self.inbox_badge.setMinimumWidth(18)
-                self.inbox_badge.setStyleSheet(
-                    f"background-color: {t.accent}; color: {t.accent_fg}; border-radius: 9px;"
-                    f" font-size: {max(7, t.font_size - 2)}pt; font-weight: 700; padding: 0 5px;")
+                self.inbox_badge.setFont(theme.ui_font(9, 500, tabular=True))
                 self.inbox_badge.hide()
                 b.installEventFilter(self)   # re-place the badge whenever the button resizes
         lay.addStretch(1)
@@ -110,17 +103,18 @@ class Sidebar(QFrame):
         self.hub_dot = QLabel()
         self.hub_dot.setObjectName("faint")
         self.hub_dot.setWordWrap(True)
+        self.hub_dot.setContentsMargins(12, 0, 12, 6)
         lay.addWidget(self.hub_dot)
 
         prof = QFrame()
         prof.setObjectName("panel2")
         pl = QHBoxLayout(prof)
         pl.setContentsMargins(8, 8, 8, 8)
-        pl.setSpacing(8)
-        self.avatar = Avatar(user_label, 30, online=True)
+        pl.setSpacing(10)
+        self.avatar = Avatar(user_label, 28, online=True)
         pl.addWidget(self.avatar)
         self.user_lbl = QLabel(user_label)
-        self.user_lbl.setStyleSheet("font-weight: 600;")
+        self.user_lbl.setFont(theme.ui_font(t.font_size, 500))
         pl.addWidget(self.user_lbl, 1)
         prof.setCursor(Qt.CursorShape.PointingHandCursor)
         prof.mouseReleaseEvent = lambda e: self.profile_clicked.emit()  # type: ignore[assignment]
@@ -161,6 +155,7 @@ class Sidebar(QFrame):
         return super().eventFilter(obj, event)
 
     def _place_badge(self) -> None:
+        t = theme.current()
         b = self._buttons["team"]
         badge = self.inbox_badge
         n = self._inbox
@@ -168,13 +163,15 @@ class Sidebar(QFrame):
             badge.hide()
             b.setToolTip(self._labels["team"] if self._collapsed else "")
             return
-        badge.setText(str(n) if not self._collapsed else "")
-        badge.setFixedWidth(18 if self._collapsed else max(18, badge.fontMetrics().horizontalAdvance(str(n)) + 12))
         if self._collapsed:
-            badge.setFixedSize(10, 10)
+            badge.setText("")
+            badge.setFixedSize(8, 8)
+            badge.setStyleSheet(f"QLabel {{ background-color: {t.text}; border-radius: 4px; }}")
             badge.move(b.width() - 18, 8)
         else:
-            badge.setFixedHeight(18)
+            badge.setText(str(n))
+            badge.setFixedSize(max(18, badge.fontMetrics().horizontalAdvance(str(n)) + 12), 18)
+            badge.setStyleSheet(f"QLabel {{ background-color: {t.text}; color: {t.bg}; border-radius: 9px; padding: 0 2px; }}")
             badge.move(b.width() - badge.width() - 10, (b.height() - 18) // 2)
         badge.setToolTip(f"{n} new in inbox")
         b.setToolTip(f"{self._labels['team']} · {n} new in inbox" if self._collapsed else f"{n} new in inbox")
@@ -201,11 +198,11 @@ class Sidebar(QFrame):
         self.brand_text.setVisible(not self._collapsed)
         self.user_lbl.setVisible(not self._collapsed)
         self.collapse_btn.refresh("fa5s.angle-double-right" if self._collapsed else "fa5s.angle-double-left")
-        self.new_btn.setText("" if self._collapsed else "  New project")
+        self.new_btn.setText("" if self._collapsed else "New project")
         self.new_btn.setToolTip("New project  (Ctrl+N)" if self._collapsed else "")
-        self.search_btn.setText("" if self._collapsed else "  Search  ·  Ctrl+K")
+        self.search_btn.setText("" if self._collapsed else "Search · Ctrl+K")
         for route, b in self._buttons.items():
-            b.setText("" if self._collapsed else "  " + self._labels[route])
+            b.setText("" if self._collapsed else self._labels[route])
             b.setToolTip(self._labels[route] if self._collapsed else "")
         self.profile.setToolTip(self.user_lbl.text() if self._collapsed else "")
         self._place_badge()

@@ -49,8 +49,7 @@ class _BaseDialog(QDialog):
         box = QDialogButtonBox()
         self.ok_btn = box.addButton(ok_text, QDialogButtonBox.ButtonRole.AcceptRole)
         self.ok_btn.setObjectName("primary")
-        cancel = box.addButton("Cancel", QDialogButtonBox.ButtonRole.RejectRole)
-        cancel.setObjectName("ghost")
+        box.addButton("Cancel", QDialogButtonBox.ButtonRole.RejectRole)   # default (outlined) pill
         box.accepted.connect(self.accept)
         box.rejected.connect(self.reject)
         self.root.addSpacing(6)
@@ -59,6 +58,8 @@ class _BaseDialog(QDialog):
 
 
 class ColorSwatches(QWidget):
+    """22 px colour circles; the selected one gets a 2 px ring in the text colour."""
+
     changed = Signal(str)
 
     def __init__(self, color: str, parent=None):
@@ -66,14 +67,14 @@ class ColorSwatches(QWidget):
         self._color = color
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(6)
+        lay.setSpacing(8)
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
         self._buttons: list[QPushButton] = []
         for c in M.PALETTE:
             b = QPushButton()
             b.setCheckable(True)
-            b.setFixedSize(24, 24)
+            b.setFixedSize(22, 22)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setToolTip(c)
             b.setProperty("color", c)
@@ -82,7 +83,7 @@ class ColorSwatches(QWidget):
             self.group.addButton(b)
             self._buttons.append(b)
             lay.addWidget(b)
-        custom = IconButton("fa5s.eye-dropper", "Custom colour", size=13)
+        custom = IconButton("fa5s.eye-dropper", "Custom colour", size=16)
         custom.clicked.connect(self._custom)
         lay.addWidget(custom)
         lay.addStretch(1)
@@ -91,7 +92,9 @@ class ColorSwatches(QWidget):
     @staticmethod
     def _style(c: str) -> str:
         t = theme.current()
-        return (f"QPushButton {{ background-color: {c}; border: 2px solid {t.surface}; border-radius: 12px; }}"
+        return (f"QPushButton {{ background-color: {c}; border: 2px solid {c}; border-radius: 11px; padding: 0; min-height: 0; max-height: 22px; }}"
+                f"QPushButton:hover {{ border: 2px solid {t.border_strong}; }}"
+                f"QPushButton:focus {{ border: 2px solid {t.accent}; }}"
                 f"QPushButton:checked {{ border: 2px solid {t.text}; }}")
 
     def _pick(self, c: str) -> None:
@@ -114,22 +117,33 @@ class ColorSwatches(QWidget):
 
 
 class IconPicker(QWidget):
+    """Grid of outline icons in the text colour; the selected one sits on an
+    accent_soft fill with a 2 px accent border.  Saved fa5 names still select
+    their Phosphor equivalent."""
+
     changed = Signal(str)
 
     def __init__(self, current: str, color: str, parent=None):
         super().__init__(parent)
         self._icon = current
         self._color = color
+        t = theme.current()
         self.flow = FlowLayout(self, 0, 6, 6)
         self._buttons: dict[str, QPushButton] = {}
         for name, tip in icons.PROJECT_ICONS:
             b = QPushButton()
-            b.setObjectName("icon")
+            b.setObjectName("iconpick")
             b.setCheckable(True)
             b.setFixedSize(34, 34)
             b.setToolTip(tip)
-            b.setIconSize(QSize(17, 17))
+            b.setIconSize(QSize(18, 18))
             b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setStyleSheet(
+                f"QPushButton#iconpick {{ background: transparent; border: 1px solid transparent; border-radius: {t.radius_sm}px; padding: 0; min-height: 0; max-height: 34px; }}"
+                f"QPushButton#iconpick:hover {{ background-color: {t.surface_2}; }}"
+                f"QPushButton#iconpick:pressed {{ background-color: {t.surface_3}; }}"
+                f"QPushButton#iconpick:focus {{ border: 2px solid {t.accent}; }}"
+                f"QPushButton#iconpick:checked {{ background-color: {t.accent_soft}; border: 2px solid {t.accent}; }}")
             b.clicked.connect(lambda _=False, n=name: self._pick(n))
             self._buttons[name] = b
             self.flow.addWidget(b)
@@ -138,15 +152,18 @@ class IconPicker(QWidget):
 
     def _pick(self, name: str, emit: bool = True) -> None:
         self._icon = name
+        target = icons.resolve(name)
         for n, b in self._buttons.items():
-            b.setChecked(n == name)
+            b.setChecked(icons.resolve(n) == target)
         if emit:
             self.changed.emit(name)
 
     def set_color(self, color: str) -> None:
+        """Kept for callers; icons are drawn in the text colour, the preview carries the colour."""
         self._color = color
+        t = theme.current()
         for n, b in self._buttons.items():
-            b.setIcon(icons.icon(n, color))
+            b.setIcon(icons.icon(n, t.text))
 
     def icon_name(self) -> str:
         return self._icon
@@ -218,11 +235,11 @@ class ProjectEditor(_BaseDialog):
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         head = QHBoxLayout()
         head.setSpacing(12)
-        self.preview = IconCircle(p.icon, p.color, 48)
+        self.preview = IconCircle(p.icon, p.color, 34)
         head.addWidget(self.preview)
         self.name = QLineEdit(p.name)
         self.name.setPlaceholderText("Project name, e.g. P12513 As-built isometrics")
-        self.name.setStyleSheet(f"font-size: {theme.current().font_size + 2}pt; font-weight: 600;")
+        self.name.setFont(theme.ui_font(theme.current().font_size + 1, 500))
         head.addWidget(self.name, 1)
         self.root.addLayout(head)
 
@@ -367,17 +384,17 @@ class LaunchSetEditor(_BaseDialog):
         self.project = project
         head = QHBoxLayout()
         head.setSpacing(12)
-        self.preview = IconCircle(self.set.icon, project.color, 40)
+        self.preview = IconCircle(self.set.icon, project.color, 28)
         head.addWidget(self.preview)
         self.name = QLineEdit(self.set.name)
         self.name.setPlaceholderText("e.g. Morning start, Checking, Submission pack")
         head.addWidget(self.name, 1)
         self.root.addLayout(head)
-        self.root.addWidget(label("Icon", "eyebrow"))
+        self.root.addWidget(label("Icon", "muted"))
         self.icon_picker = IconPicker(self.set.icon, project.color)   # same grid as ProjectEditor
         self.icon_picker.changed.connect(lambda n: self.preview.set(icon_name=n))
         self.root.addWidget(self.icon_picker)
-        self.root.addWidget(label("Items in this set", "eyebrow"))
+        self.root.addWidget(label("Items in this set", "muted"))
         self.list = QListWidget()
         self.list.setMinimumHeight(240)
         chosen = set(self.set.item_ids)
@@ -423,9 +440,9 @@ class SendToDialog(_BaseDialog):
         for p in peers:
             self.to.addItem(p)
         self.to.lineEdit().setPlaceholderText("Windows user name of the colleague")
-        self.root.addWidget(label("To", "eyebrow"))
+        self.root.addWidget(label("To", "muted"))
         self.root.addWidget(self.to)
-        self.root.addWidget(label("Message (optional)", "eyebrow"))
+        self.root.addWidget(label("Message (optional)", "muted"))
         self.message = QPlainTextEdit()
         self.message.setFixedHeight(80)
         self.message.setPlaceholderText("Here are the links for the P12513 check …")
@@ -497,7 +514,7 @@ class PublishDialog(_BaseDialog):
 
     def __init__(self, project: M.Project, parent=None):
         super().__init__(f"Publish '{project.name}' to Team Hub", parent, 520)
-        self.root.addWidget(label("Description shown to the team", "eyebrow"))
+        self.root.addWidget(label("Description shown to the team", "muted"))
         self.description_edit = QPlainTextEdit(project.description)
         self.description_edit.setPlaceholderText("What this project is for and who should clone it…")
         self.description_edit.setFixedHeight(90)

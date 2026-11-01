@@ -1,4 +1,4 @@
-"""Home dashboard: greeting, quick launch, stats, team pulse, announcements, attention list."""
+"""Home: greeting, the finding, quick launch, KPI strip, attention list, team pulse, recent activity."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -8,9 +8,9 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from project_opener.ui import icons, theme
 from project_opener.ui.context import AppContext
-from project_opener.ui.views.base import Page, clear_layout
-from project_opener.ui.widgets.cards import ProjectCard, StatTile, relative_time
-from project_opener.ui.widgets.common import Avatar, Badge, Button, IconButton, IconCircle, label
+from project_opener.ui.views.base import KpiStrip, Page, badge, clear_layout, row_widget, section_label
+from project_opener.ui.widgets.cards import ProjectCard, relative_time
+from project_opener.ui.widgets.common import Avatar, Button, IconButton, label
 from project_opener.ui.widgets.empty import EmptyState
 from project_opener.ui.widgets.flow import FlowLayout
 
@@ -24,24 +24,30 @@ def greeting() -> str:
     return "Good evening"
 
 
+def _icon_label(name: str, size: int = 16, color: str | None = None) -> QLabel:
+    lbl = QLabel()
+    lbl.setPixmap(icons.pixmap(name, size, color or theme.current().text_muted))
+    lbl.setFixedWidth(size + 2)
+    return lbl
+
+
 class HomePage(Page):
     route = "home"
 
     def __init__(self, ctx: AppContext, parent=None):
         super().__init__(ctx, parent)
-        self.row = self.title_row(f"{greeting()}, {ctx.display_name()}", "", "DASHBOARD")
-        self.row.addWidget(self._header_buttons())
+        self.row = self.title_row(f"{greeting()}, {ctx.display_name()}", "")
+        self.row.addWidget(self._header_buttons(), 0, Qt.AlignmentFlag.AlignTop)
         self.banner_host = QVBoxLayout()
         self.banner_host.setSpacing(8)
         self.content.addLayout(self.banner_host)
 
-        self.stats_row = QHBoxLayout()
-        self.stats_row.setSpacing(12)
-        self.content.addLayout(self.stats_row)
+        self.kpis = KpiStrip([("Projects", "0"), ("Items linked", "0"), ("Launches today", "0"), ("Colleagues online", "0")])
+        self.content.addWidget(self.kpis)
 
         self.quick_col = self.section("Quick launch")
         self.quick_host = QWidget()
-        self.quick_flow = FlowLayout(self.quick_host, 0, 14, 14)
+        self.quick_flow = FlowLayout(self.quick_host, 0, 16, 16, justify=True)
         self.quick_col.addWidget(self.quick_host)
 
         # Box layouts only (see detail.py): grids + wrapped labels thrash layout.
@@ -57,17 +63,15 @@ class HomePage(Page):
         self.content.addStretch(1)
 
         self.bind(ctx.projects_changed, self.refresh)
-        self.bind(ctx.health_updated, lambda _pid: self._render_attention())
+        self.bind(ctx.health_updated, lambda _pid: (self._render_attention(), self._render_finding()))
         self.bind(ctx.hub_changed, lambda _s: self._render_hub())
-        self.bind(ctx.peers_changed, lambda _p: self._render_hub())
+        self.bind(ctx.peers_changed, lambda _p: (self._render_hub(), self._render_stats()))
         self.refresh()
 
     def _header_buttons(self) -> QWidget:
-        w = QWidget()
-        lay = QHBoxLayout(w)
-        lay.setContentsMargins(0, 0, 0, 0)
+        w, lay = row_widget(theme.current().control_h)
         lay.setSpacing(8)
-        b = Button("Search", "fa5s.search")
+        b = Button("Search  Ctrl+K", "fa5s.search", "ghost")
         b.clicked.connect(lambda: self.ctx.navigate.emit("palette", None))
         lay.addWidget(b)
         n = Button("New project", "fa5s.plus", "primary")
@@ -87,16 +91,37 @@ class HomePage(Page):
         self._render_attention()
         self._render_history()
         self._render_hub()
+        self._render_finding()
+
+    def _online_count(self) -> int:
+        return sum(1 for p in self.ctx.peers if p.online and p.user != self.ctx.user)
+
+    def _attention_count(self) -> int:
+        n = 0
+        for p in self.ctx.store.projects:
+            h = self.ctx.health_for(p.id)
+            if h and h.problems:
+                n += 1
+        return n
+
+    def _render_finding(self) -> None:
+        """The one grey line under the greeting: what needs the user, from real data."""
+        st = self.ctx.store.stats()
+        parts = []
+        n = self._attention_count()
+        if n:
+            parts.append(f"{n} item{'s' if n != 1 else ''} need{'' if n != 1 else 's'} attention")
+        online = self._online_count()
+        if online:
+            parts.append(f"{online} colleague{'s' if online != 1 else ''} online")
+        launches = int(st.get("launches_today", 0) or 0)
+        if launches:
+            parts.append(f"{launches} launch{'es' if launches != 1 else ''} today")
+        self.set_subtitle(" · ".join(parts) if parts else "Everything reachable")
 
     def _render_stats(self) -> None:
-        clear_layout(self.stats_row)
         st = self.ctx.store.stats()
-        t = theme.current()
-        self.stats_row.addWidget(StatTile("Projects", str(st["projects"]), "fa5s.th-large"))
-        self.stats_row.addWidget(StatTile("Items linked", str(st["items"]), "fa5s.link", t.info))
-        self.stats_row.addWidget(StatTile("Launches today", str(st["launches_today"]), "fa5s.play", t.success))
-        online = sum(1 for p in self.ctx.peers if p.online and p.user != self.ctx.user)
-        self.stats_row.addWidget(StatTile("Colleagues online", str(online), "fa5s.users", "#8B5CF6"))
+        self.kpis.set_values([str(st["projects"]), str(st["items"]), str(st["launches_today"]), str(self._online_count())])
 
     def _render_quick(self) -> None:
         self.quick_flow.clear()
@@ -126,11 +151,10 @@ class HomePage(Page):
 
     def _render_attention(self) -> None:
         clear_layout(self.attention_lay)
-        t = theme.current()
         head = QHBoxLayout()
-        head.addWidget(label("NEEDS ATTENTION", "eyebrow"))
+        head.addWidget(section_label("Needs attention"))
         head.addStretch(1)
-        rb = IconButton("fa5s.redo", "Re-check all paths", size=12)
+        rb = IconButton("fa5s.redo", "Re-check all paths", size=14)
         rb.clicked.connect(self.ctx.refresh_all_health)
         head.addWidget(rb)
         self.attention_lay.addLayout(head)
@@ -140,19 +164,16 @@ class HomePage(Page):
             if h and h.problems:
                 problems.append((p, h))
         if not problems:
-            row = QHBoxLayout()
-            row.addWidget(IconCircle("fa5s.check", t.success, 32))
-            row.addWidget(label("All linked paths are reachable right now.", "muted"), 1)
-            self.attention_lay.addLayout(row)
+            self.attention_lay.addWidget(label("All linked paths are reachable right now.", "muted", wrap=True))
             return
         for p, h in problems[:6]:
             row = QHBoxLayout()
             row.setSpacing(10)
-            row.addWidget(IconCircle(p.icon, p.color, 30))
+            row.addWidget(_icon_label(p.icon))
             col = QVBoxLayout()
             col.setSpacing(0)
             name = QLabel(p.name)
-            name.setStyleSheet("font-weight: 600;")
+            name.setFont(theme.ui_font(weight=500))
             col.addWidget(name)
             kinds = {}
             for pr in h.problems:
@@ -177,14 +198,13 @@ class HomePage(Page):
             f.setObjectName({"warning": "banner_warn", "critical": "banner_danger"}.get(a.level, "banner"))
             lay = QHBoxLayout(f)
             lay.setContentsMargins(14, 10, 14, 10)
-            ic = QLabel()
-            color = {"warning": t.warning, "critical": t.danger}.get(a.level, t.accent)
-            ic.setPixmap(icons.pixmap("fa5s.bullhorn", 16, color))
-            lay.addWidget(ic)
+            lay.setSpacing(10)
+            color = {"warning": t.warning, "critical": t.danger}.get(a.level, t.info)
+            lay.addWidget(_icon_label("fa5s.bullhorn", 16, color), 0, Qt.AlignmentFlag.AlignTop)
             col = QVBoxLayout()
             col.setSpacing(0)
             tl = QLabel(a.title)
-            tl.setStyleSheet("font-weight: 700;")
+            tl.setFont(theme.ui_font(weight=600))
             col.addWidget(tl)
             if a.body:
                 col.addWidget(label(a.body, "muted", wrap=True))
@@ -192,10 +212,9 @@ class HomePage(Page):
             lay.addLayout(col, 1)
             self.banner_host.addWidget(f)
         head = QHBoxLayout()
-        head.addWidget(label("TEAM PULSE", "eyebrow"))
+        head.addWidget(section_label("Team pulse"))
         head.addStretch(1)
-        go = Button("Team Hub", "fa5s.arrow-right")
-        go.setObjectName("ghost")
+        go = Button("Team Hub", "fa5s.arrow-right", "ghost")
         go.clicked.connect(lambda: self.ctx.navigate.emit("team", None))
         head.addWidget(go)
         self.pulse_lay.addLayout(head)
@@ -241,29 +260,30 @@ class HomePage(Page):
             line.addWidget(label(relative_time(str(r.get("ts", ""))), "faint"))
             self.pulse_lay.addLayout(line)
         if st.inbox:
-            b = Button(f"{st.inbox} project(s) waiting in your inbox", "fa5s.inbox", "primary")
+            b = Button(f"{st.inbox} project(s) waiting in your inbox", "fa5s.inbox")
             b.clicked.connect(lambda: self.ctx.navigate.emit("team", "inbox"))
             self.pulse_lay.addWidget(b)
 
     def _render_history(self) -> None:
         clear_layout(self.history_lay)
-        self.history_lay.addWidget(label("RECENT ACTIVITY", "eyebrow"))
+        self.history_lay.addWidget(section_label("Recent activity"))
         rows = self.ctx.store.history(8)
         if not rows:
             self.history_lay.addWidget(label("Launches will appear here.", "muted"))
             return
         t = theme.current()
         for r in rows:
-            line = QHBoxLayout()
-            line.setSpacing(10)
-            ic = QLabel()
+            w, line = row_widget(44)
             ok = int(r.get("missing", 0) or 0) == 0
-            ic.setPixmap(icons.pixmap("fa5s.play-circle" if ok else "fa5s.exclamation-circle", 14, t.success if ok else t.warning))
-            line.addWidget(ic)
-            text = f"<b>{r.get('project', '')}</b>" + (f" › {r.get('set')}" if r.get("set") else "")
-            lbl = QLabel(text)
-            lbl.setTextFormat(Qt.TextFormat.RichText)
-            line.addWidget(lbl, 1)
-            line.addWidget(Badge(f"{r.get('ok', r.get('count', 0))} opened", t.text_muted))
-            line.addWidget(label(relative_time(str(r.get("ts", ""))), "faint"))
-            self.history_lay.addLayout(line)
+            line.addWidget(_icon_label("fa5s.play-circle" if ok else "fa5s.exclamation-circle", 16, t.text_muted if ok else t.warning))
+            name = QLabel(str(r.get("project", "")))
+            name.setFont(theme.ui_font(weight=500))
+            line.addWidget(name)
+            if r.get("set"):
+                line.addWidget(label(f"› {r.get('set')}", "muted"))
+            line.addStretch(1)
+            line.addWidget(badge(f"{r.get('ok', r.get('count', 0))} opened", "neutral"))
+            tm = label(relative_time(str(r.get("ts", ""))), "faint")
+            tm.setFont(theme.ui_font(theme.current().font_size - 1, tabular=True))
+            line.addWidget(tm)
+            self.history_lay.addWidget(w)

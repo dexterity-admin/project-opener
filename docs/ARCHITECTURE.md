@@ -26,7 +26,7 @@ project_opener/
 ├── update/
 │   └── updater.py     LAN mirror + GitHub Releases, SHA-256 verify, silent install, mirror
 └── ui/
-    ├── theme.py       design tokens -> palette + generated QSS (dark/light/accent/density)
+    ├── theme.py       design tokens -> palette + generated QSS (dark/light/accent/density); the rules are in docs/DESIGN.md
     ├── icons.py       qtawesome wrapper, app icon, project icon catalogue
     ├── context.py     AppContext: services + thread pool + Qt signals (the only thing views talk to)
     ├── main_window.py sidebar + stacked pages, routing, shortcuts, tray, project menu
