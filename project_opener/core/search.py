@@ -87,10 +87,17 @@ def search_everything(query: str, projects: Iterable[M.Project], actions: list[t
                 if sc > 0.3:
                     hits.append(Hit("item", it.display_name, f"{p.name}  ·  {it.path}", sc * 0.8, project=p, item=it,
                                     icon=item_icon(it)))
+    action_hits = []
     for action_id, title, icon in actions or []:
         sc = subsequence_score(q, title) if q else 0.2
         if sc > 0.3 or not q:
-            hits.append(Hit("action", title, "Action", sc * 0.95, action_id=action_id, icon=icon))
+            action_hits.append(Hit("action", title, "Action", sc * 0.95, action_id=action_id, icon=icon))
+    if not q:
+        # Empty query: projects first, then every action, so the actions never
+        # drop off the end of a long project list.
+        hits.sort(key=lambda h: (-h.score, h.title.lower()))
+        return hits[:max(0, limit - len(action_hits))] + action_hits
+    hits.extend(action_hits)
     hits.sort(key=lambda h: (-h.score, h.title.lower()))
     return hits[:limit]
 

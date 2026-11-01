@@ -210,6 +210,7 @@ class ProjectCard(HoverCard):
         self.more_btn.clicked.connect(lambda: self.menu_requested.emit(self.project, self.more_btn.mapToGlobal(self.more_btn.rect().bottomLeft())))
         actions.addWidget(self.more_btn)
         lay.addLayout(actions)
+        # Single click opens the detail page; launching is the Open button's job.
         self.clicked.connect(lambda: self.open_requested.emit(self.project))
         self.set_health(None)
 
@@ -235,9 +236,6 @@ class ProjectCard(HoverCard):
             color = t.danger if offline else t.warning
             self.health_dot.setPixmap(icons.pixmap("fa5s.exclamation-circle", 12, color))
             self.health_dot.setToolTip(f"{len(problems)} item(s) need attention")
-
-    def mouseDoubleClickEvent(self, e) -> None:  # noqa: N802
-        self.launch_requested.emit(self.project)
 
 
 class ProjectRow(QFrame):
@@ -300,12 +298,10 @@ class ProjectRow(QFrame):
             self.health_dot.setPixmap(icons.pixmap("fa5s.exclamation-circle", 12, t.warning))
 
     def mouseReleaseEvent(self, e) -> None:  # noqa: N802
+        # Single click opens the detail page; launching is the Open button's job.
         if e.button() == Qt.MouseButton.LeftButton:
             self.open_requested.emit(self.project)
         super().mouseReleaseEvent(e)
-
-    def mouseDoubleClickEvent(self, e) -> None:  # noqa: N802
-        self.launch_requested.emit(self.project)
 
 
 class StatTile(QFrame):

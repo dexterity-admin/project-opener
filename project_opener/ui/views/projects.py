@@ -85,8 +85,8 @@ class ProjectsPage(Page):
         self.drop_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.content.addWidget(self.drop_hint)
 
-        ctx.projects_changed.connect(self.refresh)
-        ctx.health_updated.connect(self._health)
+        self.bind(ctx.projects_changed, self.refresh)
+        self.bind(ctx.health_updated, self._health)
         self.refresh()
 
     # --------------------------------------------------------------- events

@@ -22,7 +22,7 @@ class Toast(QFrame):
         self.setStyleSheet(
             f"QFrame#toast {{ background-color: {t.surface_2}; border: 1px solid {t.border_strong};"
             f" border-left: 3px solid {color}; border-radius: 10px; }}")
-        self.setFixedWidth(360)
+        self.setFixedWidth(420 if action else 360)
         lay = QHBoxLayout(self)
         lay.setContentsMargins(12, 10, 10, 10)
         lay.setSpacing(10)
@@ -33,7 +33,6 @@ class Toast(QFrame):
         text.setSpacing(2)
         tl = QLabel(title)
         tl.setStyleSheet("font-weight: 700;")
-        tl.setWordWrap(True)
         text.addWidget(tl)
         if body:
             bl = QLabel(body)
@@ -43,17 +42,20 @@ class Toast(QFrame):
         lay.addLayout(text, 1)
         if action:
             btn = QPushButton(action)
-            btn.setObjectName("ghost")
+            btn.setObjectName("primary")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(self.action_clicked.emit)
             btn.clicked.connect(self.dismiss)
-            lay.addWidget(btn, 0, Qt.AlignmentFlag.AlignTop)
+            lay.addWidget(btn, 0, Qt.AlignmentFlag.AlignVCenter)
         close = QPushButton()
         close.setObjectName("icon")
         close.setIcon(icons.icon("fa5s.times", t.text_faint))
         close.setFixedSize(24, 24)
         close.clicked.connect(self.dismiss)
         lay.addWidget(close, 0, Qt.AlignmentFlag.AlignTop)
+        # Wrapped labels report a height only once the width is known.
+        lay.activate()
+        self.setFixedHeight(max(52, lay.heightForWidth(self.width()) if lay.hasHeightForWidth() else lay.sizeHint().height()))
         self._fx = QGraphicsOpacityEffect(self)
         self._fx.setOpacity(0.0)
         self.setGraphicsEffect(self._fx)
@@ -76,11 +78,9 @@ class Toast(QFrame):
         self._anim.stop()
         self._anim.setStartValue(self._fx.opacity())
         self._anim.setEndValue(0.0)
-        try:
-            self._anim.finished.disconnect()
-        except RuntimeError:
-            pass
-        self._anim.finished.connect(self._done)
+        if not getattr(self, "_done_connected", False):
+            self._anim.finished.connect(self._done)
+            self._done_connected = True
         self._anim.start()
 
     def _done(self) -> None:

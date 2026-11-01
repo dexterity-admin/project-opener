@@ -108,6 +108,9 @@ class SettingsPage(Page):
         self.sw_tray = SwitchRow("Minimise to tray on close", "Keep running in the notification area for instant launches.", s.minimise_to_tray)
         self.sw_tray.toggled.connect(lambda v: self._set("minimise_to_tray", v))
         lay.addWidget(self.sw_tray)
+        self.sw_start_min = SwitchRow("Start minimised", "Open in the tray instead of showing the window when the app starts.", s.start_minimised)
+        self.sw_start_min.toggled.connect(lambda v: self._set("start_minimised", v))
+        lay.addWidget(self.sw_start_min)
         self.sw_toasts = SwitchRow("Show notifications", "Toasts for launches, updates and hub events.", s.show_toasts)
         self.sw_toasts.toggled.connect(lambda v: self._set("show_toasts", v))
         lay.addWidget(self.sw_toasts)
@@ -192,8 +195,20 @@ class SettingsPage(Page):
         self._anchors["updates"] = p
         lay.addWidget(label("UPDATES", "eyebrow"))
         self.sw_update = SwitchRow("Check for updates automatically", f"Every {C.UPDATE_CHECK_INTERVAL_H} hours: LAN hub first, then GitHub.", s.update_check)
-        self.sw_update.toggled.connect(lambda v: self._set("update_check", v))
+        self.sw_update.toggled.connect(lambda v: self._set("update_check", v, rebuild=True))
         lay.addWidget(self.sw_update)
+        self.skip_row = QWidget()
+        srow = QHBoxLayout(self.skip_row)
+        srow.setContentsMargins(0, 0, 0, 0)
+        self.skip_label = label("", "muted")
+        srow.addWidget(self.skip_label)
+        clear_skip = Button("Clear", "fa5s.times")
+        clear_skip.setToolTip("Offer this version again on the Updates page")
+        clear_skip.clicked.connect(self._clear_skip)
+        srow.addWidget(clear_skip)
+        srow.addStretch(1)
+        lay.addWidget(self.skip_row)
+        self._refresh_skip_row()
         trow = QHBoxLayout()
         self.token = QLineEdit()
         self.token.setEchoMode(QLineEdit.EchoMode.Password)
@@ -246,11 +261,11 @@ class SettingsPage(Page):
         lay.addLayout(brow)
         self.content.addWidget(p)
         self.content.addStretch(1)
-        ctx.hub_changed.connect(self._hub_status)
-
+        self.bind(ctx.hub_changed, self._hub_status)
     # ---------------------------------------------------------------- nav
     def on_show(self, section: str | None = None) -> None:
         self._hub_status(self.ctx.hub_status)
+        self._refresh_skip_row()
         if section and section in self._anchors:
             from PySide6.QtCore import QTimer
             QTimer.singleShot(50, lambda: self.scroll.ensureWidgetVisible(self._anchors[section], 0, 40))
@@ -364,6 +379,18 @@ class SettingsPage(Page):
                 added += 1
         self._save_vars()
         self.ctx.toast.emit(f"Added {added} drive variable(s)", ", ".join(sug.keys()), "success")
+
+    # ------------------------------------------------------------ updates
+    def _refresh_skip_row(self) -> None:
+        v = self.ctx.settings.update_skip_version
+        self.skip_label.setText(f"Skipped version: {v}" if v else "")
+        self.skip_row.setVisible(bool(v))
+
+    def _clear_skip(self) -> None:
+        self.ctx.settings.update_skip_version = ""
+        self.ctx.settings.save()
+        self._refresh_skip_row()
+        self.ctx.toast.emit("Skipped version cleared", "It will be offered again on the Updates page.", "info")
 
     # -------------------------------------------------------------- token
     def _save_token(self) -> None:

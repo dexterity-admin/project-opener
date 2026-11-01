@@ -49,8 +49,8 @@ class TeamPage(Page):
             self.tabs.addTab(w, title)
         self.content.addWidget(self.tabs)
         self.content.addStretch(1)
-        ctx.hub_changed.connect(lambda _s: self.refresh())
-        ctx.peers_changed.connect(lambda _p: self._render_presence())
+        self.bind(ctx.hub_changed, lambda _s: self.refresh())
+        self.bind(ctx.peers_changed, lambda _p: self._render_presence())
         self.refresh()
 
     def on_show(self, section: str | None = None) -> None:
@@ -88,7 +88,7 @@ class TeamPage(Page):
     def _render_presence(self) -> None:
         self.presence_flow.clear()
         peers = [p for p in self.ctx.peers if p.user != self.ctx.user]
-        if not self.ctx.hub_status.configured:
+        if not self.ctx.hub_status.configured and not peers:
             self.presence_flow.addWidget(label("Connect a Team Hub folder (any shared folder on the office LAN) to see colleagues here.", "muted", wrap=True))
             return
         if not peers:
@@ -184,7 +184,9 @@ class TeamPage(Page):
 
     def _unpublish(self, pub: PublishedProject) -> None:
         if confirm(self, "Unpublish", f"Remove '{pub.project.name}' from the Team Hub? Colleagues keep their clones.", danger=True):
-            self.ctx.hub.unpublish(pub.published_id)
+            if not self.ctx.hub.unpublish(pub.published_id):
+                self.ctx.toast.emit("Unpublish failed", "The hub folder is not writable or the file is locked.", "error")
+                return
             for p in self.ctx.store.projects:
                 if p.origin.published_id == pub.published_id:
                     p.origin = M.Origin(source="local", author=self.ctx.user)
@@ -228,15 +230,18 @@ class TeamPage(Page):
         return f
 
     def _accept(self, m: InboxMessage) -> None:
+        if not self.ctx.hub.dismiss_inbox(m):
+            self.ctx.toast.emit("Could not accept", "The inbox file is locked or the hub is unreachable; try again.", "error")
+            return
         proj = m.project.clone(m.project.name)
         proj.origin = M.Origin(source="inbox", author=m.sender)
         self.ctx.store.add(proj)
-        self.ctx.hub.dismiss_inbox(m)
         self.ctx.toast.emit("Added to your workspace", proj.name, "success")
         self.ctx.refresh_hub()
 
     def _dismiss(self, m: InboxMessage) -> None:
-        self.ctx.hub.dismiss_inbox(m)
+        if not self.ctx.hub.dismiss_inbox(m):
+            self.ctx.toast.emit("Could not dismiss", "The inbox file is locked or the hub is unreachable.", "error")
         self.ctx.refresh_hub()
 
     # ------------------------------------------------------- announcements
@@ -275,9 +280,13 @@ class TeamPage(Page):
     def _post(self) -> None:
         dlg = AnnouncementDialog(self)
         if dlg.exec():
-            self.ctx.hub.announce(dlg.title_edit.text().strip(), dlg.body.toPlainText().strip(), dlg.level.currentData())
+            posted = self.ctx.hub.announce(dlg.title_edit.text().strip(), dlg.body.toPlainText().strip(),
+                                           dlg.level.currentData(), expires=dlg.expires)
             self.ctx.refresh_hub()
-            self.ctx.toast.emit("Announcement posted", "", "success")
+            if posted:
+                self.ctx.toast.emit("Announcement posted", "", "success")
+            else:
+                self.ctx.toast.emit("Announcement not posted", "The hub folder is not writable.", "error")
 
     # --------------------------------------------------------------- pulse
     def _render_pulse(self) -> None:

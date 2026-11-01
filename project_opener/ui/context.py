@@ -57,6 +57,7 @@ class AppContext(QObject):
     update_ready = Signal(object)            # Path to installer
     update_failed = Signal(str)
     toast = Signal(str, str, str)            # title, body, level
+    toast_action = Signal(str, str, str, str, object)  # title, body, level, button label, navigate (route, payload)
     navigate = Signal(str, object)           # route, payload
     _invoke = Signal(object)                 # run callable on the GUI thread
 
@@ -77,8 +78,10 @@ class AppContext(QObject):
         self._health_pending: set[str] = set()
         self.hub_status: HubStatus = HubStatus()
         self.peers: list[Peer] = []
-        self.last_update: CheckResult | None = None
+        self.last_check: CheckResult | None = None   # survives page rebuilds (retheme)
+        self.downloaded: Path | None = None          # verified installer from the last download
         self.current_project_name = ""
+        self._seen_revisions: set[tuple[str, int]] = set()
         self.window: QWidget | None = None
         self._lock = threading.Lock()
         self._invoke.connect(self._run_on_gui)
@@ -124,11 +127,25 @@ class AppContext(QObject):
 
     # --------------------------------------------------------- gui thread
     def run_on_gui(self, fn: Callable) -> None:
-        self._invoke.emit(fn)
+        try:
+            self._invoke.emit(fn)
+        except RuntimeError:  # a pool job finished after the context was destroyed (shutdown)
+            pass
 
     @Slot(object)
     def _run_on_gui(self, fn: Callable) -> None:
-        fn()
+        try:
+            fn()
+        except RuntimeError as exc:  # a widget the job targeted was deleted meanwhile
+            log.debug("gui callback skipped: %s", exc)
+
+    @property
+    def last_update(self) -> CheckResult | None:  # backwards-compatible alias
+        return self.last_check
+
+    @last_update.setter
+    def last_update(self, value: CheckResult | None) -> None:
+        self.last_check = value
 
     def run_async(self, fn: Callable, done: Callable | None = None, fail: Callable | None = None) -> None:
         self.pool.start(_Job(fn, (lambda r: self.run_on_gui(lambda: done(r))) if done else None,
@@ -155,6 +172,13 @@ class AppContext(QObject):
                 self.beacon.display_name = self.settings.display_name
         else:
             self.stop_beacon()
+        if self.beacon:
+            self.beacon.current_project = self.current_project_name if self.settings.hub_share_pulse else ""
+        if self.settings.update_check:
+            if not self.update_timer.isActive():
+                self.update_timer.start()
+        else:
+            self.update_timer.stop()
         self.refresh_hub()
         self.refresh_all_health()
         self.projects_changed.emit()
@@ -190,8 +214,8 @@ class AppContext(QObject):
         if self.settings.hub_share_pulse:
             self.run_async(lambda: self.hub.pulse("launched", project.name + (f" › {set_name}" if set_name else "")))
             self.run_async(lambda: self.hub.heartbeat(current_project=project.name))
-        if self.beacon:
-            self.beacon.current_project = project.name
+            if self.beacon:
+                self.beacon.current_project = project.name
         if report.ok:
             self.toast.emit(f"Opened {project.name}", f"{len(report.opened)} item(s)" + (f" · {set_name}" if set_name else ""), "success")
         else:
@@ -246,21 +270,40 @@ class AppContext(QObject):
     # ----------------------------------------------------------------- hub
     def refresh_hub(self) -> None:
         hub = self.hub
-        current = self.current_project_name
+        current = self.current_project_name if self.settings.hub_share_pulse else ""
+        clones = [p for p in self.store.projects if p.origin.source == "team" and p.origin.published_id]
 
         def work():
             if hub.configured:
                 hub.heartbeat(current_project=current)
-            return hub.status(), hub.peers()
+            newer = []
+            if hub.reachable():
+                for p in clones:
+                    pub = hub.newer_revision(p)
+                    if pub:
+                        newer.append((p, pub))
+            return hub.status(), hub.peers(), newer
 
         def done(result) -> None:
-            status, peers = result
+            status, peers, newer = result
             self.hub_status = status
             self.peers = self._merge_peers(peers)
             self.hub_changed.emit(status)
             self.peers_changed.emit(self.peers)
+            self._notify_revisions(newer)
 
         self.run_async(work, done)
+
+    def _notify_revisions(self, newer: list) -> None:
+        """Toast once per (published id, revision) when a cloned project has a newer revision on the hub."""
+        for project, pub in newer:
+            key = (pub.published_id, int(pub.revision))
+            if key in self._seen_revisions:
+                continue
+            self._seen_revisions.add(key)
+            self.toast_action.emit(f"New revision of {project.name}",
+                                   f"{pub.author} published revision {pub.revision} to the Team Hub.",
+                                   "info", "Open project", ("project", project))
 
     def _merge_peers(self, hub_peers: list[Peer]) -> list[Peer]:
         merged = {p.user: p for p in hub_peers}
@@ -277,21 +320,27 @@ class AppContext(QObject):
         return peers
 
     def _on_udp_peer(self, peer: Peer) -> None:
-        self.run_on_gui(lambda: self.peers_changed.emit(self._merge_peers(self.hub.peers() if False else list(self.peers))))
+        # Called on the beacon thread; merge the hub's last-known peers with the live UDP set.
+        def apply() -> None:
+            hub_peers = [p for p in self.peers if p.source != "udp"]
+            self.peers = self._merge_peers(hub_peers)
+            self.peers_changed.emit(self.peers)
+
+        self.run_on_gui(apply)
 
     # ------------------------------------------------------------- updates
     def check_updates(self, silent: bool = False) -> None:
         updater = self.updater
 
         def done(result: CheckResult) -> None:
-            self.last_update = result
+            self.last_check = result
             self.settings.update_last_check = M.now_iso()
             self.settings.save()
             self.update_checked.emit(result)
             if result.available and result.update and result.update.version != self.settings.update_skip_version:
-                self.toast.emit(f"Update {result.update.version} available",
-                                f"From {'LAN hub' if result.update.source == 'lan' else 'GitHub'} · open Updates to install",
-                                "info")
+                self.toast_action.emit(f"Update {result.update.version} available",
+                                       f"From {'LAN hub' if result.update.source == 'lan' else 'GitHub'}",
+                                       "info", "Open Updates", ("updates", None))
             elif not silent and not result.available:
                 msg = "You are on the latest version." if not result.errors else "; ".join(result.errors)
                 self.toast.emit("No update found", msg, "info" if not result.errors else "warning")
@@ -304,7 +353,11 @@ class AppContext(QObject):
         def work() -> Path:
             return updater.download(info, progress=lambda d, t: self.update_progress.emit(d, t))
 
-        self.run_async(work, lambda p: self.update_ready.emit(p), lambda e: self.update_failed.emit(str(e)))
+        def done(path: Path) -> None:
+            self.downloaded = path
+            self.update_ready.emit(path)
+
+        self.run_async(work, done, lambda e: self.update_failed.emit(str(e)))
 
     def install_update(self, installer: Path) -> None:
         self.updater.install(installer)

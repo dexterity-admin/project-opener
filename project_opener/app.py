@@ -100,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
                     key = line.split("/open/", 1)[1].strip("/")
                     proj = ctx.store.get(key) or ctx.store.by_name(key)
                     if proj:
-                        ctx.launch(proj)
+                        ctx.launch(proj, parent=window)
         conn.readyRead.connect(read)
 
     server.newConnection.connect(on_connection)
@@ -115,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
         key = args.target.split("/open/", 1)[1].strip("/")
         proj = ctx.store.get(key) or ctx.store.by_name(key)
         if proj:
-            QTimer.singleShot(600, lambda: ctx.launch(proj))
+            QTimer.singleShot(600, lambda: ctx.launch(proj, parent=window))
     rc = app.exec()
     log.info("exit %s (log: %s)", rc, log_path)
     return rc

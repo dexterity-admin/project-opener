@@ -14,6 +14,7 @@ class Page(QWidget):
     def __init__(self, ctx: AppContext, parent=None):
         super().__init__(parent)
         self.ctx = ctx
+        self._bound: list[tuple[object, object]] = []
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
@@ -62,6 +63,25 @@ class Page(QWidget):
         lay.setContentsMargins(18, 16, 18, 16)
         lay.setSpacing(10)
         return f, lay
+
+    # Signal plumbing -------------------------------------------------
+    def bind(self, signal, slot) -> None:
+        """Connect a context signal and remember it so dispose() can undo it.
+
+        Lambda slots are not disconnected automatically when the page is
+        deleted (MainWindow.retheme rebuilds every page), so every page must
+        connect through here.
+        """
+        signal.connect(slot)
+        self._bound.append((signal, slot))
+
+    def dispose(self) -> None:
+        for signal, slot in self._bound:
+            try:
+                signal.disconnect(slot)
+            except (RuntimeError, TypeError):
+                pass
+        self._bound.clear()
 
     # Hooks
     def on_show(self) -> None:

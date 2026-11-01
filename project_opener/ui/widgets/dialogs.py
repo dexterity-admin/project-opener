@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime, timedelta
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QColor
@@ -15,13 +16,13 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
-    QInputDialog,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -364,9 +365,18 @@ class LaunchSetEditor(_BaseDialog):
         super().__init__("New launch set" if launch_set is None else "Edit launch set", parent, 560)
         self.set = launch_set or M.LaunchSet(name="")
         self.project = project
+        head = QHBoxLayout()
+        head.setSpacing(12)
+        self.preview = IconCircle(self.set.icon, project.color, 40)
+        head.addWidget(self.preview)
         self.name = QLineEdit(self.set.name)
         self.name.setPlaceholderText("e.g. Morning start, Checking, Submission pack")
-        self.root.addWidget(self.name)
+        head.addWidget(self.name, 1)
+        self.root.addLayout(head)
+        self.root.addWidget(label("Icon", "eyebrow"))
+        self.icon_picker = IconPicker(self.set.icon, project.color)   # same grid as ProjectEditor
+        self.icon_picker.changed.connect(lambda n: self.preview.set(icon_name=n))
+        self.root.addWidget(self.icon_picker)
         self.root.addWidget(label("Items in this set", "eyebrow"))
         self.list = QListWidget()
         self.list.setMinimumHeight(240)
@@ -399,6 +409,7 @@ class LaunchSetEditor(_BaseDialog):
             QMessageBox.warning(self, "Name required", "Give the launch set a name.")
             return
         self.set.name = self.name.text().strip()
+        self.set.icon = self.icon_picker.icon_name()
         self.set.item_ids = [self.list.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.list.count())
                              if self.list.item(i).checkState() == Qt.CheckState.Checked]
         super().accept()
@@ -428,6 +439,14 @@ class SendToDialog(_BaseDialog):
 
 
 class AnnouncementDialog(_BaseDialog):
+    """Compose a Team Hub announcement.
+
+    After ``exec()`` returns true read ``title_edit.text()``, ``body.toPlainText()``,
+    ``level.currentData()`` and ``expires`` - the last is exactly what
+    ``Hub.announce(..., expires=)`` takes: an ISO-8601 UTC timestamp string
+    (``M.now_iso()`` format) or ``""`` for never.
+    """
+
     def __init__(self, parent=None):
         super().__init__("Post an announcement", parent, 520)
         self.title_edit = QLineEdit()
@@ -437,11 +456,30 @@ class AnnouncementDialog(_BaseDialog):
         self.body.setPlaceholderText("Details everyone should see on their Home page…")
         self.body.setFixedHeight(110)
         self.root.addWidget(self.body)
+        row = QHBoxLayout()
+        row.setSpacing(10)
         self.level = QComboBox()
         for key, text in (("info", "Information"), ("warning", "Warning"), ("critical", "Critical")):
             self.level.addItem(text, key)
-        self.root.addWidget(self.level)
+        row.addWidget(self.level, 1)
+        row.addWidget(label("Expires after", "muted"))
+        self.expires_days = QSpinBox()
+        self.expires_days.setRange(0, 365)
+        self.expires_days.setValue(0)
+        self.expires_days.setSuffix(" days")
+        self.expires_days.setSpecialValueText("Never")
+        self.expires_days.setToolTip("0 = never expires")
+        row.addWidget(self.expires_days)
+        self.root.addLayout(row)
         self.add_buttons("Post")
+
+    @property
+    def expires(self) -> str:
+        """ISO UTC timestamp N days from now, or ``""`` when the announcement never expires."""
+        days = self.expires_days.value()
+        if days <= 0:
+            return ""
+        return (datetime.now(UTC) + timedelta(days=days)).isoformat(timespec="seconds")
 
     def accept(self) -> None:  # noqa: D102
         if not self.title_edit.text().strip():
@@ -450,9 +488,27 @@ class AnnouncementDialog(_BaseDialog):
         super().accept()
 
 
-def ask_text(parent, title: str, prompt: str, default: str = "") -> str | None:
-    text, ok = QInputDialog.getText(parent, title, prompt, text=default)
-    return text.strip() if ok and text.strip() else None
+class PublishDialog(_BaseDialog):
+    """Ask for the description shown on the Team Hub when publishing ``project``.
+
+    After ``exec()`` returns true read ``description`` (stripped; prefilled with
+    the project's own description).
+    """
+
+    def __init__(self, project: M.Project, parent=None):
+        super().__init__(f"Publish '{project.name}' to Team Hub", parent, 520)
+        self.root.addWidget(label("Description shown to the team", "eyebrow"))
+        self.description_edit = QPlainTextEdit(project.description)
+        self.description_edit.setPlaceholderText("What this project is for and who should clone it…")
+        self.description_edit.setFixedHeight(90)
+        self.root.addWidget(self.description_edit)
+        self.root.addWidget(label("Drive letters become UNC paths so the project opens on every PC.", "faint", wrap=True))
+        self.add_buttons("Publish")
+        self.description_edit.setFocus()
+
+    @property
+    def description(self) -> str:
+        return self.description_edit.toPlainText().strip()
 
 
 def confirm(parent, title: str, text: str, danger: bool = False) -> bool:

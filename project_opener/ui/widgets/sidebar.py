@@ -1,7 +1,7 @@
 """Collapsible navigation rail."""
 from __future__ import annotations
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QSize, Qt, Signal
+from PySide6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QSize, Qt, Signal
 from PySide6.QtWidgets import QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from project_opener import constants as C
@@ -80,6 +80,7 @@ class Sidebar(QFrame):
 
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
+        self._inbox = 0
         for route, title, ic in NAV:
             b = QPushButton("  " + title)
             b.setObjectName("nav")
@@ -94,8 +95,16 @@ class Sidebar(QFrame):
             self._labels[route] = title
             lay.addWidget(b)
             if route == "team":
-                self.inbox_badge = QLabel()
+                # Count badge overlaid on the button so it survives collapse/expand.
+                self.inbox_badge = QLabel(b)
+                self.inbox_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.inbox_badge.setFixedHeight(18)
+                self.inbox_badge.setMinimumWidth(18)
+                self.inbox_badge.setStyleSheet(
+                    f"background-color: {t.accent}; color: {t.accent_fg}; border-radius: 9px;"
+                    f" font-size: {max(7, t.font_size - 2)}pt; font-weight: 700; padding: 0 5px;")
                 self.inbox_badge.hide()
+                b.installEventFilter(self)   # re-place the badge whenever the button resizes
         lay.addStretch(1)
 
         self.hub_dot = QLabel()
@@ -143,10 +152,34 @@ class Sidebar(QFrame):
         self.hub_dot.setToolTip(text)
 
     def set_inbox_count(self, n: int) -> None:
+        self._inbox = int(n or 0)
+        self._place_badge()
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802
+        if obj is self._buttons.get("team") and event.type() == QEvent.Type.Resize:
+            self._place_badge()
+        return super().eventFilter(obj, event)
+
+    def _place_badge(self) -> None:
         b = self._buttons["team"]
-        title = self._labels["team"]
-        b.setText(("  " + title + (f"   ({n})" if n else "")) if not self._collapsed else "")
-        b.setToolTip(f"{n} new in inbox" if n else "")
+        badge = self.inbox_badge
+        n = self._inbox
+        if not n:
+            badge.hide()
+            b.setToolTip(self._labels["team"] if self._collapsed else "")
+            return
+        badge.setText(str(n) if not self._collapsed else "")
+        badge.setFixedWidth(18 if self._collapsed else max(18, badge.fontMetrics().horizontalAdvance(str(n)) + 12))
+        if self._collapsed:
+            badge.setFixedSize(10, 10)
+            badge.move(b.width() - 18, 8)
+        else:
+            badge.setFixedHeight(18)
+            badge.move(b.width() - badge.width() - 10, (b.height() - 18) // 2)
+        badge.setToolTip(f"{n} new in inbox")
+        b.setToolTip(f"{self._labels['team']} · {n} new in inbox" if self._collapsed else f"{n} new in inbox")
+        badge.show()
+        badge.raise_()
 
     def toggle(self) -> None:
         self._collapsed = not self._collapsed
@@ -175,3 +208,4 @@ class Sidebar(QFrame):
             b.setText("" if self._collapsed else "  " + self._labels[route])
             b.setToolTip(self._labels[route] if self._collapsed else "")
         self.profile.setToolTip(self.user_lbl.text() if self._collapsed else "")
+        self._place_badge()

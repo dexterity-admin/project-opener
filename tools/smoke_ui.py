@@ -14,6 +14,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+# The offscreen platform uses Qt's FreeType font database, which on Windows
+# does not scan the system fonts folder by itself; without this it renders a
+# built-in fallback face and the screenshots look nothing like the app.
+if os.environ.get("QT_QPA_PLATFORM") == "offscreen" and sys.platform == "win32":
+    fonts = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Fonts"
+    if fonts.is_dir():
+        os.environ.setdefault("QT_QPA_FONTDIR", str(fonts))
+
 
 def seed(data_dir: Path, hub_dir: Path) -> None:
     from project_opener.core import models as M

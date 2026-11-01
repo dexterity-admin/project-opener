@@ -3,6 +3,29 @@
 All notable changes to Project Opener. The version in `project_opener/__init__.py`
 is the single source of truth; CI publishes a release when a new version lands on `main`.
 
+## Unreleased
+
+### Fixed
+- Theme changes no longer leave stale signal connections on destroyed pages (Ctrl+B, hub refresh
+  and health updates after switching theme); "Follow Windows" now reacts to a live OS theme switch.
+- Project page reloads on every visit, never re-creates a deleted project, and the notes editor keeps
+  focus while autosaving.
+- Single click on a card opens the project; the Open button launches (double-click no longer did both).
+- Team Hub: unpublish, announce and inbox accept/dismiss report failures instead of pretending success;
+  accepting an inbox item cannot create duplicates; UDP-discovered colleagues show immediately, even
+  without a hub folder; "Share my activity" off also stops the heartbeat and beacon from sending the
+  current project; a toast announces new revisions of cloned projects.
+- Updates: the auto-check switch starts/stops the timer at once; skipped versions show as skipped with
+  an Un-skip button (and a Clear row in Settings); "Mirror this version to the hub" works at any time
+  and runs off the UI thread; "Open log" opens the log; update state survives a theme change.
+- Toasts can carry an action button (Open Updates, Open inbox, Open project); the sidebar inbox badge
+  survives collapsing; tray and deep-link launches honour the "confirm over N items" setting; palette
+  actions always appear on an empty query.
+
+### Added
+- Settings: Start minimised switch. Announcements can expire after N days. Launch sets get an icon
+  picker. Publishing asks for a hub description.
+
 ## 3.0.0 - 2026-10-31
 
 Complete rebuild of the app ("Project Opener 3").

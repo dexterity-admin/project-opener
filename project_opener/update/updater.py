@@ -29,7 +29,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -152,22 +151,41 @@ class Updater:
             req.add_header("Authorization", f"Bearer {self.token}")
         return req
 
-    def check_github(self) -> UpdateInfo | None:
-        url = f"{C.GITHUB_API}/releases?per_page=10" if self.channel == "all" else f"{C.GITHUB_API}/releases/latest"
+    def _get_json(self, url: str):
         try:
             with urllib.request.urlopen(self._request(url), timeout=self.timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+                return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             if exc.code in (401, 403, 404):
                 raise RuntimeError(f"GitHub answered HTTP {exc.code}; if the repository is private add a read-only token in Settings → Updates") from exc
             raise RuntimeError(f"HTTP {exc.code}") from exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise RuntimeError(f"no connection ({getattr(exc, 'reason', exc)})") from exc
+
+    def check_github(self) -> UpdateInfo | None:
+        url = f"{C.GITHUB_API}/releases?per_page=10" if self.channel == "all" else f"{C.GITHUB_API}/releases/latest"
+        data = self._get_json(url)
         releases = data if isinstance(data, list) else [data]
         releases = [r for r in releases if isinstance(r, dict) and not r.get("draft")]
         if not releases:
             return None
-        rel = releases[0]
+        return self._release_info(releases[0])
+
+    def fetch_release(self, tag: str) -> UpdateInfo | None:
+        """UpdateInfo for one specific GitHub release (``tag`` like ``v3.0.0``), regardless of channel.
+
+        Used to mirror the currently running version to the hub.  Returns None
+        when the release carries no installer asset; raises RuntimeError (as
+        ``check_github`` does) when GitHub cannot be reached or the tag does
+        not exist.
+        """
+        tag = tag if tag.startswith("v") else f"v{tag}"
+        data = self._get_json(f"{C.GITHUB_API}/releases/tags/{tag}")
+        if not isinstance(data, dict) or data.get("draft"):
+            return None
+        return self._release_info(data)
+
+    def _release_info(self, rel: dict) -> UpdateInfo | None:
         assets = {a.get("name", ""): a for a in rel.get("assets", []) if isinstance(a, dict)}
         manifest = None
         if "latest.json" in assets:
@@ -268,7 +286,3 @@ def sha256_of(path: Path) -> str:
         while chunk := f.read(1 << 20):
             h.update(chunk)
     return h.hexdigest()
-
-
-def temp_dir() -> Path:
-    return Path(tempfile.gettempdir())

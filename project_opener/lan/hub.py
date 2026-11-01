@@ -313,12 +313,18 @@ class TeamHub:
         out.sort(key=lambda m: m.sent_at, reverse=True)
         return out
 
-    def dismiss_inbox(self, msg: InboxMessage) -> None:
-        if msg.path:
-            try:
-                msg.path.unlink()
-            except OSError:
-                pass
+    def dismiss_inbox(self, msg: InboxMessage) -> bool:
+        """Delete the inbox file. False when it is locked or the hub is gone."""
+        if not msg.path:
+            return False
+        try:
+            msg.path.unlink()
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError as exc:
+            log.warning("dismiss_inbox failed: %s", exc)
+            return False
 
     # --------------------------------------------------------- announcements
     def announcements(self, include_expired: bool = False) -> list[Announcement]:

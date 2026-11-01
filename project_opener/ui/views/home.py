@@ -56,10 +56,10 @@ class HomePage(Page):
         self.content.addWidget(self.history_panel)
         self.content.addStretch(1)
 
-        ctx.projects_changed.connect(self.refresh)
-        ctx.health_updated.connect(lambda _pid: self._render_attention())
-        ctx.hub_changed.connect(lambda _s: self._render_hub())
-        ctx.peers_changed.connect(lambda _p: self._render_hub())
+        self.bind(ctx.projects_changed, self.refresh)
+        self.bind(ctx.health_updated, lambda _pid: self._render_attention())
+        self.bind(ctx.hub_changed, lambda _s: self._render_hub())
+        self.bind(ctx.peers_changed, lambda _p: self._render_hub())
         self.refresh()
 
     def _header_buttons(self) -> QWidget:
@@ -199,13 +199,23 @@ class HomePage(Page):
         go.clicked.connect(lambda: self.ctx.navigate.emit("team", None))
         head.addWidget(go)
         self.pulse_lay.addLayout(head)
-        if not st.configured:
-            self.pulse_lay.addWidget(label("Connect a Team Hub folder in Settings to see who is online and share projects.", "muted", wrap=True))
-            return
-        if not st.reachable:
-            self.pulse_lay.addWidget(label(st.message, "muted", wrap=True))
-            return
         online = [p for p in self.ctx.peers if p.online and p.user != self.ctx.user]
+        if not st.configured or not st.reachable:
+            msg = ("Connect a Team Hub folder in Settings to see who is online and share projects."
+                   if not st.configured else st.message)
+            self.pulse_lay.addWidget(label(msg, "muted", wrap=True))
+            if online:  # UDP presence works without a hub folder
+                row = QHBoxLayout()
+                row.setSpacing(-6)
+                for p in online[:8]:
+                    av = Avatar(p.label, 28, online=True)
+                    av.setToolTip(f"{p.label}\n{p.host} · v{p.version}")
+                    row.addWidget(av)
+                row.addSpacing(10)
+                row.addWidget(label(f"{len(online)} online on the LAN", "muted"))
+                row.addStretch(1)
+                self.pulse_lay.addLayout(row)
+            return
         row = QHBoxLayout()
         row.setSpacing(-6)
         for p in online[:8]:

@@ -88,6 +88,16 @@ class Settings:
     def github_token(self, value: str) -> None:
         self.github_token_enc = winutil.protect(value) if value else ""
 
+    # ------------------------------------------------------------------ alias
+    @property
+    def update_auto(self) -> bool:
+        """Alias of ``update_check`` (the name the auto-update timer code uses)."""
+        return self.update_check
+
+    @update_auto.setter
+    def update_auto(self, value: bool) -> None:
+        self.update_check = bool(value)
+
     def to_public_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d.pop("github_token_enc", None)

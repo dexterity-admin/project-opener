@@ -18,7 +18,7 @@ from project_opener.ui.views.projects import ProjectsPage
 from project_opener.ui.views.settings import SettingsPage
 from project_opener.ui.views.team import TeamPage
 from project_opener.ui.views.updates import UpdatesPage
-from project_opener.ui.widgets.dialogs import ProjectEditor, SendToDialog, confirm
+from project_opener.ui.widgets.dialogs import ProjectEditor, PublishDialog, SendToDialog, confirm
 from project_opener.ui.widgets.palette import CommandPalette
 from project_opener.ui.widgets.sidebar import Sidebar
 from project_opener.ui.widgets.toast import ToastManager
@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
         self.sidebar.profile_clicked.connect(lambda: self.go("settings", "profile"))
         ctx.navigate.connect(self._navigate)
         ctx.toast.connect(self._toast)
+        ctx.toast_action.connect(self._toast_with_action)
         ctx.hub_changed.connect(self._hub_status)
         ctx.projects_changed.connect(self._rebuild_tray_menu)
 
@@ -234,10 +235,10 @@ class MainWindow(QMainWindow):
     def publish(self, project: M.Project) -> None:
         if not self._require_hub():
             return
-        if not confirm(self, "Publish to Team Hub",
-                       f"Publish '{project.name}' for the whole team? Drive letters become UNC paths so it opens on every PC."):
+        dlg = PublishDialog(project, self)
+        if not dlg.exec():
             return
-        pub = self.ctx.hub.publish(project, portable_fn=self.ctx.resolver.portable)
+        pub = self.ctx.hub.publish(project, description=dlg.description, portable_fn=self.ctx.resolver.portable)
         if pub:
             self.ctx.store.update(project)
             self._toast("Published to Team Hub", f"{project.name} · revision {pub.revision}", "success")
@@ -290,7 +291,8 @@ class MainWindow(QMainWindow):
             self.sidebar.set_hub_text("Hub unreachable", False)
         self.sidebar.set_inbox_count(st.inbox)
         if st.inbox and getattr(self, "_last_inbox", 0) < st.inbox:
-            self._toast(f"{st.inbox} project(s) in your inbox", "Open Team Hub → Inbox to accept them.", "info")
+            self._toast_with_action(f"{st.inbox} project(s) in your inbox", "Accept them from the Team Hub inbox.",
+                                    "info", "Open inbox", ("team", "inbox"))
         self._last_inbox = st.inbox
 
     # --------------------------------------------------------------- theme
@@ -305,6 +307,9 @@ class MainWindow(QMainWindow):
         route = next((r for r, p in self.pages.items() if p is current), "home")
         proj = getattr(self.pages["project"], "project", None)
         for page in list(self.pages.values()):
+            dispose = getattr(page, "dispose", None)
+            if dispose:
+                dispose()
             self.stack.removeWidget(page)
             page.deleteLater()
         self.pages.clear()
@@ -337,7 +342,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+2"), self, lambda: self.go("projects"))
         QShortcut(QKeySequence("Ctrl+3"), self, lambda: self.go("team"))
         QShortcut(QKeySequence("Ctrl+,"), self, lambda: self.go("settings"))
-        QShortcut(QKeySequence("Ctrl+B"), self, self.sidebar.toggle)
+        QShortcut(QKeySequence("Ctrl+B"), self, lambda: self.sidebar.toggle())  # sidebar is rebuilt on retheme
         QShortcut(QKeySequence("F5"), self, self.ctx.refresh_all_health)
         QShortcut(QKeySequence("Alt+Left"), self, self._back)
 
@@ -369,7 +374,7 @@ class MainWindow(QMainWindow):
         quick = [p for p in self.ctx.store.sorted_projects("smart")][:10]
         if quick:
             for p in quick:
-                m.addAction(icons.icon(p.icon, p.color), p.name, lambda _=False, pr=p: self.ctx.launch(pr))
+                m.addAction(icons.icon(p.icon, p.color), p.name, lambda _=False, pr=p: self.ctx.launch(pr, parent=self))
             m.addSeparator()
         m.addAction(icons.icon("fa5s.power-off"), "Quit", self.quit_app)
 
@@ -396,6 +401,17 @@ class MainWindow(QMainWindow):
             icon = {"success": QSystemTrayIcon.MessageIcon.Information, "warning": QSystemTrayIcon.MessageIcon.Warning,
                     "error": QSystemTrayIcon.MessageIcon.Critical}.get(level, QSystemTrayIcon.MessageIcon.Information)
             self.tray.showMessage(title, body, icon, 4000)
+
+    def _toast_with_action(self, title: str, body: str, level: str, action: str, target) -> None:
+        """Toast with a button that navigates somewhere (route, payload)."""
+        if not self.ctx.settings.show_toasts and level not in ("error",):
+            return
+        if self.isVisible() and not self.isMinimized():
+            route, payload = target if isinstance(target, tuple) else (str(target), None)
+            self.toasts.show_toast(title, body, level, action=action,
+                                   on_action=lambda: self._navigate(route, payload), timeout=8000)
+        else:
+            self._toast(title, body, level)
 
     # --------------------------------------------------------- first run
     def _first_run(self) -> None:
@@ -436,6 +452,18 @@ class MainWindow(QMainWindow):
 
     def changeEvent(self, e: QEvent) -> None:  # noqa: N802
         super().changeEvent(e)
+        # "Follow Windows": re-theme when the OS switches between light and dark.
+        if e.type() in (QEvent.Type.ThemeChange, QEvent.Type.ApplicationPaletteChange) and self.ctx.settings.theme == "system":
+            if getattr(self, "_retheme_pending", False):
+                return
+            self._retheme_pending = True
+
+            def run() -> None:
+                self._retheme_pending = False
+                if (_system_dark() != theme.current().dark):
+                    self.retheme()
+
+            QTimer.singleShot(150, run)
 
     def closeEvent(self, e: QCloseEvent) -> None:  # noqa: N802
         self.ctx.settings.window_geometry = bytes(self.saveGeometry().toBase64()).decode("ascii")

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QPlainTextEdit, QVBoxLayout, QWidget
 
 from project_opener.core import models as M
@@ -73,7 +73,7 @@ class ItemRow(QFrame):
 
     def _toggle(self, on: bool) -> None:
         self.item.enabled = on
-        self.page.ctx.store.update(self.project)
+        self.page.save_project()
 
     def _reveal(self) -> None:
         res = self.page.ctx.resolver.resolve(self.item.path)
@@ -102,6 +102,8 @@ class ProjectPage(Page):
     def __init__(self, ctx: AppContext, parent=None):
         super().__init__(ctx, parent)
         self.project: M.Project | None = None
+        self._saving_notes = False
+        self._fresh = False          # set by load(); on_show() skips its reload once
         self.setAcceptDrops(True)
         self.content.setContentsMargins(28, 16, 28, 28)
         top = QHBoxLayout()
@@ -169,19 +171,51 @@ class ProjectPage(Page):
         cols.addLayout(side, 2)
         self.content.addLayout(cols)
         self.content.addStretch(1)
-        ctx.health_updated.connect(self._health_changed)
-        ctx.project_updated.connect(self._project_changed)
 
+        # The notes editor is built once and kept: rebuilding it on every
+        # project_updated would steal focus mid-typing (the autosave itself
+        # emits that signal).
+        self.notes_lay.addWidget(label("NOTES", "eyebrow"))
+        self.notes_edit = QPlainTextEdit()
+        self.notes_edit.setPlaceholderText("Contacts, conventions, reminders… saved automatically.")
+        self.notes_edit.setMinimumHeight(120)
+        self.notes_edit.textChanged.connect(self._notes_changed)
+        self.notes_lay.addWidget(self.notes_edit)
+        self._notes_timer = QTimer(self)
+        self._notes_timer.setSingleShot(True)
+        self._notes_timer.setInterval(700)
+        self._notes_timer.timeout.connect(self._save_notes)
+
+        self.bind(ctx.health_updated, self._health_changed)
+        self.bind(ctx.project_updated, self._project_changed)
     # ---------------------------------------------------------------- load
     def load(self, project: M.Project) -> None:
+        self._flush_notes()
         self.project = project
+        self._fresh = True
         self.render()
         self.ctx.schedule_health(project)
 
+    def on_show(self) -> None:
+        """Reload the project from the store every time the page is shown."""
+        if self._fresh:                     # load() just rendered this very object
+            self._fresh = False
+            return
+        if not self.project:
+            return
+        fresh = self.ctx.store.get(self.project.id)
+        if fresh is None:
+            self.project = None
+            self.ctx.navigate.emit("projects", "")
+            return
+        self.project = fresh
+        self.render()
+
     def _project_changed(self, pid: str) -> None:
-        if self.project and pid == self.project.id and self.isVisible():
-            self.project = self.ctx.store.get(pid) or self.project
-            self.render()
+        if self._saving_notes or not self.project or pid != self.project.id or not self.isVisible():
+            return
+        self.project = self.ctx.store.get(pid) or self.project
+        self.render()
 
     def _health_changed(self, pid: str) -> None:
         if self.project and pid == self.project.id and self.isVisible():
@@ -189,14 +223,33 @@ class ProjectPage(Page):
             self._render_meta()
 
     def refresh(self) -> None:
+        self._fresh = False
         if self.project:
             fresh = self.ctx.store.get(self.project.id)
             if fresh is None:
-                self.ctx.navigate.emit("projects", None)
+                self.project = None
+                self.ctx.navigate.emit("projects", "")
                 return
             self.project = fresh
             if self.isVisible():
                 self.render()
+
+    def save_project(self) -> bool:
+        """Write the current project through the store, unless it was deleted meanwhile.
+
+        Returns False (and leaves the page) when the project no longer exists in
+        the store, so an edit can never re-add a removed project via ``store.update``.
+        """
+        p = self.project
+        if not p:
+            return False
+        if self.ctx.store.get(p.id) is None:
+            self.project = None
+            self.ctx.toast.emit("Project no longer exists", p.name, "warning")
+            self.ctx.navigate.emit("projects", "")
+            return False
+        self.ctx.store.update(p)
+        return True
 
     def render(self) -> None:
         p = self.project
@@ -359,31 +412,35 @@ class ProjectPage(Page):
             self.sets_lay.addWidget(f)
 
     def _render_notes(self) -> None:
-        clear_layout(self.notes_lay)
         p = self.project
-        if not p:
+        if not p or self.notes_edit.toPlainText() == p.notes:
             return
-        self.notes_lay.addWidget(label("NOTES", "eyebrow"))
-        self.notes_edit = QPlainTextEdit(p.notes)
-        self.notes_edit.setPlaceholderText("Contacts, conventions, reminders… saved automatically.")
-        self.notes_edit.setMinimumHeight(120)
-        self.notes_edit.textChanged.connect(self._notes_changed)
-        self.notes_lay.addWidget(self.notes_edit)
-        self._notes_timer = None
+        if self.notes_edit.hasFocus() and self._notes_timer.isActive():
+            return                      # user is typing; their pending save wins
+        self.notes_edit.blockSignals(True)
+        self.notes_edit.setPlainText(p.notes)
+        self.notes_edit.blockSignals(False)
 
     def _notes_changed(self) -> None:
-        from PySide6.QtCore import QTimer
-        if self._notes_timer is None:
-            self._notes_timer = QTimer(self)
-            self._notes_timer.setSingleShot(True)
-            self._notes_timer.setInterval(700)
-            self._notes_timer.timeout.connect(self._save_notes)
         self._notes_timer.start()
 
+    def _flush_notes(self) -> None:
+        if self._notes_timer.isActive():
+            self._notes_timer.stop()
+            self._save_notes()
+
     def _save_notes(self) -> None:
-        if self.project and self.notes_edit.toPlainText() != self.project.notes:
-            self.project.notes = self.notes_edit.toPlainText()
-            self.ctx.store.update(self.project)
+        p = self.project
+        if not p or self.notes_edit.toPlainText() == p.notes:
+            return
+        p.notes = self.notes_edit.toPlainText()
+        self._saving_notes = True
+        try:
+            if not self.save_project():
+                return
+        finally:
+            self._saving_notes = False
+        self._render_meta()             # header/meta only; the editor keeps focus
 
     # ------------------------------------------------------------- actions
     def edit_item_dialog(self, item: M.Item | None, kind: str = ""):
@@ -399,7 +456,7 @@ class ProjectPage(Page):
             if dlg.exec():
                 if new:
                     p.items.append(dlg.item)
-                self.ctx.store.update(p)
+                self.save_project()
         return run
 
     def _add_files(self) -> None:
@@ -426,8 +483,7 @@ class ProjectPage(Page):
             p.items.append(M.Item(path=norm, kind=M.guess_kind(norm)))
             existing.add(norm.lower())
             added += 1
-        if added:
-            self.ctx.store.update(p)
+        if added and self.save_project():
             self.ctx.toast.emit(f"Added {added} item(s)", p.name, "success")
 
     def remove_item(self, item: M.Item) -> None:
@@ -436,7 +492,7 @@ class ProjectPage(Page):
             p.items = [i for i in p.items if i.id != item.id]
             for s in p.launch_sets:
                 s.item_ids = [i for i in s.item_ids if i != item.id]
-            self.ctx.store.update(p)
+            self.save_project()
 
     def _edit_set(self, ls: M.LaunchSet | None) -> None:
         p = self.project
@@ -449,13 +505,13 @@ class ProjectPage(Page):
         if dlg.exec():
             if ls is None:
                 p.launch_sets.append(dlg.set)
-            self.ctx.store.update(p)
+            self.save_project()
 
     def _delete_set(self, ls: M.LaunchSet) -> None:
         p = self.project
         if p and confirm(self, "Delete launch set", f"Delete '{ls.name}'? Items stay in the project."):
             p.launch_sets = [s for s in p.launch_sets if s.id != ls.id]
-            self.ctx.store.update(p)
+            self.save_project()
 
     def copy_text(self, text: str) -> None:
         from PySide6.QtWidgets import QApplication
