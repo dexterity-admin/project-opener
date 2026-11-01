@@ -60,7 +60,7 @@ well under 100 ms.
 
 ## 6. Continuous integration
 
-Repository `dexterity-admin/project-opener` (private). Workflow `build.yml` on every push:
+Repository `dexterity-admin/project-opener` (public since 1 Nov 2026). Workflow `build.yml` on every push:
 lint → tests → offscreen UI smoke → PyInstaller → frozen-exe start check → Inno Setup → manifest +
 checksums + zip → artifacts; on `main` with an untagged version → tag + GitHub Release.
 
@@ -74,8 +74,15 @@ process (`$LASTEXITCODE` was stale even though the exe printed its version). Fix
 `site/` rendered in the desktop app's browser over `http://localhost:8765`: WebGL hero with orbiting
 cards around the icon, sections revealing on scroll, no console errors, no horizontal scroll at
 360 px. GitHub Free cannot serve Pages from a private repository (API returned 422), so the repository
-was made public (after scrubbing internal hostnames, share paths and personal data from the files and
-the git history) and the site deploys from `site/` via `pages.yml`.
+was made public on 1 Nov 2026 after scrubbing internal hostnames, share paths and personal data from
+the working tree (the git history was kept as-is by decision). Pages was enabled with the workflow
+build type and `pages.yml` run 41272277837 deployed `site/`.
+
+Checked on the live site <https://dexterity-admin.github.io/project-opener/>: HTTP 200 for the page,
+`styles.css` and `main.js`; hero, card orbit and CTA render; no console errors; *Download for
+Windows* links to the latest release. Anonymously (no token) the Releases API returns `v3.0.0` with
+`latest.json`, the installer (HTTP 200 on HEAD) and `SHA256SUMS`, and `Updater(token="").check()`
+reports version 3.0.0 from the GitHub channel with no errors.
 
 ## 8. Known limits (stated, not hidden)
 
