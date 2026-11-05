@@ -141,6 +141,88 @@ Portable paths and variables, path health and the drive map, the launch sheet, t
 spine, revisions and the Activity register, the command palette, the tray, deep links, in-app
 updates with the LAN mirror, backups, migration from 1.x/2.x and now from 3.x.
 
+### 3.8 Snapshot surfaces: capture from anywhere
+
+The watcher records by itself while an activity runs (section 3.1). These surfaces are for the
+moments the user wants to act, and they live where the user already is, because capture matters
+most when Project Opener is hidden behind Navisworks and Excel. Board: `snapshot-surfaces` in the
+concept round's folder.
+
+**The pill.** A small capsule docked to a screen edge, by default bottom-right just above the
+notification area: the running activity's colour dot, its short name and how many things are open
+("Lot 7 check 12"). It is a frameless tool window that never takes focus, never appears in
+Alt+Tab, is left out of its own captures, and remembers its place per monitor layout; drag it to
+any edge and it snaps.
+
+| State | Shows |
+|---|---|
+| Running | Colour dot, short name, things open |
+| Needs you | Amber ring and "3 need a path" (unidentified windows); red ring when a drive the activity uses is down |
+| Capture paused | Hollow dot, "paused"; the last snapshot is kept |
+| Just saved | "Saved · 12 things · 14:32" for two seconds after a checkpoint; no sound, no toast |
+| No activity running | Not on screen, unless pinned; pinned, it offers **Start from what's open** |
+| Edge tab (rest style) | A 6 px line in the activity's colour on the screen edge, for people who want nothing visible |
+
+Hover for half a second (or **Ctrl+Alt+P**) and it opens upward into a **panel**: the activity's
+title, "12 open · 9 identified · last checkpoint 10:52, 2 new since", the watcher's list worst
+first (Needs a path, Server offline, Identified), and three actions: **Snapshot now** (the one
+filled button), **Add a window**, **Review**; plus pause capture and open in Project Opener.
+
+**Snapshot now** marks a checkpoint: time and list, kept in the activity's history (last ten,
+each restorable). When the watcher has found things that are not yet the activity's items, the same
+place offers **Save 2 new as items**, so the set grows by itself as the user works.
+
+**Add a window.** The screen dims slightly, the window under the pointer is framed (green when it
+can be identified, amber when it cannot) with a label saying exactly what will be added; click to
+add, Esc to cancel. **Ctrl+Alt+A** with a window already in front adds that window directly.
+Nothing is guessed: an unsaved "Drawing1" in AutoCAD is reported as having no file and the user is
+asked for the path once, or offered AutoCAD itself as an application item. A browser adds its
+active tab's address; Excel and Word add the document read from that window (instance-proof,
+section 4).
+
+**Start from what's open** (pill, tray, Home, Send to). The cold start: open what a task needs
+the usual way, then turn the open windows into a new activity in one sheet: every window listed
+with its pill, non-file windows (chat, mail) unticked by default, a name and a project, then
+"Start activity · 9 items". Nobody builds a set by hand again.
+
+**Tray.** Left-click opens the pill's panel; right-click shows the running activity on the first
+line, then Snapshot now, Add a window, Pause capture, End activity, Start an activity from what's
+open, Open an activity, Show the pill, Search, Show Project Opener, Quit. The icon carries a dot in
+the activity's colour while one runs.
+
+**Explorer.** "Add to running activity" on any file or folder (a per-user registry verb, no
+admin), and "Send to > Project Opener" for several files at once. Both reach the running instance
+over the single-instance socket; with no activity running they open a chooser (add to an activity,
+or start a new one from the selection).
+
+**Keys from anywhere** (RegisterHotKey, configurable, conflicts shown as Windows reports them):
+
+| Keys | Action |
+|---|---|
+| Ctrl+Alt+S | Snapshot now |
+| Ctrl+Alt+A | Add the window in front; pressed twice within a second, opens the picker |
+| Ctrl+Alt+P | Show or hide the pill's panel |
+| Ctrl+Alt+K | The command palette over whatever is in front |
+
+**Inside the app.** The activity page header carries the capture switch, Snapshot now, Add a
+window and the checkpoints; its one filled button follows what is waiting ("Save 2 new as items"
+when there are new things, otherwise Snapshot now). Home offers Start from what's open when
+nothing runs.
+
+**Rules that keep it out of the way.** Never takes focus. Default place outside the usual drawing
+area. Hidden while a full-screen app, a presentation, a remote-desktop session or Windows' "Do not
+disturb" is in front, and back by itself. Hidden when there is nothing to say. Quiet: one ring
+colour, no sounds, no growing badges. Not in its own captures. Settings > Snapshot turns each
+surface on or off (pill, rest style, position, the four keys, the Explorer entries). Motion follows
+the app's setting: rich grows the panel from the pill in 180 ms, purposeful fades, off appears.
+
+**Build notes.** The pill is its own QQuickWindow (Qt.Tool, FramelessWindowHint,
+WindowStaysOnTopHint, WindowDoesNotAcceptFocus, with WS_EX_NOACTIVATE set natively) in the same
+process as the main window. Full-screen detection: SHQueryUserNotificationState plus the foreground
+window covering its monitor. Hotkeys: RegisterHotKey on a hidden message window, read through a
+native event filter. The picker: a transparent click-through overlay per monitor and WindowFromPoint
+with GA_ROOT. Per-monitor DPI throughout.
+
 ## 4. The look: "cinematic workspace", rich motion, graceful degradation
 
 - Dark by default; light stays. Depth from layered surfaces and motion, not from gradients and
@@ -153,25 +235,57 @@ updates with the LAN mirror, backups, migration from 1.x/2.x and now from 3.x.
   the window size and overridable; every screen is complete with motion off.
 - Three concept boards, as for 3.1, then the jurors.
 
-*Open (decide in the concept round)*: the UI layer. Three ways to get rich motion with the Python
-core unchanged:
+**Decided (5 November 2026): concept "Stage", built in Qt Quick.**
 
-| Option | For | Against |
-|---|---|---|
-| Qt Widgets + QPropertyAnimation, as today | No rewrite of the shell; everything in 3.2 carries over | Motion is laborious; depth and layered scenes are hard; stays "an app" |
-| **Qt Quick (QML) shell over the Python core** | Built for animated, layered, GPU-rendered UI; scales down with `Qt.Quick` software rendering on old PCs; still one Python process | The whole UI layer is rewritten; new skills; a few widgets (file dialogs) stay native |
-| Qt WebEngine shell (HTML/CSS/JS, like the landing page) | The landing page's look and motion directly; web tooling | A browser engine per app (memory, cold start on old PCs); two languages; offline-only must be enforced |
+*Stage*: one activity stands in the light at a time. Home is a stage with the current activity in
+the centre at full size and the others in the wings; opening it is the scene growing into the page;
+the shell recedes to a narrow rail; drives, tasks and the office are a footlights strip. Two pieces
+are borrowed from the other boards: Control room's office panel (desks that breathe once when
+someone arrives) as the third footlight and its Monitors panel on the running-activity page, and
+Desk's dashed tile as the row style for unidentified windows. Section 3.8 adds the snapshot
+surfaces. The boards and the comparison are in the concept round's folder (`concept-1-stage`,
+`COMPARISON.md`, `snapshot-surfaces`).
 
-Recommendation to test in the concept round: **Qt Quick**, with a one-screen prototype (Home with
-the dock) measured on an older office PC before committing.
+*Qt Quick*, measured on this PC by the spike (`spikes/quick/REPORT.md`; i7-6700, GT 710, with a
+background indexer loading the CPU, so the ratios are the signal):
+
+| | Widgets 3.2 shell | Qt Quick prototype | WebEngine |
+|---|---|---|---|
+| First frame | 8.2 to 13.8 s | 1.7 to 2.6 s | 4 to 9 s warm |
+| Idle memory, 1366×768 | 140 MB | 79 MB software, 89 to 95 MB GPU | 205 MB, two processes |
+| Dock animation | not attempted | 16.6 to 17.3 ms per frame, GPU and software at 1440×900 | 19 to 21 ms, worst 1 % up to 167 ms |
+| Idle CPU, purposeful or off | 0 % | 0 to 0.3 % | 51 to 63 % with one CSS loop |
+
+The one unsafe combination is software rendering at 1366×768 with rich motion (the worst 1 % of
+frames at 134 to 298 ms). Fallback rule: probe the GPU once per adapter; software rendering when it
+fails, on the Basic Render Driver or in a remote session; motion defaults to rich only with a GPU
+and a screen above 1366×768, purposeful otherwise, off in remote desktop; two slow dock openings in
+a row drop one level, saved, said once. Ambient loops run only in rich and only while the window is
+active. The real older-PC run is still to do; `spikes/quick/bench.py` runs there unchanged.
+
+What carries over unchanged: `core/`, `lan/`, `update/`, almost all of `ui/context.py`, the theme
+tokens and contrast check, and about 250 lines of pure view helpers. Rewritten in QML: the main
+window, the views and the widgets (about 6,000 lines). QML rules learned in the spike: models are
+QAbstractListModels, never QVariantLists; install a Qt message handler first; minimum-window checks
+become explicit per-page minimums.
+
+*Capture and restore*, proved on this PC by the spike (`spikes/capture/REPORT.md`): Explorer,
+Word, Excel, PDF-XChange and Chrome identified with full paths, closed, reopened and put back at
+their exact size and position on the right monitor in 23 s. Watcher cost with an identity cache:
+6 ms per pass, 0.57 % of one core. Design rules from it: Excel and Word are read per window through
+AccessibleObjectFromWindow (the Running Object Table can return a stray instance); Office files are
+opened through COM, not the shell association (the shell path sends files on the share into
+Protected View and can take minutes); restored windows are matched by identity, title only as a
+fallback; browsers give the active tab; title-only applications match against the activity's items
+and recent files, and two same-named isometric PDFs are reported as ambiguous, never guessed;
+unsaved documents are listed and not restorable.
 
 ## 5. Build plan (one 4.0)
 
-1. **Concepts** (1 round): three boards for the cinematic workspace, each showing Home with the
-   activity dock, an activity open with capture running, the hub with mentions and tasks. Owner
-   picks one.
-2. **Spike**: capture and restore on this PC (Excel, Acrobat, Explorer, Edge, Navisworks) and the
-   Qt Quick prototype on an old PC. These are the two risks; everything else is plumbing.
+1. **Concepts**: done. Stage chosen, with the snapshot surfaces of section 3.8.
+2. **Spikes**: done on this PC (capture and restore; Qt Quick). Still to do: run
+   `spikes/quick/bench.py` on one older office PC, and try Navisworks and MicroStation titles with
+   real files.
 3. **Core and hub**: the model in section 2, migration from 3.x (projects stay; launch sets become
    activities), hub files, Cliq bot client, watcher engine, tasks.
 4. **Shell**: the chosen concept, screen by screen, with the 3.2 verification set (tests, contrast,
@@ -188,4 +302,5 @@ the dock) measured on an older office PC before committing.
 | Name of the concept | **Activity** (the office's word; 2.x used it too). |
 | Shared office activities | Anyone may republish them; last writer wins; the record shows who; revisions as today. |
 | Cliq bot owner | A shared office service account, so the bot survives staff changes; one token, entered in Settings and stored with DPAPI. |
-| UI layer | Still open: decided by the Qt Quick prototype on an older office PC in the spike (section 5). |
+| Concept | **Stage**, plus a snapshot pill and snapshot surfaces outside the app (section 3.8). |
+| UI layer | **Qt Quick** over the unchanged Python core, from the spike's measurements (section 4). |
