@@ -4,25 +4,85 @@ restore.  Owner: builder 2 (CAPTURE).
 The pill, the tray, the activity page and the Resume band all read this one
 object.  All COM work happens on the capture thread (``capture.engine``);
 results arrive here through ``app.run_on_gui``.
+
+Live-list ``status`` values (worst first): ``ambiguous`` (several files with that
+name), ``unidentified`` (needs a path: a document app showing a file it could not
+find a path for), ``offline`` (identified, its server is down), ``unsaved`` (no file
+yet), ``window`` (not a file: an application window with no document), ``identified``.
+``monitor`` is "monitor N" (N = 1-based index in ``QGuiApplication.screens()``) and
+``placeX/Y/W/H`` the window's rectangle as fractions of that monitor.
 """
 from __future__ import annotations
 
+import logging
+import os
+from datetime import datetime
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, Signal, Slot
+from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 
+from project_opener.capture import diff
+from project_opener.capture import windows as W
+from project_opener.capture.engine import CaptureEngine, EngineCallbacks, EngineConfig
+from project_opener.core import models as M
 from project_opener.quick.base import ApiBase, ro
 from project_opener.quick.listmodel import DictListModel
+
+log = logging.getLogger(__name__)
 
 ENTRY_ROLES = (
     "entryKey", "status", "kind", "name", "path", "title", "process", "appName", "identifiedBy", "monitor",
     "isItem", "isNew", "note", "candidates",
+    "placeX", "placeY", "placeW", "placeH",      # the window on its monitor, 0..1 (builder 4's Monitors panel)
 )
 CHECKPOINT_ROLES = ("checkpointId", "takenAt", "takenText", "kind", "label", "count", "identified", "isLatest")
 CANDIDATE_ROLES = ("entryKey", "ticked", "name", "path", "appName", "status", "note", "kind")
 
 # state: idle (no activity running) | running | needs (a path is needed or a drive is down) | paused | saved
 STATES = ("idle", "running", "needs", "paused", "saved")
+SAVED_MS = 2000
+
+
+def time_text(iso: str | None) -> str:
+    """"14:32" today, "4 Nov 14:32" another day; "" for nothing."""
+    dt = M.parse_iso(iso)
+    if dt is None:
+        return ""
+    local = dt.astimezone()
+    if local.date() == datetime.now().astimezone().date():
+        return local.strftime("%H:%M")
+    return f"{local.day} {local.strftime('%b %H:%M')}"
+
+
+def screen_names() -> list[str]:
+    r"""``QGuiApplication.screens()`` names in order (on Windows the device name, "\\.\DISPLAY1")."""
+    try:
+        from PySide6.QtGui import QGuiApplication
+        return [sc.name() for sc in QGuiApplication.screens()]
+    except Exception:  # noqa: BLE001 - no GUI application (tests, tools)
+        return []
+
+
+def monitor_and_place(pl: M.WindowPlacement | None, screens: list[str]) -> tuple[str, dict[str, float]]:
+    """("monitor N", {placeX, placeY, placeW, placeH} as 0..1 of that monitor) for the live list.
+    N is the 1-based index in ``screens``; the device's short name ("DISPLAY2") when it is not there."""
+    if pl is None:
+        return "", {}
+    low = [n.lower() for n in screens]
+    if pl.monitor.lower() in low:
+        mon = f"monitor {low.index(pl.monitor.lower()) + 1}"
+    else:
+        mon = pl.monitor.rsplit("\\", 1)[-1]
+    mr = pl.monitor_rect
+    mw, mh = mr[2] - mr[0], mr[3] - mr[1]
+    if mw <= 0 or mh <= 0:
+        return mon, {}
+    r = pl.window_rect if pl.show_cmd == 3 and pl.window_rect[2] > pl.window_rect[0] else pl.normal_rect
+
+    def clamp(v: float) -> float:
+        return round(min(1.0, max(0.0, v)), 4)
+    return mon, {"placeX": clamp((r[0] - mr[0]) / mw), "placeY": clamp((r[1] - mr[1]) / mh),
+                 "placeW": clamp((r[2] - r[0]) / mw), "placeH": clamp((r[3] - r[1]) / mh)}
 
 
 class CaptureApi(ApiBase):
@@ -53,6 +113,18 @@ class CaptureApi(ApiBase):
         self._last_checkpoint_text = ""
         self._since_checkpoint = 0
         self._drive_down = False
+        # private
+        self._engine: CaptureEngine | None = None
+        self._snapshot: M.Snapshot | None = None
+        self._known: dict[str, M.SnapshotEntry] = {}          # entry key -> entry (live, picker, candidates)
+        self._candidate_entries: dict[str, M.SnapshotEntry] = {}
+        self._selected_id = ""
+        self._user_paused = False
+        self._saved_until = False
+        self._restoring = False
+        self._exclude_pids = {os.getpid()}
+        self._watch_hooked = False
+        self._before_start: tuple[str, M.Snapshot | None] = ("", None)
 
     # ------------------------------------------------------------- models
     @Property(QObject, constant=True)
@@ -88,99 +160,573 @@ class CaptureApi(ApiBase):
     def globalEnabled(self) -> bool:
         return bool(self.app.ctx.settings.capture_enabled)
 
-    # -------------------------------------------------------------- slots
+    # ------------------------------------------------------------- helpers
+    @property
+    def engine(self) -> CaptureEngine | None:
+        return self._engine
+
+    @property
+    def snapshot(self) -> M.Snapshot | None:
+        """The latest live snapshot (GUI thread)."""
+        return self._snapshot
+
+    def _settings(self) -> Any:
+        return self.app.ctx.settings
+
+    def _store(self) -> Any:
+        return self.app.ctx.store
+
+    def _gui(self, fn: Any) -> Any:
+        """Wrap a capture-thread callback so it runs on the GUI thread."""
+        def call(*args: Any) -> None:
+            self.app.run_on_gui(lambda: fn(*args))
+        return call
+
+    def _resolve(self, path: str) -> str:
+        return self.app.ctx.resolver.resolve(path).resolved
+
+    def _portable(self, path: str) -> str:
+        return self.app.ctx.resolver.portable(path)
+
+    def _open_item(self, item: M.Item) -> object:
+        return self.app.ctx.launcher.open_item(item)
+
+    def _toast(self, title: str, body: str = "", level: str = "info") -> None:
+        try:
+            self.app.toast.emit(title, body, level)
+        except (AttributeError, RuntimeError):
+            log.info("%s: %s", title, body)
+
+    def _config(self) -> EngineConfig:
+        s = self._settings()
+        return EngineConfig(interval_s=float(max(1, int(s.capture_interval_s or 3))),
+                            want_browser_urls=bool(s.capture_browser_urls),
+                            office_via_com=bool(s.open_office_via_com),
+                            ignore_rules=[dict(r) for r in s.capture_ignore if isinstance(r, dict)],
+                            exclude_pids=set(self._exclude_pids), resolve=self._resolve, portable=self._portable,
+                            open_item=self._open_item)
+
+    def _ensure_engine(self) -> CaptureEngine:
+        if self._engine is None:
+            cb = EngineCallbacks(
+                on_snapshot=self._gui(self._on_snapshot), on_identified=self._gui(self._on_identified),
+                on_candidates=self._gui(self._on_candidates), on_restore_progress=self._gui(self._on_progress),
+                on_restore_done=self._gui(self._on_restore_done), on_checkpoint=self._gui(self._on_checkpoint),
+                on_error=self._gui(self._on_error))
+            self._engine = CaptureEngine(self.app.snapshots, cb, self._config())
+        if not self._engine.alive:
+            self._engine.start()
+        return self._engine
+
+    def _register_openers(self) -> None:
+        """Office files the launcher opens go through COM (architecture section 5) when the launcher
+        offers ``openers`` (builder 1) and ``Settings.open_office_via_com`` is on."""
+        from project_opener.capture.sources import office
+        openers = getattr(self.app.ctx.launcher, "openers", None)
+        if not isinstance(openers, dict):
+            return
+        for ext in office.OPENER_EXT:
+            if self._settings().open_office_via_com:
+                openers[ext] = office.open_document_any_thread
+            elif openers.get(ext) is office.open_document_any_thread:
+                del openers[ext]
+
+    def _capture_on(self, activity: M.Activity | None = None) -> bool:
+        act = activity or (self._store().activity(self._running_id) if self._running_id else None)
+        return bool(self._settings().capture_enabled) and bool(act is None or act.capture_enabled)
+
+    def _hook_watchers(self) -> None:
+        if self._watch_hooked:
+            return
+        watchers = getattr(self.app, "watchers", None)
+        sig = getattr(watchers, "rootsChanged", None)
+        if sig is not None:
+            try:
+                sig.connect(self._refresh_live)
+                self._watch_hooked = True
+            except (RuntimeError, TypeError):
+                pass
+
+    def _offline_roots(self) -> set[str]:
+        """Roots ``app.watchers.roots`` reports offline (builder 1's health board); empty when unknown."""
+        try:
+            rows = self.app.watchers.roots.rows
+        except (AttributeError, RuntimeError, NotImplementedError):
+            return set()
+        return {str(r.get("rootName", "")).lower() for r in rows
+                if str(r.get("status", "")).lower() == "offline" and r.get("rootName")}
+
+    def _root_of(self, path: str) -> str:
+        from project_opener.core.health import path_root, root_key
+        root = path_root(path)
+        if not root:
+            return ""
+        try:
+            folded, _share = root_key(root, self.app.ctx.resolver.drive_map)
+        except Exception:  # noqa: BLE001
+            folded = root
+        return folded.lower()
+
+    # -------------------------------------------------------------- state
+    def _update_state(self) -> None:
+        if not self._running_id:
+            new = "idle"
+        elif self._saved_until:
+            new = "saved"
+        elif self._user_paused or not self._capture_on():
+            new = "paused"
+        elif self._needs_path > 0 or self._drive_down:
+            new = "needs"
+        else:
+            new = "running"
+        if new != self._state:
+            self._state = new
+        self.stateChanged.emit()
+
+    def _set_running(self, activity: M.Activity | None) -> None:
+        if activity is None:
+            self._running_id = self._running_name = self._running_label = self._running_color = ""
+        else:
+            self._running_id = activity.id
+            self._running_name = activity.name
+            self._running_label = activity.label
+            color = activity.color
+            if not color and activity.project_ids:
+                proj = self._store().get(activity.project_ids[0])
+                color = getattr(proj, "color", "") if proj else ""
+            self._running_color = color or M.DEFAULT_COLOR
+
+    def _refresh_live(self) -> None:
+        snap = self._snapshot
+        screens = screen_names()
+        offline = self._offline_roots()
+        entries = W.dedupe(snap.entries) if snap else []
+        statuses = {e.key: W.display_status(e, bool(offline) and e.identified and self._root_of(e.path) in offline)
+                    for e in entries}
+        rows = []
+        for e in W.worst_first(entries, statuses):
+            self._known[e.key] = e
+            mon, place = monitor_and_place(e.placement, screens)
+            rows.append({
+                "entryKey": e.key, "status": statuses[e.key], "kind": e.kind, "name": W.entry_name(e),
+                "path": e.path, "title": e.title, "process": e.process, "appName": e.app,
+                "identifiedBy": e.identified_by, "monitor": mon, "isItem": bool(e.item_id),
+                "isNew": e.is_new, "note": e.note, "candidates": list(e.candidates), **place})
+        self._live.sync(rows)
+        self._open = len(entries)
+        self._identified = sum(1 for e in entries if e.identified)
+        self._needs_path = sum(1 for s in statuses.values() if W.needs_you(s))
+        self._new = len([e for e in entries if e.is_new])
+        cps = self.app.snapshots.checkpoints(self._running_id) if self._running_id else []
+        self._since_checkpoint = len(diff.new_since(cps[0].snapshot if cps else None, snap)) if snap else 0
+        roots_used = {self._root_of(i.path) for i in self._running_items()} | {
+            self._root_of(e.path) for e in entries if e.identified}
+        self._drive_down = bool(offline & {r for r in roots_used if r})
+        self.liveChanged.emit()
+        self._update_state()
+
+    def _running_items(self) -> list[M.ActivityItem]:
+        act = self._store().activity(self._running_id) if self._running_id else None
+        return list(act.items) if act else []
+
+    def _refresh_checkpoints(self) -> None:
+        aid = self._selected_id or self._running_id
+        cps = self.app.snapshots.checkpoints(aid) if aid else []
+        self._checkpoints.reset([{
+            "checkpointId": c.id, "takenAt": c.taken_at, "takenText": time_text(c.taken_at), "kind": c.kind,
+            "label": c.label, "count": c.snapshot.open_count, "identified": c.snapshot.identified_count,
+            "isLatest": i == 0} for i, c in enumerate(cps)])
+        running_cps = cps if aid == self._running_id else (
+            self.app.snapshots.checkpoints(self._running_id) if self._running_id else [])
+        self._last_checkpoint_text = time_text(running_cps[0].taken_at) if running_cps else ""
+        self.checkpointsChanged.emit()
+
+    def _add_items(self, activity_id: str, new_items: list[M.ActivityItem]) -> tuple[M.Activity | None, int]:
+        act = self._store().activity(activity_id) if activity_id else None
+        if act is None:
+            return None, 0
+        added = 0
+        for it in new_items:
+            if act.item_by_path(it.path) is None:
+                act.items.append(it)
+                added += 1
+        if added:
+            self._store().update_activity(act)
+            if activity_id == self._running_id and self._engine is not None:
+                self._engine.update_items(act.items)
+                if self._snapshot is not None:
+                    diff.match_items(self._snapshot, act.items, portable=self._portable, resolve=self._resolve)
+                    self._refresh_live()
+        return act, added
+
+    # -------------------------------------------------------- engine answers (GUI thread)
+    def _on_snapshot(self, snap: M.Snapshot) -> None:
+        if snap.activity_id != self._running_id:
+            return
+        self._snapshot = snap
+        self._refresh_live()
+
+    def _on_checkpoint(self, cp: M.Checkpoint) -> None:
+        if cp.activity_id in (self._running_id, self._selected_id):
+            self._refresh_checkpoints()
+        if cp.activity_id == self._running_id:
+            self._refresh_live()
+            if cp.kind != "close":
+                t = time_text(cp.taken_at)
+                self.checkpointSaved.emit(cp.id, cp.snapshot.open_count, t)
+                self._saved_until = True
+                self._update_state()
+                QTimer.singleShot(SAVED_MS, self._end_saved)
+
+    def _end_saved(self) -> None:
+        self._saved_until = False
+        self._update_state()
+
+    def _on_identified(self, hwnd: int, entry: M.SnapshotEntry | None, purpose: str) -> None:
+        own = entry is not None and entry.pid in self._exclude_pids
+        if purpose == "hover":
+            if entry is None:
+                self.hoverIdentified.emit(hwnd, False, "")
+            elif own:
+                self.hoverIdentified.emit(hwnd, False, "Project Opener")
+            else:
+                self.hoverIdentified.emit(hwnd, entry.identified, W.add_label(entry))
+            return
+        if entry is None:
+            self.addResult.emit(False, "That window cannot be added", False, "")
+            return
+        if own:
+            self.addResult.emit(False, "That is Project Opener's own window", False, "")
+            return
+        self._known[entry.key] = entry
+        label = W.label_lines(entry)[0]
+        if not entry.identified:
+            self.addResult.emit(False, W.add_message(entry), True, entry.key)
+            return
+        if not self._running_id:
+            self.app.chooserRequested.emit([entry.path])
+            self.addResult.emit(False, f"No activity is running: choose where to add {W.entry_name(entry)}", False,
+                                entry.key)
+            return
+        act, added = self._add_items(self._running_id, W.items_from_entries([entry]))
+        if act is None:
+            self.addResult.emit(False, "The running activity was not found", False, entry.key)
+        elif added:
+            self.addResult.emit(True, f"Added {label}", False, entry.key)
+        else:
+            self.addResult.emit(True, f"Already in {act.name}: {label}", False, entry.key)
+
+    def _on_candidates(self, entries: list[M.SnapshotEntry]) -> None:
+        entries = W.dedupe(entries)
+        self._candidate_entries = {e.key: e for e in entries}
+        for e in entries:
+            self._known[e.key] = e
+        statuses = {e.key: W.display_status(e) for e in entries}
+        ordered = sorted(entries, key=lambda e: not W.default_ticked(e))     # ticked first, z-order kept
+        self._candidates.reset([{
+            "entryKey": e.key, "ticked": W.default_ticked(e) and "ignored by capture" not in e.note,
+            "name": W.entry_name(e), "path": e.path, "appName": e.app, "status": statuses[e.key], "note": e.note,
+            "kind": e.kind} for e in ordered])
+        self.startCandidatesReady.emit()
+
+    def _on_progress(self, done: int, total: int, label: str) -> None:
+        self.restoreProgress.emit(done, total, label)
+
+    def _on_restore_done(self, report: dict[str, Any]) -> None:
+        self._restoring = False
+        self.restoreFinished.emit(report)
+        failed = report.get("failed") or []
+        unrest = report.get("unrestorable") or []
+        body = f"{report.get('opened', 0)} opened, {report.get('placed', 0)} put back in place"
+        if failed:
+            body += f"; could not open {len(failed)}"
+        if unrest:
+            body += f"; {len(unrest)} could not be restored (unsaved or no path)"
+        self._toast("Restore finished", body, "warning" if failed else "success")
+
+    def _on_error(self, message: str) -> None:
+        log.warning("capture: %s", message)
+        if message.startswith("snapshot"):
+            self._toast("Snapshot", message, "warning")
+
+    # -------------------------------------------------------------- lifecycle
     def start(self) -> None:
         """Start the capture thread (idle until an activity runs)."""
+        self._ensure_engine()
+        self._register_openers()
+        self._hook_watchers()
 
     def shutdown(self) -> None:
         """Stop the capture thread; write a final live snapshot; do NOT clear running markers
         (a clean exit with an activity still running keeps its marker only if the user chose so)."""
+        if self._engine is not None:
+            self._engine.stop()
+            self._engine = None
 
+    def apply_settings(self) -> None:
+        """Capture keys changed in Settings (``SettingsApi.setValue`` calls this): interval, browser URLs,
+        ignore rules, Office via COM, the global switch."""
+        s = self._settings()
+        if self._engine is not None:
+            self._engine.set_options(interval_s=float(max(1, int(s.capture_interval_s or 3))),
+                                     want_browser_urls=bool(s.capture_browser_urls),
+                                     office_via_com=bool(s.open_office_via_com))
+            self._engine.set_ignore_rules(list(s.capture_ignore))
+            if self._running_id:
+                self._engine.set_paused(self._user_paused or not self._capture_on())
+        self._register_openers()
+        self._update_state()
+
+    # -------------------------------------------------------------- slots
     @Slot(str)
     def startActivity(self, activity_id: str) -> None:
         """Mark running (RunningMarker), begin capture passes for it.  Called by ActivitiesApi.open."""
-        self.todo("CaptureApi.startActivity")
+        act = self._store().activity(activity_id)
+        if act is None:
+            log.warning("startActivity: unknown activity %s", activity_id)
+            return
+        if self._running_id and self._running_id != activity_id:
+            self.endActivity()
+        engine = self._ensure_engine()
+        self._register_openers()
+        self._hook_watchers()
+        try:
+            import psutil
+            started = psutil.Process().create_time()
+        except Exception:  # noqa: BLE001
+            started = 0.0
+        self.app.snapshots.mark_running(M.RunningMarker(activity_id=act.id, pid=os.getpid(), process_started=started))
+        # what was saved before this start: the first pass will overwrite the live snapshot, and the
+        # Resume band calls restoreLatest right after startActivity
+        self._before_start = (act.id, self.app.snapshots.latest(act.id))
+        self._set_running(act)
+        self._user_paused = False
+        self._snapshot = None
+        self._selected_id = ""
+        engine.run_activity(act.id, act.items)
+        engine.set_paused(not self._capture_on(act))
+        self._refresh_live()
+        self._refresh_checkpoints()
 
     @Slot()
     def endActivity(self) -> None:
         """Final checkpoint (kind "close"), clear the marker, stop passes."""
-        self.todo("CaptureApi.endActivity")
+        aid = self._running_id
+        if not aid:
+            return
+        if self._engine is not None:
+            if self._capture_on() and not self._user_paused:
+                self._engine.request_snapshot("close", "")
+            self._engine.stop_activity()
+        self.app.snapshots.clear_running(aid)
+        self._set_running(None)
+        self._snapshot = None
+        self._user_paused = False
+        self._saved_until = False
+        self._refresh_live()
+        self._refresh_checkpoints()
 
     @Slot()
     def snapshotNow(self) -> None:
         """Checkpoint now (Ctrl+Alt+S, the pill, the tray, the activity page)."""
-        self.todo("CaptureApi.snapshotNow")
+        if not self._running_id:
+            self._toast("Snapshot", "No activity is running", "info")
+            return
+        self._ensure_engine().request_snapshot("manual", "")
 
     @Slot()
     def saveNewAsItems(self) -> None:
-        self.todo("CaptureApi.saveNewAsItems")
+        if not self._running_id or self._snapshot is None:
+            return
+        new = self._snapshot.new_entries
+        act, added = self._add_items(self._running_id, W.items_from_entries(new))
+        if act is not None and added:
+            self._toast("Saved as items", f"{added} added to {act.name}", "success")
 
     @Slot()
     def pause(self) -> None:
-        self.todo("CaptureApi.pause")
+        if not self._running_id:
+            return
+        self._user_paused = True
+        if self._engine is not None:
+            self._engine.set_paused(True)
+        self._update_state()
 
     @Slot()
     def resume(self) -> None:
-        self.todo("CaptureApi.resume")
+        if not self._running_id:
+            return
+        self._user_paused = False
+        if self._engine is not None:
+            self._engine.set_paused(not self._capture_on())
+        self._update_state()
 
     @Slot(bool)
     def setGlobal(self, on: bool) -> None:
-        self.todo("CaptureApi.setGlobal")
+        s = self._settings()
+        if bool(s.capture_enabled) != bool(on):
+            s.capture_enabled = bool(on)
+            s.save()
+        if self._engine is not None and self._running_id:
+            self._engine.set_paused(self._user_paused or not self._capture_on())
+        self._update_state()
 
     @Slot()
     def addForegroundWindow(self) -> None:
         """Ctrl+Alt+A: identify the window in front and add it; answer with ``addResult``."""
-        self.todo("CaptureApi.addForegroundWindow")
+        from project_opener.capture import win32
+        hwnd = win32.foreground_window()
+        if not hwnd:
+            self.addResult.emit(False, "No window is in front", False, "")
+            return
+        self.addWindow(hwnd)
 
     @Slot(int)
     def addWindow(self, hwnd: int) -> None:
         """The picker's click: identify ``hwnd`` (GA_ROOT) and add it; answer with ``addResult``."""
-        self.todo("CaptureApi.addWindow")
+        from project_opener.capture import win32
+        root = win32.root_of(int(hwnd))
+        if win32.window_pid(root) in self._exclude_pids:
+            self.addResult.emit(False, "That is Project Opener's own window", False, "")
+            return
+        self._ensure_engine().request_identify(root, "add")
 
     @Slot(int)
     def identifyForPicker(self, hwnd: int) -> None:
         """Hovering in the picker: answer with ``hoverIdentified`` (cached, cheap)."""
-        self.todo("CaptureApi.identifyForPicker")
+        from project_opener.capture import win32
+        root = win32.root_of(int(hwnd))
+        if win32.window_pid(root) in self._exclude_pids:
+            self.hoverIdentified.emit(int(hwnd), False, "Project Opener")
+            return
+        self._ensure_engine().request_identify(root, "hover")
+
+    def _target_activity(self) -> str:
+        return self._running_id or self._selected_id
 
     @Slot(str, str)
     def attachPath(self, entry_key: str, path: str) -> None:
         """An unidentified/ambiguous window: the user gives the path once; it becomes an item."""
-        self.todo("CaptureApi.attachPath")
+        path = (path or "").strip().strip('"')
+        aid = self._target_activity()
+        if not path or not aid:
+            self.addResult.emit(False, "Nothing to attach" if not path else "No activity is running", False,
+                                entry_key)
+            return
+        entry = self._known.get(entry_key)
+        item = M.ActivityItem(path=path, kind=M.guess_kind(path))
+        act, added = self._add_items(aid, [item])
+        if act is None:
+            self.addResult.emit(False, "The activity was not found", True, entry_key)
+            return
+        name = os.path.basename(path.rstrip("\\/")) or path
+        if entry is not None:
+            entry.status, entry.path, entry.identified_by = "identified", path, "manual"
+            entry.kind = item.kind
+        self.addResult.emit(True, f"Added {name}" if added else f"Already in {act.name}: {name}", False, entry_key)
 
     @Slot(str)
     def addAsApplication(self, entry_key: str) -> None:
         """Unsaved "Drawing1" in AutoCAD: add AutoCAD itself as an application item."""
-        self.todo("CaptureApi.addAsApplication")
+        entry = self._known.get(entry_key)
+        aid = self._target_activity()
+        item = W.app_item(entry) if entry else None
+        if item is None or not aid:
+            self.addResult.emit(False, "The application's program file is not known" if aid else
+                                "No activity is running", False, entry_key)
+            return
+        act, added = self._add_items(aid, [item])
+        if act is None:
+            self.addResult.emit(False, "The activity was not found", False, entry_key)
+            return
+        self.addResult.emit(True, f"Added {item.label}" if added else f"Already in {act.name}: {item.label}", False,
+                            entry_key)
 
     @Slot(str)
     def ignoreEntry(self, entry_key: str) -> None:
         """Ignore this process + title pattern from now on (Settings.capture_ignore)."""
-        self.todo("CaptureApi.ignoreEntry")
+        entry = self._known.get(entry_key)
+        if entry is None:
+            return
+        s = self._settings()
+        rule = W.ignore_rule(entry)
+        if rule not in s.capture_ignore:
+            s.capture_ignore.append(rule)
+            s.save()
+        if self._engine is not None:
+            self._engine.set_ignore_rules(list(s.capture_ignore))
+        if self._snapshot is not None:
+            self._snapshot.entries = [e for e in self._snapshot.entries if e.key != entry_key]
+        self._refresh_live()
 
     @Slot(str)
     def selectActivity(self, activity_id: str) -> None:
         """Show ``activity_id``'s checkpoints in the model (the activity page of a non-running activity)."""
-        self.todo("CaptureApi.selectActivity")
+        self._selected_id = activity_id or ""
+        self._refresh_checkpoints()
+
+    def _restore(self, activity_id: str, snapshot: M.Snapshot | None) -> None:
+        if snapshot is None or not snapshot.entries:
+            self._toast("Restore", "Nothing saved to restore for this activity", "info")
+            self.restoreFinished.emit({"opened": 0, "placed": 0, "failed": [], "unrestorable": [], "seconds": 0})
+            return
+        act = self._store().activity(activity_id)
+        items = list(act.items) if act else []
+        self._restoring = True
+        self.restoreProgress.emit(0, len(diff.order_for_restore(snapshot, items)), "")
+        self._ensure_engine().request_restore(snapshot, items)
 
     @Slot(str, str)
     def restoreCheckpoint(self, activity_id: str, checkpoint_id: str) -> None:
-        self.todo("CaptureApi.restoreCheckpoint")
+        cp = self.app.snapshots.checkpoint(activity_id, checkpoint_id)
+        self._restore(activity_id, cp.snapshot if cp else None)
 
     @Slot(str)
     def restoreLatest(self, activity_id: str) -> None:
-        """Resume band: reopen the latest snapshot in order and put windows back."""
-        self.todo("CaptureApi.restoreLatest")
+        """Resume band: reopen the latest snapshot in order and put windows back.  When the activity was
+        just started, "latest" is what was saved before that start (not the new session's first pass)."""
+        aid, before = self._before_start
+        if aid == activity_id and activity_id == self._running_id:
+            self._before_start = ("", None)
+            self._restore(activity_id, before)
+            return
+        self._restore(activity_id, self.app.snapshots.latest(activity_id))
 
     @Slot()
     def prepareStartFromOpen(self) -> None:
         """Enumerate and identify every window; fill ``startCandidates``; emit ``startCandidatesReady``."""
-        self.todo("CaptureApi.prepareStartFromOpen")
+        self._ensure_engine().request_enumerate_all()
 
     @Slot(str, bool)
     def setCandidateTicked(self, entry_key: str, ticked: bool) -> None:
-        self.todo("CaptureApi.setCandidateTicked")
+        i = self._candidates.indexOf(entry_key)
+        if i >= 0:
+            self._candidates.update(i, ticked=bool(ticked))
 
     @Slot(str, str, result=str)
     def startFromOpen(self, name: str, project_id: str) -> str:
         """Create the activity from the ticked candidates, make it running; returns its id."""
-        return self.todo("CaptureApi.startFromOpen")
+        ticked = [self._candidate_entries[r["entryKey"]] for r in self._candidates.rows
+                  if r.get("ticked") and r["entryKey"] in self._candidate_entries]
+        items: list[M.ActivityItem] = W.items_from_entries(ticked)
+        skipped = 0
+        exes = {it.path.lower() for it in items}
+        for e in ticked:
+            if e.identified:
+                continue
+            app = W.app_item(e) if e.status in ("unidentified", "unsaved") else None
+            if app is None:
+                skipped += 1
+                continue
+            if app.path.lower() not in exes:
+                exes.add(app.path.lower())
+                items.append(app)
+        act = M.Activity(name=(name or "").strip() or "From what's open",
+                         project_ids=[project_id] if project_id else [], items=items)
+        self._store().add_activity(act)
+        if skipped:
+            self._toast("Start from what's open", f"{skipped} window(s) need a path and were left out", "warning")
+        self._candidates.reset([])
+        self._candidate_entries = {}
+        self.startActivity(act.id)
+        return act.id

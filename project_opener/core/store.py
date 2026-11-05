@@ -439,34 +439,62 @@ class WorkspaceStore:
         }
 
     # ------------------------------------------------------------- transfer
-    def export_bundle(self, project_ids: Iterable[str] | None = None) -> dict[str, Any]:
+    def export_bundle(self, project_ids: Iterable[str] | None = None,
+                      activity_ids: Iterable[str] | None = None) -> dict[str, Any]:
+        """Projects plus activities (and the launch profiles their items use).
+
+        Without ``activity_ids``: every activity when all projects are exported, else
+        the activities that draw on an exported project."""
         ids = set(project_ids) if project_ids is not None else None
         projs = [p for p in self.projects if ids is None or p.id in ids]
+        if activity_ids is not None:
+            want = set(activity_ids)
+            acts = [a for a in self.activities if a.id in want]
+        elif ids is None:
+            acts = list(self.activities)
+        else:
+            acts = [a for a in self.activities if set(a.project_ids) & ids or any(i.project_id in ids for i in a.items)]
+        used = {i.profile_id for p in projs for i in p.items if i.profile_id}
+        used |= {i.profile_id for a in acts for i in a.items if i.profile_id}
         return {"schema": C.SCHEMA_VERSION, "exported_at": M.now_iso(), "app_version": C.VERSION,
-                "projects": [p.to_dict() for p in projs]}
+                "projects": [p.to_dict() for p in projs],
+                "activities": [a.to_dict() for a in acts],
+                "profiles": [p.to_dict() for p in self.profiles if p.id in used]}
 
     def import_bundle(self, data: dict[str, Any], mode: str = "merge") -> tuple[int, int]:
-        """Import a v3 bundle or a v1 backup. Returns (added, updated)."""
+        """Import a v4 or v3 bundle or a v1 backup. Returns (added, updated) projects.
+
+        A schema-3 bundle runs the same 3 -> 4 rules as the workspace (its launch sets
+        become activities); a schema-4 bundle brings its activities and profiles.
+        Activities are matched by id (merge replaces, otherwise a fresh id)."""
         added = updated = 0
         if not isinstance(data, dict):
             return 0, 0
         if mode == "replace":
             self.projects = []
+            self.activities = []
+        imported: list[M.Project] = []
+        id_map: dict[str, str] = {}
         projects = data.get("projects")
         if isinstance(projects, list):
             for raw in projects:
                 if not isinstance(raw, dict):
                     continue
                 proj = M.Project.from_dict(raw)
+                original = proj.id
                 existing = self.get(proj.id) or self.by_name(proj.name)
                 if existing and mode == "merge":
                     proj.id = existing.id
                     self.projects = [p for p in self.projects if p.id != existing.id]
                     updated += 1
                 else:
+                    if self.get(proj.id):
+                        proj.id = M.new_id()
                     proj.name = M.dedupe_name(proj.name, self.names())
                     added += 1
+                id_map[original] = proj.id
                 self.projects.append(proj)
+                imported.append(proj)
         elif isinstance(projects, dict):  # v1 backup export
             auto = data.get("auto_launch", {}) if isinstance(data.get("auto_launch"), dict) else {}
             for name, pdata in projects.items():
@@ -483,6 +511,32 @@ class WorkspaceStore:
                     proj.name = M.dedupe_name(proj.name, self.names())
                     added += 1
                 self.projects.append(proj)
+                imported.append(proj)
+        try:
+            schema = int(data.get("schema", 3) or 3)
+        except (TypeError, ValueError):
+            schema = 3
+        if schema >= migrate.TARGET_SCHEMA:
+            acts = [M.Activity.from_dict(a) for a in data.get("activities", []) or [] if isinstance(a, dict)]
+            for prof in data.get("profiles", []) or []:
+                if isinstance(prof, dict):
+                    lp = M.LaunchProfile.from_dict(prof)
+                    if not self.profile(lp.id):
+                        self.profiles.append(lp)
+        else:
+            acts, _report = migrate.migrate_projects(
+                imported, existing_ids=set() if mode == "merge" else {a.id for a in self.activities})
+        for act in acts:
+            act.project_ids = [id_map.get(pid, pid) for pid in act.project_ids]
+            for it in act.items:
+                if it.project_id:
+                    it.project_id = id_map.get(it.project_id, it.project_id)
+            if self.activity(act.id):
+                if mode == "merge":
+                    self.activities = [a for a in self.activities if a.id != act.id]
+                else:
+                    act.id = M.new_id()
+            self.activities.append(act)
         self.save()
         self._emit("changed")
         return added, updated

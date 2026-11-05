@@ -51,6 +51,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Shortcuts:"
 Name: "startup"; Description: "Start Project Opener when I sign in to Windows (minimised to the tray)"; GroupDescription: "Start-up:"; Flags: unchecked
+Name: "explorer"; Description: "Add ""Add to running activity"" and ""Send to > Project Opener"" to Explorer"; GroupDescription: "Explorer entries:"
 
 [Files]
 Source: "..\dist\ProjectOpener\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -59,6 +60,8 @@ Source: "..\dist\ProjectOpener\*"; DestDir: "{app}"; Flags: ignoreversion recurs
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+; Send to > Project Opener (Windows appends the selected paths after --sendto). {usersendto} is per user.
+Name: "{usersendto}\Project Opener"; Filename: "{app}\{#AppExeName}"; Parameters: "--sendto"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppExeName}"; Comment: "Add the selected files to the running activity in Project Opener"; Tasks: explorer
 
 [Registry]
 ; Start with Windows (per-user Run key). The app can also toggle this itself.
@@ -68,6 +71,15 @@ Root: HKCU; Subkey: "Software\Classes\projectopener"; ValueType: string; ValueNa
 Root: HKCU; Subkey: "Software\Classes\projectopener"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\projectopener\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"",0"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\projectopener\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" ""%1"""; Flags: uninsdeletekey
+
+; v4: "Add to running activity" on files and folders (desktop/shellext.py writes the same keys from
+; Settings > Snapshot).  Per user, no admin; removed on uninstall.
+Root: HKCU; Subkey: "Software\Classes\*\shell\ProjectOpener.AddToActivity"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Add to running activity"; Flags: uninsdeletekey; Tasks: explorer
+Root: HKCU; Subkey: "Software\Classes\*\shell\ProjectOpener.AddToActivity"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#AppExeName}"",0"; Flags: uninsdeletekey; Tasks: explorer
+Root: HKCU; Subkey: "Software\Classes\*\shell\ProjectOpener.AddToActivity\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" --add ""%1"""; Flags: uninsdeletekey; Tasks: explorer
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\ProjectOpener.AddToActivity"; ValueType: string; ValueName: "MUIVerb"; ValueData: "Add to running activity"; Flags: uninsdeletekey; Tasks: explorer
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\ProjectOpener.AddToActivity"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#AppExeName}"",0"; Flags: uninsdeletekey; Tasks: explorer
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\ProjectOpener.AddToActivity\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" --add ""%1"""; Flags: uninsdeletekey; Tasks: explorer
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
@@ -80,6 +92,8 @@ Type: files; Name: "{app}\1.ico"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
+; The app may have written these itself (Settings > Snapshot) even when the installer task was off.
+Type: files; Name: "{usersendto}\Project Opener.lnk"
 
 [Code]
 // Project Opener 1.x/2.x used a different AppId but the same folder. Uninstall it
@@ -104,6 +118,17 @@ begin
     end
     else
       RegDeleteKeyIncludingSubkeys(HKCU, OldAppKey);
+  end;
+end;
+
+// The Explorer verb may also have been written by the app (Settings > Snapshot) when the installer
+// task was off, so the uninstaller removes it whichever way it got there.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\*\shell\ProjectOpener.AddToActivity');
+    RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\Directory\shell\ProjectOpener.AddToActivity');
   end;
 end;
 

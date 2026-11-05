@@ -5,6 +5,22 @@ missing and what failed, and never raises.  It only decides *how* to open
 something (shell, subprocess, browser); it never judges whether a path is the
 right one.  Opening itself is done through ``os.startfile`` on Windows (the
 same as double-clicking in Explorer) so file associations are honoured.
+
+v4 additions (builder 1):
+
+* **profiles** - an item with ``profile_id`` is started through
+  ``core.profiles.build_command`` (arguments, working folder, environment).  The
+  launcher finds profiles through ``profiles`` (a callable ``id -> LaunchProfile``),
+  or, when none was given, through the process-wide lookup set with
+  ``set_profile_lookup`` (so a launcher rebuilt by ``apply_settings`` keeps it).
+  A profile that cannot be found is reported in the result's message and the
+  item opens as before; nothing is silently skipped.
+* **openers** - ``openers`` maps a lower-case extension (".xlsx") to a callable
+  ``opener(path) -> bool``; True means it opened the file, False (or an
+  exception) falls back to the file association.  The default is the shared
+  ``OPENERS`` registry, so the capture builder's Office opener survives a
+  rebuilt launcher.  The launcher runs on a pool thread; an opener that needs
+  COM initialises it itself.
 """
 from __future__ import annotations
 
@@ -22,6 +38,7 @@ from dataclasses import dataclass, field
 from project_opener.core import models as M
 from project_opener.core import winutil
 from project_opener.core.pathvars import PathResolver
+from project_opener.core.profiles import Command, build_command
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +48,28 @@ UNC_HOST_RE = re.compile(r"^\\\\([^\\]+)\\")
 # the coarse category the history and the summary count: ``offline`` and
 # ``variable`` are both ``missing`` there.
 CODES = ("opened", "missing", "offline", "variable", "skipped", "failed")
+
+Opener = Callable[[str], bool]
+ProfileLookup = Callable[[str], "M.LaunchProfile | None"]
+
+# Shared registries (see the module docstring).
+OPENERS: dict[str, Opener] = {}
+_profile_lookup: ProfileLookup | None = None
+
+
+def set_profile_lookup(fn: ProfileLookup | None) -> None:
+    """The process-wide profile lookup used by launchers built without ``profiles``."""
+    global _profile_lookup
+    _profile_lookup = fn
+
+
+def register_opener(ext: str, fn: Opener | None) -> None:
+    """Register (or with ``None`` remove) the shared opener for an extension (".xlsx")."""
+    key = ext.lower() if ext.startswith(".") else "." + ext.lower()
+    if fn is None:
+        OPENERS.pop(key, None)
+    else:
+        OPENERS[key] = fn
 
 
 @dataclass
@@ -80,10 +119,26 @@ def _is_url(s: str) -> bool:
 
 
 class Launcher:
-    def __init__(self, resolver: PathResolver, delay_ms: int = 300, dry_run: bool = False):
+    def __init__(self, resolver: PathResolver, delay_ms: int = 300, dry_run: bool = False,
+                 profiles: ProfileLookup | None = None, openers: dict[str, Opener] | None = None):
         self.resolver = resolver
         self.delay_ms = delay_ms
         self.dry_run = dry_run
+        self._profiles = profiles
+        self.openers: dict[str, Opener] = OPENERS if openers is None else openers
+        self.started: list[Command] = []      # dry-run record of profile launches (tests)
+
+    def profile_for(self, item: M.Item) -> M.LaunchProfile | None:
+        if not item.profile_id:
+            return None
+        lookup = self._profiles or _profile_lookup
+        if lookup is None:
+            return None
+        try:
+            return lookup(item.profile_id)
+        except Exception:  # noqa: BLE001
+            log.exception("profile lookup failed")
+            return None
 
     # --------------------------------------------------------------- public
     def launch(self, items: list[M.Item],
@@ -121,14 +176,71 @@ class Launcher:
                 return self._open_url(item, target)
             if item.kind == "command":
                 return self._run_command(item, target)
-            if not os.path.exists(target):
-                return self._not_found(item, target, host_cache if host_cache is not None else {})
-            if item.kind == "app" or target.lower().endswith((".exe", ".bat", ".cmd")):
-                return self._run_app(item, target)
-            return self._shell_open(item, target)
+            cache = host_cache if host_cache is not None else {}
+            if item.profile_id:
+                profile = self.profile_for(item)
+                if profile is not None:
+                    return self._run_profile(item, profile, cache)
+                result = self._open_plain(item, target, cache)
+                if result.status == "opened":
+                    note = f"launch profile {item.profile_id} not found; opened without it"
+                    result.message = (result.message + "; " if result.message else "") + note
+                return result
+            return self._open_plain(item, target, cache)
         except Exception as exc:  # noqa: BLE001 - must never propagate
             log.exception("open failed for %s", target)
             return LaunchResult(item, target, "failed", str(exc))
+
+    def _open_plain(self, item: M.Item, target: str, host_cache: dict[str, bool]) -> LaunchResult:
+        if not os.path.exists(target):
+            return self._not_found(item, target, host_cache)
+        if item.kind == "app" or target.lower().endswith((".exe", ".bat", ".cmd")):
+            return self._run_app(item, target)
+        opened = self._try_opener(item, target)
+        if opened is not None:
+            return opened
+        return self._shell_open(item, target)
+
+    def _try_opener(self, item: M.Item, target: str) -> LaunchResult | None:
+        """A registered opener for the file's extension; None to fall back to the association."""
+        if item.kind != "file":
+            return None
+        fn = self.openers.get(os.path.splitext(target)[1].lower())
+        if fn is None:
+            return None
+        if self.dry_run:
+            return LaunchResult(item, target, "opened", "opened through its application")
+        try:
+            if fn(target):
+                return LaunchResult(item, target, "opened", "opened through its application")
+        except Exception as exc:  # noqa: BLE001
+            log.warning("opener failed for %s (%s); using the file association", target, exc)
+        return None
+
+    def _run_profile(self, item: M.Item, profile: M.LaunchProfile, host_cache: dict[str, bool]) -> LaunchResult:
+        cmd = build_command(item, profile, self.resolver)
+        label = f"profile {profile.name}"
+        if cmd.unresolved:
+            return LaunchResult(item, cmd.exe, "missing", f"{label}: unknown variable {', '.join(cmd.unresolved)}",
+                                code="variable")
+        if not os.path.exists(cmd.exe):
+            res = self._not_found(item, cmd.exe, host_cache)
+            res.message = f"{label}: {res.message}"
+            return res
+        cwd = cmd.cwd if cmd.cwd and os.path.isdir(cmd.cwd) else (os.path.dirname(cmd.exe) or None)
+        if self.dry_run:
+            self.started.append(cmd)
+        else:
+            env = {**os.environ, **cmd.env} if cmd.env else None
+            if sys.platform == "win32" and cmd.exe.lower().endswith((".bat", ".cmd")):
+                subprocess.Popen(["cmd", "/c", cmd.exe, *cmd.args], cwd=cwd, env=env,
+                                 creationflags=subprocess.CREATE_NEW_CONSOLE)
+            else:
+                subprocess.Popen([cmd.exe, *cmd.args], cwd=cwd, env=env)
+        msg = label + (" " + " ".join(cmd.args) if cmd.args else "")
+        if cmd.cwd and cwd != cmd.cwd:
+            msg += f" (working folder {cmd.cwd} not found; used {cwd})"
+        return LaunchResult(item, cmd.exe, "opened", msg)
 
     # -------------------------------------------------------------- private
     @staticmethod

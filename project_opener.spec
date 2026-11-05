@@ -14,6 +14,18 @@ from project_opener import __version__  # noqa: E402
 
 block_cipher = None
 
+# comtypes generates its UIAutomationCore wrapper (used by capture.sources.browser) into comtypes.gen on
+# first use.  A frozen app cannot write there, so generate it now and ship the generated modules.
+_comtypes_gen = []
+try:
+    import comtypes.client
+    from PyInstaller.utils.hooks import collect_submodules
+
+    comtypes.client.GetModule("UIAutomationCore.dll")
+    _comtypes_gen = collect_submodules("comtypes.gen")
+except Exception as exc:  # noqa: BLE001  (a build on a machine without UIA still produces an exe)
+    print(f"WARNING: comtypes UIAutomationCore wrapper not generated: {exc}")
+
 a = Analysis(
     ["run.py"],
     pathex=["."],
@@ -26,6 +38,9 @@ a = Analysis(
         "PySide6.QtQml", "PySide6.QtQuick",
         "win32com", "win32com.client", "pythoncom", "pywintypes", "win32gui", "win32con", "win32api",
         "win32process", "comtypes", "comtypes.client", "psutil",
+        # v4 desktop: the Send to shortcut (IShellLink) and the native pieces under ctypes
+        "win32com.shell", "win32com.shell.shell", "winreg",
+        *_comtypes_gen,
     ],
     hookspath=[],
     hooksconfig={},
@@ -47,10 +62,9 @@ a = Analysis(
     noarchive=False,
     optimize=1,
 )
-# v4 notes for the packaging owner (builder 3):
-# * comtypes generates UIAutomationCore wrappers at run time into comtypes.gen; in a frozen build
-#   pre-generate them at build time (comtypes.client.GetModule("UIAutomationCore.dll")) and include
-#   comtypes.gen, or point comtypes.client.gen_dir at a writable per-user folder.
+# v4 packaging notes:
+# * comtypes' UIAutomationCore wrapper is generated above and shipped as hidden imports.
+# * The QML tree (qml/, including qml/desktop for the pill, its panel and the picker) ships as data.
 # * If the shell uses QtQuick.Controls, keep only the Basic style's QML plugins.
 # * Check the installed size and first-frame time against spikes/quick/REPORT.md after the first build.
 pyz = PYZ(a.pure, cipher=block_cipher)

@@ -161,3 +161,24 @@ def check_item(item: M.Item, resolver: PathResolver, host_cache: dict[str, bool]
 def check_project(project: M.Project, resolver: PathResolver, host_cache: dict[str, bool] | None = None) -> ProjectHealth:
     host_cache = host_cache if host_cache is not None else {}
     return ProjectHealth(project.id, [check_item(i, resolver, host_cache) for i in project.items])
+
+
+def check_activity(activity: M.Activity, resolver: PathResolver,
+                   host_cache: dict[str, bool] | None = None) -> ProjectHealth:
+    """Health of an activity's items, keyed by the activity id (``ProjectHealth.project_id``).
+
+    ``roots_health`` takes activities as well as projects (both have ``id`` and
+    ``items``), so captured items that belong to no project count under their root.
+    """
+    host_cache = host_cache if host_cache is not None else {}
+    return ProjectHealth(activity.id, [check_item(i, resolver, host_cache) for i in activity.items])
+
+
+def jobs_for_root(root: RootHealth, titles: dict[str, str]) -> list[str]:
+    """The job labels (``titles``: id -> job number or title) of the projects/activities using ``root``."""
+    out: list[str] = []
+    for pid in root.projects:
+        label = titles.get(pid, "")
+        if label and label not in out:
+            out.append(label)
+    return out

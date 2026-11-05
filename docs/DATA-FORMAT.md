@@ -1,4 +1,4 @@
-# Data format (schema 3)
+# Data format (schema 3, and schema 4 below)
 
 `workspace.json` is a plain UTF-8 JSON document. It is written atomically and a timestamped backup is
 kept before every write. All timestamps are ISO-8601 in UTC.
@@ -77,3 +77,52 @@ Typed by `core/settings.py::Settings`. Notable keys: `theme`, `accent`, `density
 
 One JSON object per launch: `{"ts", "project_id", "project", "set", "count", "ok", "missing"}`.
 Used for the dashboard's recent activity and stats; safe to delete.
+
+## Schema 4 (Project Opener 4.0)
+
+`workspace.json` gains four lists and a migration report (the full field reference is
+`docs/V4-ARCHITECTURE.md` section 3; the dataclasses are in `core/models.py`):
+
+```
+{
+  "schema": 4, "app_version": "4.0.0", "saved_at": "...",
+  "projects":   [ as schema 3; items gain "profile_id"; launch_sets kept frozen for 3.2 ],
+  "activities": [ {id, name, short_name, icon, color, project_ids[], items[ Item + project_id, source_item_id ],
+                   owner, created_by, pinned_at, favorite, capture_enabled, resume_on_start, created_at,
+                   updated_at, last_opened, open_count, origin} ],
+  "profiles":   [ {id, name, app, exe, args, cwd, env{}, description, author, published_id, updated_at} ],
+  "watchers":   [ {id, name, kind, target, events[], interval_s, params{}, notify{toast, mentions[], cliq_dm,
+                   cliq_channel}, activity_id, project_id, enabled, created_by, created_at} ],
+  "migration":  { from_schema, to_schema, at, counts ... }
+}
+```
+
+| Field | Notes |
+|---|---|
+| `items[].profile_id` | A `LaunchProfile` id. The launcher starts the item through the profile: `exe` (or the item's own path), `args` with `{ITEM}` (the item's resolved path) and `{VARIABLES}`, `cwd`, and `env` added to the inherited environment. An unknown profile id opens the item plainly and says so in the launch report. |
+| `profiles[].args` | Split Windows-style (quoted parts stay together), then expanded, so a path with spaces stays one argument. The built-in presets pass only `"{ITEM}"`; vendor switches are added by people who have checked them. |
+| `watchers[].kind` | `folder` (events new/changed/gone; params `pattern` - `;`-separated globs - and `recursive`), `health` (down/up; target a root or "" for all), `hub` (published/task_assigned/task_done/mention; target narrows by id, login or title), `time` (due/stale/reminder; params `stale_days`, `at`, `every_days`, `task_id`, `text`). `interval_s` (minimum 10) applies to folder polling. |
+
+### Bundles (export / import)
+
+`export_bundle` writes `{"schema": 4, "projects", "activities", "profiles"}` (the activities drawing on the
+exported projects, and the profiles their items use). `import_bundle` accepts schema 4 (activities and
+profiles come along; project ids that change on import are re-pointed in the activities), schema 3 (the
+projects' launch sets become activities by the migration rules; importing the same bundle again in merge
+mode replaces them rather than duplicating), and the 1.x/2.x forms as before.
+
+### Local runtime files written by the core (data folder)
+
+| File | Format |
+|---|---|
+| `tasks/<id>.json` | a Task, only while no hub is configured (moved to the hub's `tasks/` when it is reachable) |
+| `watch-state/<watcher_id>.json` | `{"files": {relative name: [size, mtime]}, "listed_at"}` - the last folder listing |
+| `alerts.jsonl` | one WatchEvent per line `{watcher_id, event, title, detail, path, link, level, ts, key, read}`; `{"read_key", "ts"}` rows mark alerts read; compacted to the newest 500 |
+| `delivered.json` | the delivery ledger when no hub is set (`{"schema": 1, "keys": {key: ts}}`); with a hub it is `delivered/<me>.json` there |
+| `cliq-outbox.jsonl` | queued Cliq messages `{id, kind: dm or channel, target, text, queued_at, attempts}`; dropped after 50 attempts |
+
+### Settings (4.0 keys used by the core)
+
+`email`, `cliq_user_id`, `cliq_api_base` (default `https://cliq.zoho.in/api/v2`), `cliq_bot` (the bot's
+unique name), `cliq_token_enc` (DPAPI blob of the office bot's webhook token), `notify_cliq_default`
+(DM me, and show me as Cliq-linked on the hub), `mail_client` (`outlook` or `mailto`).
