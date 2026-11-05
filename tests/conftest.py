@@ -40,4 +40,6 @@ def pytest_configure(config):
     of the file.  The tests want the local-disk reading, so they use build/.
     """
     if config.option.basetemp is None:
-        config.option.basetemp = str(Path(__file__).resolve().parents[1] / "build" / "pytest-tmp")
+        base = Path(__file__).resolve().parents[1] / "build" / "pytest-tmp"
+        base.parent.mkdir(parents=True, exist_ok=True)   # a fresh checkout (CI) has no build/ yet
+        config.option.basetemp = str(base)
