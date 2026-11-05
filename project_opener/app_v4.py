@@ -63,6 +63,31 @@ def _install_message_handler() -> None:
     qInstallMessageHandler(handler)
 
 
+def _choose_backend(facade: Any, app: Any) -> None:
+    """Probe the machine once per adapter and pick the render backend before any window exists; the
+    motion level follows (quick.motion).  ``QT_QUICK_BACKEND=software`` in the environment wins."""
+    from project_opener.quick import motion as MO
+
+    s = facade.ctx.settings
+    screen = app.primaryScreen()
+    size = (screen.size().width(), screen.size().height()) if screen is not None else None
+    try:
+        facts = MO.probe_machine(s.gpu_probe, size)
+    except Exception:  # noqa: BLE001
+        log.exception("machine probe failed; assuming a GPU")
+        facts = MO.MachineFacts(screen_w=size[0], screen_h=size[1]) if size else MO.MachineFacts()
+    backend = MO.resolve_backend(s.render_backend, facts)
+    if os.environ.get("QT_QUICK_BACKEND", "").lower() == "software":
+        backend = "software"
+    if backend == "software":
+        from PySide6.QtQuick import QQuickWindow, QSGRendererInterface
+        QQuickWindow.setGraphicsApi(QSGRendererInterface.GraphicsApi.Software)
+    s.save()
+    facade.ui.set_machine(facts, backend)
+    log.info("render backend %s, motion %s (adapter %r, %sx%s)", backend, facade.ui.motion, facts.adapter,
+             facts.screen_w, facts.screen_h)
+
+
 def main(args: Any) -> int:
     from project_opener.core.logging_setup import setup_logging
 
@@ -91,6 +116,12 @@ def main(args: Any) -> int:
     if ipc.forward(C.SINGLE_INSTANCE_KEY_V4, cmds):
         log.info("another v4 instance is running; forwarded %d command(s) and exiting", len(cmds))
         return 0
+    # N files chosen in Explorer start N processes at once: one claims the instance, the rest wait for its
+    # socket and forward (V4-SEAMS, builder 3 ask 1).
+    if not ipc.claim_instance(C.SINGLE_INSTANCE_KEY_V4):
+        ok = ipc.forward_retry(C.SINGLE_INSTANCE_KEY_V4, cmds)
+        log.info("another v4 instance is starting; forwarded=%s", ok)
+        return 0 if ok else 1
     server = ipc.InstanceServer(C.SINGLE_INSTANCE_KEY_V4)
     server.listen()
 
@@ -101,6 +132,9 @@ def main(args: Any) -> int:
     from project_opener.quick.facade import AppFacade
 
     facade = AppFacade()
+    _choose_backend(facade, app)
+    from PySide6.QtQuickControls2 import QQuickStyle
+    QQuickStyle.setStyle("Basic")            # the shell styles every control itself; no native style warnings
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("app", facade)
     engine.load(QUrl.fromLocalFile(str(qml_dir() / "Main.qml")))
@@ -108,6 +142,12 @@ def main(args: Any) -> int:
         log.error("Main.qml failed to load (see the [qt] lines above)")
         return 2
     window = engine.rootObjects()[0]
+    facade.ui.attach_window(window)
+    try:
+        from project_opener.core import winutil as _w
+        _w.apply_dark_title_bar(int(window.winId()), facade.ui.dark)
+    except Exception:  # noqa: BLE001
+        pass
 
     desktop = DesktopIntegration(facade, engine, window)
     facade.set_desktop(desktop.api)

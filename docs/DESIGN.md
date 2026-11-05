@@ -271,3 +271,65 @@ eyebrow, no icon circle, no gradient, no resting shadow; every number tabular; t
 product and offers its main job in one click; both themes screenshotted by `tools/smoke_ui.py`,
 including every dialog and state (`--all`), compact density (`--density compact`) and 2×
 (`--scale 2`), with no Qt warnings in its output.
+
+## Project Opener 4: Stage (the Qt Quick shell)
+
+Concept "Stage" (docs/V4-BRIEF.md section 4, the concept round's `concept-1-stage`), built in Qt Quick
+(`project_opener/qml`).  Everything above still holds; this section adds what the stage changes.
+
+- **Shell.** A 68 px rail on the ground (the mark, Search, Home, Activities, Projects, Team Hub, Updates,
+  Settings, the person at the foot); the current route is the raised `surface_2` circle; counts only on the
+  hub (inbox) and my open tasks.  Labels are tooltips and accessible names.  One page at a time, routed by
+  `app.ui.route`; sheets, the palette and toasts float above it.
+- **Home is a stage.** The Resume band (the one flat colour field, `field_mint`; Resume is the screen's
+  one primary while it waits) and then the current activity in the centre at full size: icon tile and title,
+  its line, and the three questions in three columns (what was open, health on this PC, the task and the
+  watchers).  The others stand in the wings, smaller (scale .94) and dimmer (62 %); below 1180 px of page
+  width they fold under the centre as two compact cards.  The footlights strip under the stage: Drives on
+  this PC, My tasks, the Office; the three share a bottom edge, and stack two-over-one below 1000 px.
+- **The dock is the centre grown.** Open activity: the wings recede (scale .84, fade), the centre grows to
+  the page width (420 ms, OutCubic on x, y, width, height), rows arrive in launch order 60 ms apart with an
+  8 px rise, each pill reads Opening… then settles (fill cross-fade 180 ms, the word swaps at the midpoint).
+  All opened: 1.2 s later the scene becomes the activity page.  Anything not opened: the dock stays with
+  "Open the N again".  Esc or × closes it.  Away from Home the same dock is a card (`sheets/LaunchDock.qml`).
+- **The activity page** (board B): the header carries the capture switch, Snapshot now, Add a window and
+  the one filled button that follows what is waiting (Save N new as items, else Snapshot now, else Open
+  activity).  Left: Open now, worst first; a window with no path is Desk's **dashed tile** (1 px
+  `border_strong`, 4/3 dash, radius 10) with the title in curly quotes, the reason, Attach a path and
+  Ignore; nothing is guessed.  Right: the launch record ("Opened at 09:12"), the task and watchers, Control
+  room's **Monitors panel** (this PC's screens to scale with the windows seen on each), the checkpoints.
+- **The office breathes once.** A colleague who comes online gets one ring that grows 8 to 20 px beyond
+  the avatar and fades over 2.4 s.  Only in rich motion and only while the window is active.
+- **Colour.** Unchanged discipline: identity (6 px dot, the icon tile's tint) and health (the pills) only.
+  QML reads `app.ui.tokens` (= `ui.theme.build_tokens`) plus three QML-only tokens: `shadow_q` and
+  `shadow_soft` (the floating shadow as `#AARRGGBB`, two offset rings: QML cannot parse `rgba()` and the
+  software renderer has no blur), `scrim` (the 40 % ink behind a sheet or the palette).  With the default
+  green, the dark accent is this file's `#3BC98F` with ink on it (`build_tokens`' generic lightening gives
+  `#62A994`, which reads as a disabled control on the dark ground).
+- **Icons** are Phosphor (regular) from the icon font qtawesome ships, one stroke everywhere; 3.x
+  `fa5s.*` names on migrated activities map to Phosphor names (`ui_state.FA_TO_PH`).
+- **Sheets** are the one dialog grammar (`components/Sheet.qml`): scrim, 16 px radius surface, heading
+  21 px 600 and one grey line naming the object, labels above fields, the error above the buttons, Cancel
+  then the named confirming button; destructive = outlined negative with Cancel as the Enter default; at
+  most 640 px tall, the body scrolls.  The @ picker and the "For" field float in the window's overlay so a
+  sheet never clips them.
+- **Every page fits 1040 × 660.** Each page declares `minimumWidth` (860, beside the 68 px rail);
+  `tools/smoke_quick.py` fails when one exceeds the 972 px beside the rail, when any visible item runs past
+  the page's right edge at the minimum window, or on any Qt or QML warning.
+
+### Motion levels
+
+`quick/motion.py` decides; `app.ui.k` scales every duration (rich 1, purposeful 0.6, off 0) and
+`app.ui.ambient` gates loops (rich only, and QML adds "window active").
+
+| Level | When (auto) | What moves |
+|---|---|---|
+| rich | a GPU and a screen above 1366 × 768 | everything, including the office's breath |
+| purposeful | software rendering, a screen at or below 1366 × 768, Windows animations off, battery | every transition at 0.6×, no loop |
+| off | remote desktop | nothing; every screen complete and still |
+
+The runtime guard measures each dock opening (`frameSwapped` stamps for 1.4 s): two in a row over 33 ms
+mean or 120 ms worst 1 % drop one level, saved in `Settings.motion_reduced_to`, said once, never climbing
+back by itself; a choice in Settings > Appearance clears it.  Feedback durations follow the craft table:
+press 90 ms, hover 140 ms, state 180-240 ms, the dock's grow 420 ms; exits are faster than entrances; no
+bounce.

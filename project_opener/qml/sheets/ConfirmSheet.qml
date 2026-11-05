@@ -1,8 +1,29 @@
 import QtQuick
+import "../components"
 
-// Generic confirm sheet (open more than N items, delete, unpublish).
-// Owner: builder 4.  Placeholder from the architecture skeleton; reads only `app` (the facade).
-Item {
-    id: confirmSheet
-    readonly property var tk: app.ui.tokens
+// A confirmation in the one dialog grammar: the question names the object and its consequence; the confirming
+// button names the action.  Destructive: outlined in the negative colour and Cancel takes the default, so
+// Enter never deletes.  Main.confirm(title, body, confirmText, destructive, onOk) opens it.
+Sheet {
+    id: s
+    property string body: ""
+    property string confirm: "Continue"
+    property var onCancel: null
+    title: "Are you sure?"
+    confirmText: confirm
+    sheetWidth: 480
+
+    onAccepted: {
+        Window.window.closeSheet()
+        Window.window.confirmed()
+    }
+    onCancelled: if (s.onCancel) s.onCancel()
+
+    Txt {
+        width: parent.width
+        text: s.body
+        tone: "muted"
+        wrapMode: Text.Wrap
+        elide: Text.ElideNone
+    }
 }

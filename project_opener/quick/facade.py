@@ -62,6 +62,11 @@ class AppFacade(QObject):
         self._watchers = WatchersApi(self)
         self._desktop: QObject | None = None
         self.ctx.toast.connect(lambda t, b, lvl: self.toast.emit(t, b, lvl))
+        self.ctx.toast_action.connect(self._ctx_toast_action)
+        try:
+            self._hub.mentioned.connect(self._on_mentioned)
+        except Exception:  # noqa: BLE001
+            log.debug("hub has no mentioned signal yet")
 
     # ------------------------------------------------------- sub-objects
     @Property(QObject, constant=True)
@@ -111,6 +116,25 @@ class AppFacade(QObject):
     @Property(str, constant=True)
     def displayName(self) -> str:  # noqa: N802
         return self.ctx.display_name()
+
+    # ----------------------------------------------------------- toasts
+    def _on_mentioned(self, sender: str, text: str, link: str) -> None:
+        """A mention or a task note for me (HubApi de-duplicates across my PCs): a toast with Open."""
+        name = sender
+        try:
+            name = self._hub.name_for(sender) or sender
+        except Exception:  # noqa: BLE001
+            pass
+        self.toastAction.emit(f"{name} mentioned you", text, "info", "Open" if link else "",
+                              "link" if link else "", {"link": link})
+
+    def _ctx_toast_action(self, title: str, body: str, level: str, button: str, nav: Any) -> None:
+        """3.2's toast_action carries (route, object); the QML gets a route and a plain payload."""
+        route, obj = nav if isinstance(nav, tuple) and len(nav) == 2 else (None, None)
+        payload: dict[str, Any] = {}
+        if route == "project" and obj is not None:
+            payload = {"projectId": getattr(obj, "id", "")}
+        self.toastAction.emit(title, body, level, button, route or "", payload)
 
     # ---------------------------------------------------------- threads
     def run_async(self, fn: Callable, done: Callable | None = None, fail: Callable | None = None) -> None:

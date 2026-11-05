@@ -60,9 +60,11 @@ class LaunchRun(QObject):
     item_finished = Signal(int, object)      # index, LaunchResult
     finished = Signal(object)                # LaunchReport
 
-    def __init__(self, project: M.Project, items: list[M.Item], launch_set: M.LaunchSet | None):
+    def __init__(self, project: M.Project | None, items: list[M.Item], launch_set: M.LaunchSet | None,
+                 activity: M.Activity | None = None):
         super().__init__()
         self.project = project
+        self.activity = activity             # v4: the activity being opened (project = its job, may be None)
         self.items = items
         self.launch_set = launch_set
         self.set_name = launch_set.name if launch_set else ""
@@ -75,6 +77,13 @@ class LaunchRun(QObject):
     @property
     def done(self) -> bool:
         return self.report is not None
+
+    @property
+    def title(self) -> str:
+        """What is being opened, as the office reads it: the activity's or the project's name."""
+        if self.activity is not None:
+            return self.activity.name
+        return self.project.name if self.project else ""
 
 
 class AppContext(QObject):
@@ -99,7 +108,7 @@ class AppContext(QObject):
         self.store = WorkspaceStore(data_dir)
         self.user = M.current_user()
         self.resolver = PathResolver(self.settings.variables)
-        self.launcher = Launcher(self.resolver, delay_ms=self.settings.launch_delay_ms)
+        self.launcher = Launcher(self.resolver, delay_ms=self.settings.launch_delay_ms, profiles=self.store.profile)
         self.hub = TeamHub(self.settings.hub_path or None, self.user, self.settings.display_name, self.settings.role)
         self.beacon: PresenceBeacon | None = None
         self.updater = Updater(token=self.settings.github_token, lan_dir=self.hub.updates_dir(),
@@ -190,7 +199,7 @@ class AppContext(QObject):
         """Call after editing settings: rebuilds resolver/launcher/hub."""
         self.settings.save()
         self.resolver = PathResolver(self.settings.variables)
-        self.launcher = Launcher(self.resolver, delay_ms=self.settings.launch_delay_ms)
+        self.launcher = Launcher(self.resolver, delay_ms=self.settings.launch_delay_ms, profiles=self.store.profile)
         hub_path = self.settings.hub_path or None
         if str(self.hub.root or "") != str(hub_path or ""):
             self.hub = TeamHub(hub_path, self.user, self.settings.display_name, self.settings.role)
@@ -252,6 +261,21 @@ class AppContext(QObject):
         self._next_launch()
         return run
 
+    def launch_activity(self, activity: M.Activity, items: list[M.Item] | None = None) -> LaunchRun | None:
+        """Open an activity's items (v4) through the same serialised queue as projects.
+
+        The caller asks the open-more-than-N question first (the Quick shell answers it with a
+        sheet, ``ActivitiesApi.confirmNeeded``), so nothing here blocks."""
+        items = [i for i in (items if items is not None else activity.enabled_items) if i.path.strip()]
+        if not items:
+            self.toast.emit("Nothing to open", f"‘{activity.name}’ has no enabled items.", "warning")
+            return None
+        project = self.store.get(activity.primary_project_id) if activity.primary_project_id else None
+        run = LaunchRun(project, items, None, activity=activity)
+        self._launch_queue.append(run)
+        self._next_launch()
+        return run
+
     def _next_launch(self) -> None:
         if self._launch_active is not None or not self._launch_queue:
             return
@@ -294,24 +318,32 @@ class AppContext(QObject):
         project, set_name = run.project, run.set_name
         run.report = report
         run.elapsed = time.monotonic() - run.started_at
-        self.store.record_launch(project, run.items, set_name, ok=len(report.opened), missing=len(report.missing))
-        self.current_project_name = project.name
+        name = run.title
+        if run.activity is not None:
+            self.store.record_activity_launch(run.activity, run.items, ok=len(report.opened),
+                                              missing=len(report.missing))
+            pulse = (f"{project.spine} · " if project is not None and project.spine else "") + run.activity.name
+        else:
+            self.store.record_launch(project, run.items, set_name, ok=len(report.opened), missing=len(report.missing))
+            pulse = project.title + (f" › {set_name}" if set_name else "")
+        self.current_project_name = name
         if self.settings.hub_share_pulse:
-            self.run_async(lambda: self.hub.pulse("launched", project.title + (f" › {set_name}" if set_name else "")))
-            self.run_async(lambda: self.hub.heartbeat(current_project=project.name))
+            self.run_async(lambda: self.hub.pulse("launched", pulse))
+            self.run_async(lambda: self.hub.heartbeat(current_project=name))
             if self.beacon:
-                self.beacon.current_project = project.name
+                self.beacon.current_project = name
         run.finished.emit(report)
         if not run.sheet_shown:        # no live sheet took the run (window hidden): the summary toast / tray balloon
             if report.ok:
-                self.toast.emit(f"Opened {project.name}", f"{len(report.opened)} item(s)" + (f" · {set_name}" if set_name else ""), "success")
+                self.toast.emit(f"Opened {name}", f"{len(report.opened)} item(s)" + (f" · {set_name}" if set_name else ""), "success")
             else:
                 problems = report.missing + report.failed
                 body = "\n".join(f"• {r.item.display_name}: {r.message}" for r in problems[:5])
                 if len(problems) > 5:
                     body += f"\n… and {len(problems) - 5} more"
-                self.toast.emit(f"{project.name}: {report.summary()}", body, "warning")
-        self.schedule_health(project)
+                self.toast.emit(f"{name}: {report.summary()}", body, "warning")
+        if project is not None:
+            self.schedule_health(project)
 
     def open_single(self, project: M.Project, item: M.Item) -> None:
         res = self.launcher.open_item(item)

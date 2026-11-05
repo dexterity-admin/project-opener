@@ -1,64 +1,77 @@
 import QtQuick
 
-// The 68 px rail (concept-1-stage, ".rail").  Owner: builder 4 (SHELL).
-// Skeleton: one round slot per route with a letter in place of the Phosphor icon, the counts to come
-// from app.tasks.mineOpenCount and app.hub.inboxCount.
+// The 68 px rail (concept-1-stage, ".rail"): the mark, Search, one round slot per route with its tooltip,
+// and the person at the foot.  Counts only on queues that need action: the hub's inbox and mentions, my
+// open tasks.  The rail names nothing the page title already says.
 Rectangle {
     id: rail
     readonly property var tk: app.ui.tokens
     property string current: "home"
     signal navigate(string route)
+    signal search()
 
-    width: 68
+    width: app.ui.railWidth
     color: tk.bg
 
+    readonly property int hubCount: (app.hub.inboxCount || 0)
     readonly property var routes: [
-        { route: "home", glyph: "H", label: "Home" },
-        { route: "projects", glyph: "P", label: "Projects" },
-        { route: "hub", glyph: "T", label: "Team Hub" },
-        { route: "updates", glyph: "U", label: "Updates" },
-        { route: "settings", glyph: "S", label: "Settings" }
+        { route: "home", glyph: "house", label: "Home", count: 0 },
+        { route: "activities", glyph: "stack", label: "Activities", count: 0 },
+        { route: "projects", glyph: "squares-four", label: "Projects", count: 0 },
+        { route: "hub", glyph: "users-three", label: "Team Hub", count: rail.hubCount + (app.tasks.mineOpenCount || 0) },
+        { route: "updates", glyph: "arrow-circle-down", label: "Updates", count: 0 },
+        { route: "settings", glyph: "sliders-horizontal", label: "Settings", count: 0 }
     ]
 
     Column {
         anchors.top: parent.top
         anchors.topMargin: 20
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: 6
+        spacing: 8
 
-        Rectangle {          // the mark
-            width: 28
-            height: 28
-            radius: 8
+        Image {                       // the mark: the app icon (accent squircle, folder, arrow)
+            width: 32
+            height: 32
+            source: app.ui.appIcon
+            sourceSize.width: 64
+            sourceSize.height: 64
             anchors.horizontalCenter: parent.horizontalCenter
-            color: rail.tk.accent
+            smooth: true
+            Accessible.name: "Project Opener"
         }
-        Item { width: 1; height: 16 }
+        Item { width: 1; height: 14 }
+
+        RailButton {
+            glyph: "magnifying-glass"
+            label: "Search (Ctrl+K)"
+            onClicked: rail.search()
+        }
+        Item { width: 1; height: 4 }
 
         Repeater {
             model: rail.routes
-            delegate: Rectangle {
+            delegate: RailButton {
                 required property var modelData
-                width: 40
-                height: 40
-                radius: 20
-                color: rail.current === modelData.route ? rail.tk.surface_2 : "transparent"
-                Accessible.role: Accessible.Button
-                Accessible.name: modelData.label
-                Text {
-                    anchors.centerIn: parent
-                    text: parent.modelData.glyph
-                    color: rail.current === parent.modelData.route ? rail.tk.text : rail.tk.text_muted
-                    font.family: "Onest"
-                    font.pixelSize: 14
-                    font.weight: Font.DemiBold
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: rail.navigate(parent.modelData.route)
-                }
+                glyph: modelData.glyph
+                label: modelData.label
+                count: modelData.count
+                active: rail.current === modelData.route
+                        || (modelData.route === "activities" && rail.current === "activity")
+                        || (modelData.route === "projects" && rail.current === "project")
+                onClicked: rail.navigate(modelData.route)
             }
         }
+    }
+
+    Avatar {
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 20
+        anchors.horizontalCenter: parent.horizontalCenter
+        initials: app.displayName.length > 0 ? app.displayName.charAt(0).toUpperCase() : "?"
+        hue: rail.tk.accent
+        online: app.hub.configured && app.hub.reachable
+        size: 28
+        Tip { visible: avatarMouse.containsMouse; text: app.displayName + " · " + app.login }
+        MouseArea { id: avatarMouse; anchors.fill: parent; hoverEnabled: true; onClicked: rail.navigate("settings") }
     }
 }
