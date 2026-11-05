@@ -12,19 +12,26 @@
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
-python run.py            # or: python -m project_opener
+python run.py            # or: python -m project_opener   (the 4.0 Qt Quick shell)
 ```
 
-Useful flags: `--data-dir C:\temp\po-dev` (separate workspace), `--minimised`, `--version`.
+From source without `--data-dir` the app uses `%APPDATA%\DexterityDesign\ProjectOpener-v4dev` (seeded once
+from the real folder), so an installed 3.2 keeps its own workspace. Useful flags: `--data-dir
+U:\path\po-dev` (separate workspace and its own single-instance key; never a folder on C:),
+`--minimised`, `--classic` (the 3.2 widgets UI, until 4.0 ships), `--version`. `PO_CLIQ_DRY_RUN=1` logs
+Cliq messages instead of sending them.
 
 ## Tests
 
 ```powershell
-python -m pytest            # core, LAN hub and updater tests (no display needed)
-python tools\smoke_ui.py    # opens every page with demo data and writes build\screens\*.png
-$env:QT_QPA_PLATFORM="offscreen"; python tools\smoke_ui.py   # headless (what CI does)
+python -m pytest            # every test, 180 s limit per test (pytest-timeout); QML smoke runs in a child process
+$env:QT_QPA_PLATFORM="offscreen"; python tools\smoke_v4.py --out build\screens-v4   # every v4 page (what CI does)
+$env:QT_QPA_PLATFORM="offscreen"; python tools\smoke_ui.py   # the 3.2 (--classic) pages
 ruff check project_opener tests tools
 ```
+
+`tools/smoke_v4.py` takes `PO_DEMO_ROOT`, `PO_DEMO_HUB`, `PO_DEMO_SERVER_ROOT` and `PO_DEMO_DRIVES` as
+`tools/smoke_ui.py` does, so public captures show office-shaped paths and a demo drive map.
 
 Tests set `PO_DATA_DIR` to a temp folder and disable the 1.x migration, so they never touch your
 real workspace.

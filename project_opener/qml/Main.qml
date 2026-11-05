@@ -68,8 +68,8 @@ Window {
         case "newProject": openSheet("ProjectEditor", { projectId: "" }); break
         case "newTask": openSheet("TaskSheet", {}); break
         case "startFromOpen": startFromOpen(); break
-        case "snapshotNow": safe(function () { app.capture.snapshotNow() }, "Snapshots start when capture is ready."); break
-        case "addWindow": safe(function () { app.capture.addForegroundWindow() }, "Adding windows starts when capture is ready."); break
+        case "snapshotNow": safe(function () { app.capture.snapshotNow() }); break
+        case "addWindow": safe(function () { app.capture.addForegroundWindow() }); break
         case "goHome": go("home"); break
         case "goActivities": go("activities"); break
         case "goProjects": go("projects"); break
@@ -79,13 +79,13 @@ Window {
         case "toggleTheme": app.ui.setTheme(app.ui.dark ? "light" : "dark"); break
         }
     }
-    // Calls into sub-APIs another builder is still writing: a stub raises, the shell says so once.
+    // A call into a sub-API that fails (a share gone, a bad value) is said once, never left to the console.
     function safe(fn, message) {
         try { fn(); return true }
-        catch (e) { toast("Not available yet", message || String(e), "info"); return false }
+        catch (e) { toast("Could not do that", message || String(e), "warning"); return false }
     }
     function startFromOpen() {
-        safe(function () { app.capture.prepareStartFromOpen() }, "")
+        safe(function () { app.capture.prepareStartFromOpen() })
         openSheet("StartFromOpenSheet", {})
     }
 

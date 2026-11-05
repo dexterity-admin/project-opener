@@ -100,6 +100,7 @@ class CliqClient:
         url = self._url(path, **query)
         if self.dry_run:
             self.sent.append(_Sent(method, url, dict(body or {})))
+            log.info("cliq dry run: %s %s %s", method, path, json.dumps(body or {}, ensure_ascii=False)[:300])
             return CliqResult(True, 200, "dry run"), {}
         data = json.dumps(body).encode("utf-8") if body is not None else None
         req = urllib.request.Request(url, data=data, method=method,

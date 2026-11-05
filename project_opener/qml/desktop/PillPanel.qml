@@ -25,7 +25,7 @@ Rectangle {
     }
     function wordsOf(st) {
         return ({ identified: "Identified", offline: "Server offline", ambiguous: "Ambiguous",
-                  unidentified: "Needs a path", unsaved: "Unsaved" })[st] || st
+                  unidentified: "Needs a path", unsaved: "Unsaved", window: "Not a file" })[st] || st
     }
 
     implicitWidth: Math.max(400, buttons.implicitWidth + 32)

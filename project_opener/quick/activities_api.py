@@ -8,8 +8,8 @@ Beyond the contract (docs/V4-ARCHITECTURE.md 7.3) this object also serves the
 project pages, because no other sub-API owns projects: ``projectItems``,
 ``currentProject``, ``allItems`` (the editor's cross-project picker),
 ``profiles`` and the project slots (``createProject`` ... ``openProjectItem``).
-Calls into other builders' sub-APIs are guarded: until their slots exist
-(``NotImplementedError``) this object degrades to the empty state.
+Calls into other builders' sub-APIs are guarded: an error there is logged and
+this object keeps its own state, never raising into QML.
 """
 from __future__ import annotations
 
@@ -207,7 +207,7 @@ class ActivitiesApi(ApiBase):
         return self.app.ctx.store
 
     def _cap(self, name: str, default: Any = None) -> Any:
-        """A property of ``app.capture`` (builder 2), tolerant of the stub."""
+        """A property of ``app.capture`` (builder 2); the default while the facade is still being built."""
         try:
             return getattr(self.app.capture, name)
         except Exception:  # noqa: BLE001
@@ -216,7 +216,7 @@ class ActivitiesApi(ApiBase):
     def _task_line(self, kind: str, local_id: str) -> str:
         try:
             return str(self.app.tasks.lineFor(kind, local_id) or "")
-        except Exception:  # noqa: BLE001  (stub until builder 1 lands TasksApi.lineFor)
+        except Exception:  # noqa: BLE001  (the tasks folder may be unreadable; the card simply has no line)
             return ""
 
     def _name_for(self, login: str) -> str:
@@ -361,6 +361,20 @@ class ActivitiesApi(ApiBase):
         self.refresh()
         self._compute_resume()
         self.recheck()
+        self._announce_migration()
+
+    def _announce_migration(self) -> None:
+        """Once, on the start that migrated the workspace (3.x launch sets -> activities, 1.x import)."""
+        store = self._store()
+        if not store.migrated_from:
+            return
+        rep = store.migration or {}
+        body = T.join_facts(T.plural(len(store.projects), "project"),
+                            T.plural(len(store.activities), "activity", "activities") + " from your launch sets"
+                            if rep.get("activities_from_sets") or rep.get("activities_from_pinned") else "")
+        if rep:
+            body += ". The 3.x workspace is kept in Backups (pre-v4)."
+        self.app.toast.emit(f"Brought across from {store.migrated_from}", body, "success")
 
     def _on_store_event(self, event: str, payload: Any) -> None:
         self._refresh_timer.start()
@@ -503,7 +517,7 @@ class ActivitiesApi(ApiBase):
         self._fill_current()
         try:
             self.app.capture.selectActivity(activity_id)
-        except Exception:  # noqa: BLE001  (stub until builder 2's CaptureApi.selectActivity)
+        except Exception:  # noqa: BLE001
             pass
 
     @Slot(str)
@@ -617,13 +631,15 @@ class ActivitiesApi(ApiBase):
             return
         self._attach_run(run, act.id)
         self.launchStarted.emit(act.id)
-        if self.app.ctx.settings.capture_enabled and act.capture_enabled:
-            try:
-                self.app.capture.startActivity(act.id)
-            except NotImplementedError:
-                log.info("capture not built yet; %s opened without capture", act.name)
-            except Exception:  # noqa: BLE001
-                log.exception("capture start failed")
+        self._start_capture(act.id)
+
+    def _start_capture(self, activity_id: str) -> None:
+        """Every open marks the activity running (the RunningMarker the Resume band depends on); capture
+        shows itself as paused when the activity's or the global switch is off (V4-SEAMS, builder 2 ask 2)."""
+        try:
+            self.app.capture.startActivity(activity_id)
+        except Exception:  # noqa: BLE001
+            log.exception("capture start failed")
 
     @Slot(str)
     def openProject(self, project_id: str) -> None:  # noqa: N802
@@ -970,21 +986,33 @@ class ActivitiesApi(ApiBase):
 
     @Slot()
     def resumeNow(self) -> None:  # noqa: N802
-        """The Resume band's button: restore the stale marker's latest snapshot (via ``app.capture``).
-        Until capture's restore exists, the activity's items are opened in launch order instead."""
+        """The Resume band's button: mark the activity running in this process (``startActivity`` replaces
+        the stale marker), then restore its latest snapshot on the capture thread, so the live list follows
+        the reopened windows (V4-SEAMS, builder 2 ask 2)."""
         aid = self._resume.get("activityId", "")
         if not aid:
             return
         try:
-            self.app.capture.restoreLatest(aid)
-        except NotImplementedError:
-            act = self._store().activity(aid)
-            if act is not None:
-                self._launch_activity(act)
+            snap = self.app.snapshots.latest(aid)
+        except Exception:  # noqa: BLE001
+            snap = None
+        act = self._store().activity(aid)
+        if (snap is None or not snap.entries) and act is not None:
+            self._launch_activity(act)          # nothing captured yet: open its items in launch order
+        else:
+            self._resume_restore(aid)
         self._resume_dismissed.add(aid)
         self._resume = {}
         self.resumeChanged.emit()
         self.refresh()
+
+    def _resume_restore(self, aid: str) -> None:
+        self._start_capture(aid)
+        try:
+            self.app.capture.restoreLatest(aid)
+        except Exception:  # noqa: BLE001
+            log.exception("restore failed")
+            self.app.toast.emit("Could not resume", "See the log for details.", "error")
 
     @Slot()
     def dismissResume(self) -> None:  # noqa: N802
@@ -1011,7 +1039,10 @@ class ActivitiesApi(ApiBase):
         if act is None:
             return
         from project_opener.core import mail
-        resolver, client, link = self.app.ctx.resolver, self.app.ctx.settings.mail_client, self.link(activity_id)
+        from project_opener.ipc import make_link
+        # a mail goes to other PCs, where activity ids differ: the link names the activity (V4-SEAMS, builder 1
+        # note 6; open_link looks names up too)
+        resolver, client, link = self.app.ctx.resolver, self.app.ctx.settings.mail_client, make_link("activity", act.name)
 
         def work() -> bool:
             return mail.open_draft(mail.bundle_draft(act, resolver, link), client)
@@ -1021,8 +1052,7 @@ class ActivitiesApi(ApiBase):
                 self.app.toast.emit("Could not start the mail", "Neither Outlook nor a mail app answered.", "warning")
 
         def fail(exc: Exception) -> None:
-            msg = "Mail is not available yet." if isinstance(exc, NotImplementedError) else str(exc)
-            self.app.toast.emit("Could not start the mail", msg, "warning")
+            self.app.toast.emit("Could not start the mail", str(exc) or type(exc).__name__, "warning")
 
         self.app.run_async(work, done, fail)
 

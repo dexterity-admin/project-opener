@@ -99,7 +99,7 @@ def test_live_list_worst_first_counts_and_needs_state(rig):
     assert rig.api.needsPathCount == 1 and rig.api.newCount == 1
     assert rig.api.state == "needs"
     assert next(r for r in rows if r["path"].endswith("list.xlsx"))["isItem"]
-    assert rows[0]["monitor"] == "DISPLAY2"        # offscreen test screens: the device's short name
+    assert rows[0]["monitor"] == "monitor 1"       # the offscreen screen sits at the recorded corner (0, 0)
     assert rows[0]["placeW"] == round(10 / 1920, 4) and rows[0]["placeX"] == 0.0
 
 
@@ -264,3 +264,15 @@ def test_monitor_and_place_maths():
     maxed = M.WindowPlacement(3, [0, 0, 10, 10], [1912, -12, 3848, 1044], r"\\.\DISPLAY1", [1920, -4, 3840, 1076])
     assert monitor_and_place(maxed, [])[1] == {"placeX": 0.0, "placeY": 0.0, "placeW": 1.0, "placeH": 0.9778}
     assert monitor_and_place(None, []) == ("", {})
+
+
+def test_monitor_matched_by_corner_when_qt_names_the_model():
+    """Qt 6 names Windows screens by model ("DELL E2222H"); the recorded device is found by its corner
+    (this PC: DISPLAY1 is the right-hand screen, Qt's second)."""
+    from project_opener.quick.capture_api import monitor_and_place
+    pl = M.WindowPlacement(1, [2400, 266, 3360, 806], [2400, 266, 3360, 806], r"\.\DISPLAY1", [1920, -4, 3840, 1076])
+    screens = [("DELL E2222H", 0, 0, 1.0), ("HDMI", 1920, -4, 1.0)]
+    assert monitor_and_place(pl, screens)[0] == "monitor 2"
+    scaled = [("DELL", 0, 0, 1.5), ("HDMI", 1280, -3, 1.5)]          # a scaled corner still matches
+    assert monitor_and_place(pl, scaled)[0] == "monitor 2"
+    assert monitor_and_place(pl, [("DELL", 0, 0, 1.0)])[0] == "DISPLAY1"

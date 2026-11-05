@@ -292,8 +292,8 @@ class DesktopIntegration(QObject):
                 self.api.togglePanel()
             elif name == "palette":
                 f.paletteRequested.emit()
-        except NotImplementedError as exc:
-            log.warning("hotkey %s: not available yet (%s)", name, exc)
+        except Exception:  # noqa: BLE001 - a hotkey must never take the event filter down
+            log.exception("hotkey %s failed", name)
 
     def add_window_pressed(self) -> None:
         verdict = self._double.press(self._clock())
@@ -315,8 +315,8 @@ class DesktopIntegration(QObject):
                 self.facade.capture.addWindow(hwnd)
             else:
                 self.facade.capture.addForegroundWindow()
-        except NotImplementedError as exc:
-            log.warning("add window: not available yet (%s)", exc)
+        except Exception:  # noqa: BLE001
+            log.exception("add window failed")
 
     # ----------------------------------------------------------- pill/quiet
     def pill_settings_changed(self) -> None:

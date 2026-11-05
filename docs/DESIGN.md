@@ -314,7 +314,7 @@ Concept "Stage" (docs/V4-BRIEF.md section 4, the concept round's `concept-1-stag
   most 640 px tall, the body scrolls.  The @ picker and the "For" field float in the window's overlay so a
   sheet never clips them.
 - **Every page fits 1040 × 660.** Each page declares `minimumWidth` (860, beside the 68 px rail);
-  `tools/smoke_quick.py` fails when one exceeds the 972 px beside the rail, when any visible item runs past
+  `tools/smoke_v4.py` fails when one exceeds the 972 px beside the rail, when any visible item runs past
   the page's right edge at the minimum window, or on any Qt or QML warning.
 
 ### Motion levels

@@ -11,10 +11,16 @@ Column {
     property string activityId: ""
     spacing: 0
 
-    function groupOf(st) { return st === "identified" ? "identified" : st === "unsaved" ? "unsaved" : "needs" }
+    // Rows arrive worst first (builder 2): ambiguous, unidentified, offline, unsaved, window, identified.
+    function groupOf(st) {
+        return st === "identified" ? "identified" : st === "unsaved" ? "unsaved" : st === "offline" ? "offline"
+             : st === "window" ? "window" : "needs"
+    }
     function heading(g) {
         if (g === "needs") return "Not identified · " + app.capture.needsPathCount + " · listed as seen, nothing guessed"
+        if (g === "offline") return "Server offline · identified, reopens when the server answers"
         if (g === "unsaved") return "Unsaved · cannot be restored until saved"
+        if (g === "window") return "Not a file · applications with no document to reopen"
         return "Identified · " + app.capture.identifiedCount + (app.capture.newCount > 0 ? " · " + app.capture.newCount + " new" : "")
     }
 
@@ -29,7 +35,9 @@ Column {
             readonly property bool needs: group === "needs"
             readonly property string st: model.status
             readonly property var cands: model.candidates || []
-            readonly property var health: model.status === "identified" && app.activities.healthRev >= 0
+            readonly property bool seenOnly: needs || st === "unsaved" || st === "window"   // no path: show the title
+            readonly property var health: st === "offline" ? ["bad", "Server offline"]
+                                        : st === "identified" && app.activities.healthRev >= 0
                                           ? app.activities.pathHealth(model.path) : ["", ""]
 
             Txt {
@@ -91,12 +99,12 @@ Column {
                     spacing: 1
                     Txt {
                         width: parent.width
-                        text: entry.needs || model.status === "unsaved" ? "A window titled ‘" + model.title + "’" : model.name
+                        text: entry.seenOnly ? "A window titled ‘" + model.title + "’" : model.name
                         strong: true
                     }
                     Txt {
                         width: parent.width
-                        text: entry.needs || model.status === "unsaved"
+                        text: entry.seenOnly
                               ? [model.appName, model.note].filter(function (s) { return s && s !== "" }).join(" · ")
                               : [model.path, model.monitor, model.note].filter(function (s) { return s && s !== "" }).join(" · ")
                         role: "small"
@@ -134,7 +142,7 @@ Column {
                         label: entry.health[1]
                     }
                     ActionButton {
-                        visible: entry.needs
+                        visible: entry.needs || entry.st === "window"
                         text: "Ignore"
                         kind: "ghost"
                         small: true

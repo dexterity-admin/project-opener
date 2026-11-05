@@ -32,7 +32,7 @@ Sheet {
         var ok = Window.window.safe(function () {
             var id = app.capture.startFromOpen(nameField.text, job.value)
             if (id) app.ui.go("activity", { activityId: id })
-        }, "Starting from what's open arrives with the capture update.")
+        })
         if (ok) s.close()
     }
 

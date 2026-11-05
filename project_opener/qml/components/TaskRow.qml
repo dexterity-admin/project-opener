@@ -26,7 +26,7 @@ Item {
             anchors.fill: parent
             anchors.margins: -6
             cursorShape: Qt.PointingHandCursor
-            onClicked: { try { app.tasks.setDone(model.taskId, !row.done) } catch (e) { Window.window.toast("Not available yet", "Tasks arrive with the Team Hub update.", "info") } }
+            onClicked: Window.window.safe(function () { app.tasks.setDone(model.taskId, !row.done) })
         }
         Accessible.role: Accessible.CheckBox
         Accessible.name: "Done: " + model.title

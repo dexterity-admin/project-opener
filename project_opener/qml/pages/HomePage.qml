@@ -11,6 +11,13 @@ Page {
     minimumWidth: 860
     readonly property var win: Window.window
 
+    // "Lot 7 check" -> "lot 7 check" mid-sentence; an acronym or job number stays ("PO4 test", "P12513") (ui/text.first_lower)
+    function firstLower(t) {
+        if (t.length > 1 && t[0] !== t[0].toLowerCase() && t[1] === t[1].toLowerCase() && !/[0-9]/.test(t[1]))
+            return t[0].toLowerCase() + t.slice(1)
+        return t
+    }
+
     readonly property bool resumeWaiting: app.activities.resume.activityId !== undefined && app.activities.resume.activityId !== ""
     readonly property bool wide: home.width >= 1180
     readonly property int n: rep.count
@@ -156,8 +163,8 @@ Page {
                 var f = String(home.n) + (home.rev < 0 ? "" : "")
                 if (home.centreIndex < m.count()) {
                     var r = m.get(home.centreIndex)
-                    if (r.running) f += " · " + r.name.charAt(0).toLowerCase() + r.name.slice(1) + " running"
-                    else if (r.pausedText !== "") f += " · " + r.name.charAt(0).toLowerCase() + r.name.slice(1) + " " + r.pausedText
+                    if (r.running) f += " · " + home.firstLower(r.name) + " running"
+                    else if (r.pausedText !== "") f += " · " + home.firstLower(r.name) + " " + r.pausedText
                 }
                 return f
             }

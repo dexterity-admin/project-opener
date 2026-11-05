@@ -39,7 +39,7 @@ Sheet {
             else if (s.mode === "project") app.hub.publishProject(s.picked, desc.text, forField.targets)
             else if (s.mode === "announce") app.hub.announce(annTitle.text, desc.text, level.value, s.until(expires.value))
             else app.hub.send(s.forActivity ? "activity" : "project", s.picked, forField.targets, desc.text)
-        }, "Publishing arrives with the Team Hub update.")
+        })
         if (ok) s.close()
     }
 

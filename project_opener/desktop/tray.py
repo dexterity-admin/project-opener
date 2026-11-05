@@ -213,8 +213,8 @@ class TrayController(QObject):
             elif action == "quit":
                 from PySide6.QtWidgets import QApplication
                 QApplication.quit()
-        except NotImplementedError as exc:
-            log.warning("tray: %s is not available yet (%s)", action, exc)
+        except Exception:  # noqa: BLE001
+            log.exception("tray: %s failed", action)
 
     def open_activity(self, activity_id: str) -> None:
         self.facade.ui.go("activity", {"activityId": activity_id})

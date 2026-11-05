@@ -14,6 +14,7 @@ back on the GUI thread.  Other sub-APIs reach the dispatcher through
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ from project_opener.lan.delivery import Dispatcher, make_dispatcher
 from project_opener.lan.healthboard import HealthBoard, OfficeRoot, observe
 from project_opener.quick.base import ApiBase
 from project_opener.quick.listmodel import DictListModel
+from project_opener.ui import text as T
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +41,18 @@ ROOT_ROLES = ("rootName", "status", "statusLabel", "mapping", "uses", "seenBy", 
 
 STATUS_LABELS = {"ok": "Reachable", "offline": "Server not answering", "missing": "Not found on this PC",
                  "variable": "Variable not defined on this PC"}
+
+
+SINCE_WORDS = {"offline": "down", "missing": "missing", "variable": "undefined"}
+
+
+def since_text(status: str, since_iso: str, seen_by: int) -> str:
+    """"down since 14:45 · seen by 2 PCs" for a root that is not reachable; "" for one that is."""
+    if status == "ok":
+        return ""
+    when = T.when_text(since_iso)
+    first = f"{SINCE_WORDS.get(status, 'not reachable')} since {when}" if when else ""
+    return T.join_facts(first, f"seen by {T.plural(seen_by, 'PC')}" if seen_by else "")
 
 
 def notify_text(n: M.Notify) -> str:
@@ -121,7 +135,9 @@ class WatchersApi(ApiBase):
         key = (str(hub.root or ""), st.cliq_api_base, st.cliq_bot, st.cliq_token_enc, st.cliq_user_id,
                st.notify_cliq_default)
         if self._dispatcher is None or key != self._dispatcher_key:
-            self._dispatcher = make_dispatcher(hub, st, self.data_dir, self.ctx.user)
+            # PO_CLIQ_DRY_RUN=1 (testing): Cliq messages are logged, never sent
+            self._dispatcher = make_dispatcher(hub, st, self.data_dir, self.ctx.user,
+                                               dry_run_cliq=os.environ.get("PO_CLIQ_DRY_RUN") == "1")
             self._dispatcher_key = key
         return self._dispatcher
 
@@ -324,6 +340,17 @@ class WatchersApi(ApiBase):
 
         self.app.run_async(work, done, fail)
 
+    def _uses_text(self, items: int, project_ids: list[str]) -> str:
+        """"3 items · P12513, DM-GAD": what on this PC uses the root (V4-SEAMS, builder 4 ask 4)."""
+        store = self.app.ctx.store
+        jobs = []
+        for pid in project_ids:
+            p = store.get(pid)
+            if p is not None:
+                jobs.append(p.job_number or p.name)
+        shown = ", ".join(jobs[:2]) + (f" +{len(jobs) - 2}" if len(jobs) > 2 else "")
+        return T.join_facts(T.plural(items, "item") if items else "", shown)
+
     def _root_rows(self, local: list[H.RootHealth], office: list[OfficeRoot],
                    since: dict[str, tuple[str, str]]) -> list[dict[str, Any]]:
         by_root = {o.root.lower(): o for o in office}
@@ -339,16 +366,17 @@ class WatchersApi(ApiBase):
                 if H.STATUS_RANK.get(o.status, 0) > H.STATUS_RANK.get(status, 0) or o.status != "ok":
                     status, started, label = o.status, o.since or started, o.text
             rows.append({"rootName": r.root, "status": status, "statusLabel": label, "mapping": r.mapping,
-                         "uses": r.items, "seenBy": seen_by, "since": started if status != "ok" else "",
-                         "sinceText": when_text(started) if status != "ok" else "", "jobsAffected":
-                         jobs if status != "ok" else 0})
+                         "uses": self._uses_text(r.items, r.projects), "seenBy": seen_by,
+                         "since": started if status != "ok" else "",
+                         "sinceText": since_text(status, started, seen_by) if status != "ok" else "",
+                         "jobsAffected": jobs if status != "ok" else 0})
             seen.add(r.root.lower())
         for o in office:                       # roots others see that this PC does not use
             if o.root.lower() in seen or o.status == "ok":
                 continue
             rows.append({"rootName": o.root, "status": o.status, "statusLabel": o.text, "mapping": "",
-                         "uses": 0, "seenBy": len(o.seen_by), "since": o.since, "sinceText": when_text(o.since),
-                         "jobsAffected": len(o.jobs)})
+                         "uses": "", "seenBy": len(o.seen_by), "since": o.since,
+                         "sinceText": since_text(o.status, o.since, len(o.seen_by)), "jobsAffected": len(o.jobs)})
         rows.sort(key=lambda x: (-H.STATUS_RANK.get(x["status"], 0), x["rootName"].lower()))
         return rows
 

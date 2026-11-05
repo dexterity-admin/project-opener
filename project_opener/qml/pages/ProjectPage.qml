@@ -28,7 +28,7 @@ Page {
         case "group": w.safe(function () {
             var name = app.hub.groupFromProject(page.projectId)
             if (name) w.toast("Group @" + name + " made", "Everyone holding this job is in it.", "success")
-        }, "Groups arrive with the Team Hub update."); break
+        }); break
         case "task": w.openSheet("TaskSheet", { attachKind: "project", attachId: page.projectId }); break
         case "delete": w.confirm("Delete " + proj.title + "?",
                                  "Its " + proj.itemCount + " items go from this PC; activities keep their own copies.",

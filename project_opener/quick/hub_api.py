@@ -95,6 +95,9 @@ class HubApi(ApiBase):
         self._refreshing = False
         self._last_refresh = 0.0
         self._timer: QTimer | None = None
+        # The v4 presence fields (e-mail, Cliq id) ride on every heartbeat, including the first one
+        # ctx.start writes before any hub call: without them colleagues cannot DM this user for a minute.
+        self._hub()
 
     # ------------------------------------------------------------- models
     @Property(QObject, constant=True)
@@ -157,10 +160,8 @@ class HubApi(ApiBase):
         hub.email = st.email
         hub.cliq_id = st.cliq_user_id
         hub.cliq_linked = bool(st.cliq_user_id and st.notify_cliq_default)
-        try:
-            hub.current_activity = str(getattr(self.app.capture, "runningName", "") or "")
-        except Exception:  # noqa: BLE001 - capture not built yet
-            hub.current_activity = ""
+        # (an app without a capture API, as in the hub tests, simply has no current activity)
+        hub.current_activity = str(getattr(getattr(self.app, "capture", None), "runningName", "") or "")
         return hub
 
     def _dispatcher(self) -> Any:
@@ -186,6 +187,9 @@ class HubApi(ApiBase):
     # ---------------------------------------------------------- lifecycle
     def start(self) -> None:
         self.ctx.hub_changed.connect(lambda _s: self.refresh())
+        changed = getattr(getattr(self.app, "settings", None), "changed", None)
+        if changed is not None:
+            changed.connect(lambda _key: self._hub())                    # e-mail / Cliq id / hub path edits
         self.ctx.peers_changed.connect(lambda _p: self._sync_peers())
         self._timer = QTimer(self)
         self._timer.setInterval(C.HUB_TASKS_REFRESH_S * 1000)
@@ -265,7 +269,9 @@ class HubApi(ApiBase):
         for p in self.ctx.peers:
             rec = self._users.get(p.user.lower(), {})
             doing = str(rec.get("current_activity") or "") or p.current_project
-            if p.online and p.user != self.me:
+            if p.user.lower() == self.me.lower():
+                continue                 # the Office footlight lists colleagues only (V4-SEAMS, builder 4 ask 5)
+            if p.online:
                 online += 1
             rows.append({"login": p.user, "displayName": p.label, "role": p.role, "host": p.host, "online": p.online,
                          "doing": doing, "initials": initials(p.label), "hue": hue(p.user),
@@ -433,7 +439,11 @@ class HubApi(ApiBase):
         for g in self._group_list:
             if q and q not in g.name:
                 continue
-            rows.append({"login": g.name, "displayName": f"@{g.name}", "role": "group", "online": False,
+            # the picker prints "group · 4 · <role>": the role of a group row is its member names
+            # ("Priya, Ravi, Yokesh, you"; V4-SEAMS, builder 4 ask 7)
+            members = [("you" if m.lower() == self.me.lower() else self.name_for(m)) for m in g.members]
+            members.sort(key=lambda n: (n == "you", n.lower()))
+            rows.append({"login": g.name, "displayName": f"@{g.name}", "role": ", ".join(members), "online": False,
                          "isGroup": True, "memberCount": len(g.members)})
         rows.sort(key=lambda r: (not r["online"], r["isGroup"], not r["login"].startswith(q),
                                  r["displayName"].lower()))

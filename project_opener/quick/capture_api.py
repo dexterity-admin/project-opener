@@ -54,25 +54,45 @@ def time_text(iso: str | None) -> str:
     return f"{local.day} {local.strftime('%b %H:%M')}"
 
 
-def screen_names() -> list[str]:
-    r"""``QGuiApplication.screens()`` names in order (on Windows the device name, "\\.\DISPLAY1")."""
+def screen_names() -> list[Any]:
+    r"""``QGuiApplication.screens()`` in order, as (name, native left, native top, device pixel ratio).
+
+    Qt 6 names a Windows screen by its model ("DELL E2222H"), not by its device ("\\.\DISPLAY1"), and its
+    order need not follow the device numbers, so a recorded monitor is matched by its top-left corner."""
     try:
         from PySide6.QtGui import QGuiApplication
-        return [sc.name() for sc in QGuiApplication.screens()]
+        out = []
+        for sc in QGuiApplication.screens():
+            g = sc.geometry()
+            out.append((sc.name(), g.x(), g.y(), float(sc.devicePixelRatio() or 1.0)))
+        return out
     except Exception:  # noqa: BLE001 - no GUI application (tests, tools)
         return []
 
 
-def monitor_and_place(pl: M.WindowPlacement | None, screens: list[str]) -> tuple[str, dict[str, float]]:
+def _screen_index(device: str, rect: tuple, screens: list[Any]) -> int:
+    """0-based index of the screen showing ``device`` (by name, else by the monitor rectangle's top-left
+    corner, native or scaled); -1 when none matches."""
+    for i, sc in enumerate(screens):
+        name = sc if isinstance(sc, str) else sc[0]
+        if name.lower() == device.lower():
+            return i
+    for i, sc in enumerate(screens):
+        if isinstance(sc, str) or not rect:
+            continue
+        _n, x, y, dpr = sc
+        if (x, y) == (rect[0], rect[1]) or (round(x * dpr), round(y * dpr)) == (rect[0], rect[1]):
+            return i
+    return -1
+
+
+def monitor_and_place(pl: M.WindowPlacement | None, screens: list[Any]) -> tuple[str, dict[str, float]]:
     """("monitor N", {placeX, placeY, placeW, placeH} as 0..1 of that monitor) for the live list.
     N is the 1-based index in ``screens``; the device's short name ("DISPLAY2") when it is not there."""
     if pl is None:
         return "", {}
-    low = [n.lower() for n in screens]
-    if pl.monitor.lower() in low:
-        mon = f"monitor {low.index(pl.monitor.lower()) + 1}"
-    else:
-        mon = pl.monitor.rsplit("\\", 1)[-1]
+    idx = _screen_index(pl.monitor, tuple(pl.monitor_rect or ()), screens)
+    mon = f"monitor {idx + 1}" if idx >= 0 else pl.monitor.rsplit("\\", 1)[-1]
     mr = pl.monitor_rect
     mw, mh = mr[2] - mr[0], mr[3] - mr[1]
     if mw <= 0 or mh <= 0:
@@ -251,7 +271,7 @@ class CaptureApi(ApiBase):
         """Roots ``app.watchers.roots`` reports offline (builder 1's health board); empty when unknown."""
         try:
             rows = self.app.watchers.roots.rows
-        except (AttributeError, RuntimeError, NotImplementedError):
+        except (AttributeError, RuntimeError):
             return set()
         return {str(r.get("rootName", "")).lower() for r in rows
                 if str(r.get("status", "")).lower() == "offline" and r.get("rootName")}

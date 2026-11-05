@@ -209,3 +209,38 @@ builder appends under its own heading; the owner answers or marks the item done.
    `rootName` (compared case-insensitively) and `status == "offline"`. `rootName` must be the root as
    `core.health.path_root` gives it, with a mapped letter folded into its server by `core.health.root_key`
    ("\\nas01", "U:" when unmapped, "{SERVER_ROOT}"). `CaptureApi` re-reads the model on `rootsChanged`.
+
+## Integration (5 November 2026): every item closed
+
+Each ask above, with its state after integration. "Done" names the change that closes it.
+
+| Ask | State |
+|---|---|
+| Builder 3 ask 1 (instance race) | Done (builder 4). Integration adds `app_v4.instance_key(data_dir)`: one key per `--data-dir`, so two test users run side by side; without `--data-dir` the key is `SINGLE_INSTANCE_KEY_V4` as before. |
+| Builder 3 ask 2 (pill/hotkey/Explorer settings) | Done (builder 4). |
+| Builder 3 ask 3 (`hotkeyStatus`) | Done (builder 4). |
+| Builder 3 ask 4 (`rstrip` escapes) | Done (builder 4). |
+| Builder 3 ask 5 (hover label) | Done (builder 2). |
+| Builder 3 ask 6 (`live` statuses) | Done: the pill's panel maps `window` to "Not a file" (neutral); the activity page's live list groups `offline` ("Server offline", red pill) and `window` ("Not a file", Ignore offered) instead of folding both into "Not identified". |
+| Builder 3 ask 7 (saved state) | Done (builder 2). |
+| Builder 3 ask 8 (picker click) | Done (builder 2). |
+| Builder 3 ask 9 (`pill_positions`) | Done (format as stated; written only by `desktop.pill`). |
+| Builder 1 asks 1-4 | Done (builder 4). Ask 3: the mailed bundle's link now names the activity (`projectopener://activity/<name>`), as note 6 asks for cross-PC links. |
+| Builder 1 ask 5 (helpers) | Done; used as listed. |
+| Builder 1 note 6 (contract) | Accepted; architecture note stands. |
+| Builder 4 ask 1 (Monitors panel) | Done (builder 2), then fixed at integration: Qt 6 names Windows screens by model ("DELL E2222H"), never `\\.\DISPLAYn`, and its order need not follow the device numbers, so `monitor` fell back to "DISPLAY1" on the real desktop and the panel drew nothing. `capture_api.monitor_and_place` now matches the recorded monitor by its top-left corner (native or scaled). |
+| Builder 4 asks 2-3 | Done (builder 2). The shell no longer falls back to opening items when `restoreLatest` is missing. |
+| Builder 4 ask 4 (`watchers.roots`) | Done at integration: `sinceText` = "down since 14:45 · seen by 2 PCs", `uses` = "3 items · P12513, DM-GAD" (it was a bare item count). |
+| Builder 4 ask 5 (`hub.peers` without me) | Done at integration: the signed-in user is left out; `peersOnline` counts colleagues only. |
+| Builder 4 ask 6 (task rows) | Done at integration: `doneAt` is display text ("14:02", "yesterday 09:10"), `doneBy` a display name; `all` was already ordered by the `groupBy` key. |
+| Builder 4 ask 7 (group rows' role) | Done at integration: a group row's `role` is its member names, "you" last ("Priya, Ravi, Yokesh, you"). |
+| Builder 4 asks 8-10 | Done (additive; documented above). |
+| Builder 2 ask 1 (capture settings) | Done at integration: `capture_interval_s`, `capture_browser_urls`, `capture_ignore`, `open_office_via_com` -> `app.capture.apply_settings()`; `capture_enabled` -> `setGlobal`. |
+| Builder 2 ask 2 (open and Resume) | Done at integration: every open calls `startActivity` (capture switch on or off); Resume calls `startActivity` then `restoreLatest`; with nothing captured yet it opens the activity's items instead; Dismiss clears the marker. |
+| Builder 2 ask 3 (`endActivity` on quit) | Done at integration: `app_v4` ends the running activity after the event loop on a normal quit; when Windows ends the session (`commitDataRequest`: restart, shut down, sign out) the marker stays, so the next start offers Resume. |
+| Builder 2 ask 4 (`roots` rows) | Done (builder 1). |
+
+Integration also removed every not-built fallback: `ApiBase.todo` (the last `raise NotImplementedError`),
+the `except NotImplementedError` guards in the facade, desktop (pill, tray, picker, hotkeys) and sub-APIs
+(now `except Exception` with the traceback logged, never raised into QML), and the QML's "Not available
+yet" toasts (`Main.qml safe()` now says "Could not do that" with the real error).

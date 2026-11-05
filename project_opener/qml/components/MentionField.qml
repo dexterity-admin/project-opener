@@ -16,10 +16,9 @@ Column {
     width: 400
 
     function update() {
-        var found = {}
-        try { found = app.hub.mentionAt(area.text, area.cursorPosition) } catch (e) { found = {} }
+        var found = app.hub.mentionAt(area.text, area.cursorPosition)
         if (found && found.query !== undefined) {
-            try { app.hub.setMentionQuery(found.query) } catch (e2) {}
+            app.hub.setMentionQuery(found.query)
             picker.current = 0
             picker.shown = true
         } else {

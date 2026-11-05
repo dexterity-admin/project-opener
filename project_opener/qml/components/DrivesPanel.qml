@@ -41,7 +41,7 @@ Card {
             small: true
             onClicked: {
                 app.activities.recheck()
-                try { app.watchers.recheckRoots() } catch (e) {}
+                app.watchers.recheckRoots()
             }
         }
     }

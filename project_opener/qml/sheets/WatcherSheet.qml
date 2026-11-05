@@ -34,7 +34,7 @@ Sheet {
             var params = { pattern: pattern.text || "*", activityId: s.activityId }
             if (s.watcherId === "") app.watchers.create(s.kind, target.text, s.events, params, notify)
             else app.watchers.edit(s.watcherId, { target: target.text, events: s.events, params: params, notify: notify })
-        }, "Watchers arrive with the Team Hub update.")
+        })
         if (ok) s.close()
     }
 

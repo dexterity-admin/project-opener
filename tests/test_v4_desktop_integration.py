@@ -79,12 +79,12 @@ def test_add_window_double_press_opens_the_picker_instead(facade, monkeypatch):
     assert started == [1] and facade.capture.calls == []
 
 
-def test_not_built_capture_slots_do_not_raise(facade):
+def test_failing_capture_slot_does_not_raise(facade):
     integ = DesktopIntegration(facade, None)
 
-    def todo():
-        raise NotImplementedError("CaptureApi.snapshotNow")
-    facade.capture.snapshotNow = todo
+    def broken():
+        raise RuntimeError("capture thread gone")
+    facade.capture.snapshotNow = broken
     integ.on_hotkey("snapshot")      # logged, not raised
 
 

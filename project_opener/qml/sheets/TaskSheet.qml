@@ -37,7 +37,7 @@ Sheet {
             } else {
                 app.tasks.edit(s.taskId, { title: titleField.text, owner: owner, due: s.dueDate(), note: note.text })
             }
-        }, "Tasks arrive with the Team Hub update.")
+        })
         if (ok) s.close()
     }
 

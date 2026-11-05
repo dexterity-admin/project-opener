@@ -18,7 +18,7 @@ from project_opener import constants as C
 from project_opener.core import mail
 from project_opener.core import mentions as MN
 from project_opener.core import models as M
-from project_opener.core.tasks import TaskStore, due_text, is_overdue, parse_due, sort_by_due
+from project_opener.core.tasks import TaskStore, due_text, is_overdue, parse_due, sort_by_due, when_text
 from project_opener.quick.base import ApiBase, ro
 from project_opener.quick.listmodel import DictListModel
 
@@ -201,7 +201,9 @@ class TasksApi(ApiBase):
         attach_id, attach_title = self._attach(t)
         return {"taskId": t.id, "title": t.title, "owner": t.owner, "ownerName": self.name_for(t.owner),
                 "due": t.due, "dueText": due_text(t.due), "overdue": is_overdue(t), "done": t.done,
-                "doneAt": t.done_at, "doneBy": t.done_by, "createdBy": t.created_by,
+                # display text, as the task row prints them: "done 14:02 by Yokesh" (V4-SEAMS, builder 4 ask 6)
+                "doneAt": when_text(t.done_at) if t.done_at else "",
+                "doneBy": self.name_for(t.done_by) if t.done_by else "", "createdBy": t.created_by,
                 "createdByName": self.name_for(t.created_by), "attachKind": t.link.kind if t.link else "",
                 "attachId": attach_id, "attachTitle": attach_title,
                 "jobNumber": t.link.job_number if t.link else "", "note": t.note,

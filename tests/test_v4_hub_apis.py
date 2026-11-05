@@ -110,7 +110,7 @@ def test_task_lifecycle_across_two_users(office):
     assert yokesh.tasks.mine.count() == 0
     vikram.sync()
     r = vikram.tasks.all.get(0)
-    assert r["done"] and r["doneBy"] == "yokesh"
+    assert r["done"] and r["doneBy"] == "Yokesh" and r["doneAt"]       # display text (V4-SEAMS builder 4 ask 6)
     assert done == [(tid, "yokesh")]
     assert vikram.tasks.lineFor("activity", act.id) == ""
     vikram.hub._force_refresh()

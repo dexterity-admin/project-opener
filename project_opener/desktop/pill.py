@@ -591,7 +591,7 @@ class PillController(QObject):
 
     @Slot(str)
     def act(self, action: str) -> None:
-        """The panel's buttons.  Capture calls that are not built yet are logged, never raised into QML."""
+        """The panel's buttons.  A failing capture call is logged, never raised into QML."""
         f = self.facade
         try:
             if action == "snapshot":
@@ -619,5 +619,5 @@ class PillController(QObject):
                 f.handle_command({"cmd": "start-from-open"})
             else:
                 log.warning("pill: unknown action %s", action)
-        except NotImplementedError as exc:
-            log.warning("pill: %s is not available yet (%s)", action, exc)
+        except Exception:  # noqa: BLE001
+            log.exception("pill: %s failed", action)

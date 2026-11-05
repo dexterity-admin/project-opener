@@ -1,4 +1,5 @@
-"""Application bootstrap: single instance, logging, theme, crash guard, window."""
+"""Application bootstrap.  4.0's Qt Quick shell (``app_v4``) is the default; the 3.2 widgets UI below stays
+reachable with ``--classic`` (or ``PO_UI=classic``) until 4.0 ships, then it can go."""
 from __future__ import annotations
 
 import argparse
@@ -34,13 +35,15 @@ def deep_link_key(text: str) -> str:
     return unquote(text[len(prefix):].strip("/"))
 
 
-def ui_v4_requested(args: argparse.Namespace) -> bool:
-    """The v4 shell also answers the v4-only commands (Explorer verb, Send to, --snapshot) and
-    ``PO_UI=quick``; everything else starts the 3.2 widgets UI."""
+def classic_requested(args: argparse.Namespace) -> bool:
+    """The 3.2 widgets UI: ``--classic`` or ``PO_UI=classic``.  The v4-only commands (Explorer verb, Send to,
+    --snapshot, --start-from-open) always go to the v4 shell, and ``--v4`` / ``PO_UI=quick`` win over both."""
     import os
-    if os.environ.get("PO_UI", "").lower() == "quick":
-        return True
-    return bool(args.add or args.sendto or args.snapshot or args.start_from_open)
+    if args.v4 or os.environ.get("PO_UI", "").lower() == "quick":
+        return False
+    if args.add or args.sendto or args.snapshot or args.start_from_open:
+        return False
+    return bool(args.classic or os.environ.get("PO_UI", "").lower() == "classic")
 
 
 def _forward_to_running_instance(argv: list[str]) -> bool:
@@ -77,8 +80,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--minimised", action="store_true", help="start hidden in the tray")
     parser.add_argument("--data-dir", help="use a different data folder (testing)")
     parser.add_argument("--version", action="version", version=f"{C.APP_NAME} {C.VERSION}")
-    # v4 (docs/V4-ARCHITECTURE.md section 8).  The 3.2 widgets UI stays the default until integration.
-    parser.add_argument("--v4", action="store_true", help="start the Qt Quick (4.0) shell")
+    # v4 (docs/V4-ARCHITECTURE.md section 8).  The Qt Quick shell is the default; --classic is 3.2's UI.
+    parser.add_argument("--v4", action="store_true", help=argparse.SUPPRESS)        # the default; kept for old shortcuts
+    parser.add_argument("--classic", action="store_true", help="start the 3.2 widgets UI instead (until 4.0 ships)")
     parser.add_argument("--add", nargs="+", metavar="PATH", help="add paths to the running activity (Explorer verb)")
     parser.add_argument("--sendto", nargs="+", metavar="PATH", help="Send to > Project Opener")
     parser.add_argument("--snapshot", action="store_true", help="checkpoint the running activity")
@@ -89,7 +93,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.data_dir:
         import os
         os.environ["PO_DATA_DIR"] = args.data_dir
-    if args.v4 or ui_v4_requested(args):
+    from project_opener import app_v4
+    # From source without --data-dir both UIs use the v4 development folder: the store migrates a 3.x
+    # workspace to schema 4 on load, and the installed 3.2 must keep reading its own.
+    app_v4.dev_data_dir()
+    if not classic_requested(args):
         from project_opener import app_v4
         return app_v4.main(args)
 

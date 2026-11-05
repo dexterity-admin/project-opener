@@ -297,3 +297,103 @@ def test_settings_coercion_and_side_effects(facade):
     assert api.value("cliq_token_enc") is None                  # secrets never reach QML
     api.setValue("github_token_enc", "x")
     assert facade.ctx.settings.github_token_enc == ""
+
+
+# ------------------------------------------------------------ integration
+class _CaptureSpy:
+    """Stands in for app.capture's slots the seams call, recording the order."""
+
+    def __init__(self, calls: list):
+        self.calls = calls
+
+    def startActivity(self, aid):  # noqa: N802
+        self.calls.append(("start", aid))
+
+    def restoreLatest(self, aid):  # noqa: N802
+        self.calls.append(("restore", aid))
+
+    def apply_settings(self):
+        self.calls.append(("apply",))
+
+
+def test_every_open_marks_the_activity_running(facade, seeded, monkeypatch):
+    """V4-SEAMS builder 2 ask 2: startActivity on every open, even with capture switched off."""
+    calls: list = []
+    monkeypatch.setattr(facade, "_capture", _CaptureSpy(calls))
+    facade.activities.open(seeded["act"])
+    assert ("start", seeded["act"]) in calls
+
+
+def test_resume_starts_then_restores(facade, seeded, monkeypatch):
+    snap = M.Snapshot(activity_id=seeded["act"], entries=[M.SnapshotEntry(key="path:x", status="identified")])
+    facade.snapshots.add_checkpoint(M.Checkpoint(activity_id=seeded["act"], snapshot=snap, kind="manual"))
+    facade.snapshots.mark_running(M.RunningMarker(activity_id=seeded["act"], pid=999_999))
+    facade.activities._compute_resume()
+    calls: list = []
+    monkeypatch.setattr(facade, "_capture", _CaptureSpy(calls))
+    facade.activities.resumeNow()
+    assert calls == [("start", seeded["act"]), ("restore", seeded["act"])]
+    assert facade.activities.resume == {}
+
+
+def test_resume_with_nothing_captured_opens_the_items(facade, seeded, monkeypatch):
+    facade.snapshots.mark_running(M.RunningMarker(activity_id=seeded["act"], pid=999_999))
+    facade.activities._compute_resume()
+    calls: list = []
+    monkeypatch.setattr(facade, "_capture", _CaptureSpy(calls))
+    facade.activities.resumeNow()
+    assert calls == [("start", seeded["act"])]                  # launched through the dock, no restore
+    assert facade.activities.property("dockOpen")
+
+
+def test_capture_settings_reach_the_capture_thread(facade, monkeypatch):
+    """V4-SEAMS builder 2 ask 1."""
+    calls: list = []
+    monkeypatch.setattr(facade, "_capture", _CaptureSpy(calls))
+    facade.settings.setValue("capture_interval_s", 5)
+    facade.settings.setValue("capture_browser_urls", False)
+    assert calls == [("apply",), ("apply",)]
+
+
+def test_latest_skips_an_emptied_live_snapshot(isolated_data_dir):
+    from project_opener.core.snapshots import SnapshotStore
+    st = SnapshotStore(isolated_data_dir)
+    full = M.Snapshot(activity_id="a", entries=[M.SnapshotEntry(key="path:x", status="identified")])
+    st.add_checkpoint(M.Checkpoint(activity_id="a", snapshot=full, kind="auto"))
+    st.save_live(M.Snapshot(activity_id="a", entries=[]))
+    assert len(st.latest("a").entries) == 1                     # windows closed before the crash: last full set
+    st.save_live(M.Snapshot(activity_id="a", entries=[M.SnapshotEntry(key="path:y", status="identified")]))
+    assert st.latest("a").entries[0].key == "path:y"
+
+
+def test_v4_is_the_default_and_classic_is_opt_in(monkeypatch):
+    import argparse
+
+    from project_opener.app import classic_requested
+    monkeypatch.delenv("PO_UI", raising=False)
+
+    def ns(**kw):
+        base = {"v4": False, "classic": False, "add": None, "sendto": None, "snapshot": False, "start_from_open": False}
+        return argparse.Namespace(**{**base, **kw})
+    assert classic_requested(ns()) is False
+    assert classic_requested(ns(classic=True)) is True
+    assert classic_requested(ns(classic=True, add=["x"])) is False     # Explorer's verb is always v4
+    monkeypatch.setenv("PO_UI", "classic")
+    assert classic_requested(ns()) is True
+
+
+def test_instance_key_per_data_dir(tmp_path):
+    from project_opener import constants as C
+    from project_opener.app_v4 import instance_key
+    assert instance_key(None) == C.SINGLE_INSTANCE_KEY_V4
+    a, b = instance_key(str(tmp_path / "a")), instance_key(str(tmp_path / "b"))
+    assert a != b and a.startswith(C.SINGLE_INSTANCE_KEY_V4 + ".")
+    assert instance_key(str(tmp_path / "a")) == a
+
+
+def test_task_notes_are_not_titled_as_mentions(facade):
+    seen: list = []
+    facade.toastAction.connect(lambda *a: seen.append(a[0]))
+    facade._on_mentioned("yokesh", "Yokesh finished Back-check lot 7", "projectopener://task/t1")
+    facade._on_mentioned("priya", "@vikram Revision C is in", "")
+    assert seen == ["Task from yokesh", "priya mentioned you"]

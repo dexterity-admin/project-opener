@@ -54,9 +54,3 @@ class ApiBase(QObject):
 
     def shutdown(self) -> None:
         """Before the process exits (stop threads, flush files)."""
-
-    @staticmethod
-    def todo(name: str) -> Any:
-        """Placeholder body for a slot a builder has not written yet."""
-        log.warning("not implemented yet: %s", name)
-        raise NotImplementedError(name)

@@ -17,7 +17,7 @@ Sheet {
     Component.onCompleted: { nameField.text = s.name; who.targets = s.members || []; nameField.focusInput() }
     onAccepted: {
         var n = nameField.text.trim().replace(/^@/, "").replace(/\s+/g, "-")
-        var ok = Window.window.safe(function () { app.hub.saveGroup(n, who.targets, s.color) }, "Groups arrive with the Team Hub update.")
+        var ok = Window.window.safe(function () { app.hub.saveGroup(n, who.targets, s.color) })
         if (ok) s.close()
     }
 

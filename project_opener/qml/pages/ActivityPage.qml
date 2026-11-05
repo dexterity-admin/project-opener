@@ -27,16 +27,19 @@ Page {
             var parts = [app.capture.openCount + (app.capture.openCount === 1 ? " thing open" : " things open"),
                          app.capture.identifiedCount + " identified"]
             if (app.capture.needsPathCount > 0) parts.push(app.capture.needsPathCount + " need a path")
-            if (app.capture.lastCheckpointText !== "") parts.push("checkpoint " + app.capture.lastCheckpointText)
-            if (app.capture.sinceCheckpoint > 0) parts.push(app.capture.sinceCheckpoint + " new since")
+            // as the pill's panel words it: "checkpoint 10:52, 2 new since" / "11 new since the start"
+            var since = app.capture.sinceCheckpoint
+            if (app.capture.lastCheckpointText !== "")
+                parts.push("checkpoint " + app.capture.lastCheckpointText + (since > 0 ? ", " + since + " new since" : ""))
+            else if (since > 0) parts.push(since + " new since the start")
             return "Running · " + parts.join(" · ")
         }
         return act.subtitle
     }
-    function snapshot() { Window.window.safe(function () { app.capture.snapshotNow() }, "Snapshots start when capture is ready.") }
+    function snapshot() { Window.window.safe(function () { app.capture.snapshotNow() }) }
     function addWindow() {
-        if (app.desktop) Window.window.safe(function () { app.desktop.startPicker() }, "The window picker is not ready yet.")
-        else Window.window.safe(function () { app.capture.addForegroundWindow() }, "Adding windows starts when capture is ready.")
+        if (app.desktop) Window.window.safe(function () { app.desktop.startPicker() })
+        else Window.window.safe(function () { app.capture.addForegroundWindow() })
     }
     function menuAction(a) {
         var w = Window.window

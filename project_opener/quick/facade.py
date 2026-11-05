@@ -63,10 +63,7 @@ class AppFacade(QObject):
         self._desktop: QObject | None = None
         self.ctx.toast.connect(lambda t, b, lvl: self.toast.emit(t, b, lvl))
         self.ctx.toast_action.connect(self._ctx_toast_action)
-        try:
-            self._hub.mentioned.connect(self._on_mentioned)
-        except Exception:  # noqa: BLE001
-            log.debug("hub has no mentioned signal yet")
+        self._hub.mentioned.connect(self._on_mentioned)
 
     # ------------------------------------------------------- sub-objects
     @Property(QObject, constant=True)
@@ -119,14 +116,16 @@ class AppFacade(QObject):
 
     # ----------------------------------------------------------- toasts
     def _on_mentioned(self, sender: str, text: str, link: str) -> None:
-        """A mention or a task note for me (HubApi de-duplicates across my PCs): a toast with Open."""
+        """A mention or a task note for me (HubApi de-duplicates across my PCs): a toast with Open.  A task
+        note (assigned, finished) is titled as one, not as a mention."""
         name = sender
         try:
             name = self._hub.name_for(sender) or sender
         except Exception:  # noqa: BLE001
             pass
-        self.toastAction.emit(f"{name} mentioned you", text, "info", "Open" if link else "",
-                              "link" if link else "", {"link": link})
+        from project_opener.ipc import parse_link
+        title = f"Task from {name}" if parse_link(link)[0] == "task" else f"{name} mentioned you"
+        self.toastAction.emit(title, text, "info", "Open" if link else "", "link" if link else "", {"link": link})
 
     def _ctx_toast_action(self, title: str, body: str, level: str, button: str, nav: Any) -> None:
         """3.2's toast_action carries (route, object); the QML gets a route and a plain payload."""
@@ -154,8 +153,6 @@ class AppFacade(QObject):
         for api in self._apis():
             try:
                 api.start()
-            except NotImplementedError:
-                pass
             except Exception:  # noqa: BLE001
                 log.exception("start failed: %s", type(api).__name__)
 
@@ -200,8 +197,8 @@ class AppFacade(QObject):
                 self._ui.go("home", {"sheet": "start-from-open"})
             else:
                 log.warning("unknown command %r", cmd)
-        except NotImplementedError as exc:
-            log.warning("command %s not available yet (%s)", name, exc)
+        except Exception:  # noqa: BLE001 - a bad command from a second process must not take this one down
+            log.exception("command %s failed", name)
 
     def open_link(self, kind: str, key: str) -> None:
         """``projectopener://open/<project>`` | ``activity/<activity>`` | ``task/<id>``."""

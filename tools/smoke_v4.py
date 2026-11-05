@@ -1,17 +1,25 @@
-"""Smoke test and screenshots of the Qt Quick (4.0) shell.  Owner: builder 4 (SHELL).
+r"""Smoke test and screenshots of the Qt Quick (4.0) shell: what CI runs for v4.  (tools/smoke_ui.py is the
+3.2 widgets UI's, which stays reachable with ``--classic`` until 4.0 ships.)
 
 Seeds a demo workspace through the v4 store (projects, activities drawn from several of them, a stale
 running marker so Home offers Resume, checkpoints), loads ``qml/Main.qml`` with the real facade, visits
 every route (and the sheets, the palette, the dock) in both themes at both sizes, and fails on any Qt or
 QML warning or on a page whose minimum width does not fit the 1040 x 660 window.
 
-    python tools/smoke_quick.py --out U:\\Vikram\\_Claude_Work\\temp\\b4\\shots
-    python tools/smoke_quick.py --check            (no screenshots: what the pytest smoke runs)
-    python tools/smoke_quick.py --stubs            (other builders' models left as their stubs give them)
+    python tools/smoke_v4.py --out build/screens-v4      (every page, sheet, palette and dock; what CI runs)
+    python tools/smoke_v4.py --check                     (no screenshots: what the pytest smoke runs)
+    python tools/smoke_v4.py --empty                     (live models as the app fills them: the empty states)
 
-By default the models of the other builders' sub-APIs (capture, hub, tasks, watchers) are filled with
-demo rows *when they are still empty*, so the screenshots show every block in use; ``--stubs`` keeps
-them as they are to show the empty states.  The launcher runs in dry-run mode: nothing is opened.
+By default the live models (capture, hub, tasks, watchers) are filled with demo rows *when they are still
+empty*, so the screenshots show every block in use; ``--empty`` keeps them as they are.  The launcher runs
+in dry-run mode: nothing is opened.
+
+Public captures show office-shaped paths, as tools/smoke_ui.py does for 3.2 (the repository is public):
+``PO_DEMO_ROOT`` (e.g. D:\Projects\P12513; its parent holds the other demo jobs), ``PO_DEMO_HUB`` (the
+demo hub folder, rebuilt on every run) and ``PO_DEMO_SERVER_ROOT`` (the {SERVER_ROOT} variable; unset, it
+stays undefined so the drive map shows that state).  This PC's real drive mappings are replaced by a demo
+map (Z: -> \\nas01\Project, W: -> \\nas01\Submissions); ``PO_DEMO_DRIVES=0`` turns that off.  Demo folders
+named by the environment are only added to, never emptied.
 """
 from __future__ import annotations
 
@@ -54,8 +62,11 @@ def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
     from project_opener.core.store import WorkspaceStore
     from project_opener.lan.hub import TeamHub
 
+    shutil.rmtree(data_dir, ignore_errors=True)        # our own scratch data folder
+    shutil.rmtree(hub_dir, ignore_errors=True)         # the demo hub would otherwise accumulate copies
+    if not os.environ.get("PO_DEMO_ROOT"):
+        shutil.rmtree(demo_dir, ignore_errors=True)    # the default scratch demo folder only
     for d in (data_dir, hub_dir, demo_dir):
-        shutil.rmtree(d, ignore_errors=True)
         d.mkdir(parents=True, exist_ok=True)
     (demo_dir / "P12513" / "Lot 7").mkdir(parents=True, exist_ok=True)
     (demo_dir / "ANTEO").mkdir(parents=True, exist_ok=True)
@@ -66,7 +77,8 @@ def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
         "clash": demo_dir / "Clash register.xlsx",
     }
     for f in files.values():
-        f.write_bytes(b"demo")
+        if not f.exists():
+            f.write_bytes(b"demo")
 
     s = Settings.load(data_dir)
     s.display_name, s.role, s.hub_path = "Vikram", "Piping QA", str(hub_dir)
@@ -74,7 +86,7 @@ def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
     s.update_check = False
     s.capture_enabled = False            # the smoke never starts a capture thread on this PC's windows
     s.confirm_launch_over = 8
-    s.variables = {}
+    s.variables = {"{SERVER_ROOT}": os.environ["PO_DEMO_SERVER_ROOT"]} if os.environ.get("PO_DEMO_SERVER_ROOT") else {}
     s.save()
 
     store = WorkspaceStore(data_dir)
@@ -176,12 +188,12 @@ def demo_fill(app: Any, ids: dict[str, str]) -> None:
         return False
 
     live = [
-        ("Iso checklist.pdf", r"D:\Projects\P12513\Iso checklist.pdf", "identified", "PDF-XChange", "file", 1, True, False, ""),
+        ("Iso checklist.pdf", _job(r"Iso checklist.pdf"), "identified", "PDF-XChange", "file", 1, True, False, ""),
         ("P12513-ISO-1042-C.pdf", r"\\nas01\Project\P12513\ISO\Revision C\P12513-ISO-1042-C.pdf", "identified", "PDF-XChange", "file", 2, True, False, ""),
         ("P12513-ISO-1043-C.pdf", r"\\nas01\Project\P12513\ISO\Revision C\P12513-ISO-1043-C.pdf", "identified", "PDF-XChange", "file", 2, False, True, ""),
-        ("Line list.xlsx", r"D:\Projects\P12513\Line list.xlsx", "identified", "Excel", "file", 1, True, False, ""),
-        ("Comment register.xlsx", r"D:\Projects\P12513\Lot 7\Comment register.xlsx", "identified", "Excel", "file", 1, True, False, ""),
-        ("Working folder", r"D:\Projects\P12513", "identified", "Explorer", "folder", 1, True, False, ""),
+        ("Line list.xlsx", _job(r"Line list.xlsx"), "identified", "Excel", "file", 1, True, False, ""),
+        ("Comment register.xlsx", _job(r"Lot 7\Comment register.xlsx"), "identified", "Excel", "file", 1, True, False, ""),
+        ("Working folder", _job(), "identified", "Explorer", "folder", 1, True, False, ""),
         ("FST portal · P12513", "https://portal.fst.example/P12513", "identified", "Edge", "url", 2, False, True, "active tab only"),
         ("", "", "unidentified", "AutoCAD", "", 1, False, False, "AutoCAD gave no file path; the drawing may be unsaved"),
         ("", "", "unidentified", "Navisworks", "", 2, False, False, "no document title; the window may be a start page"),
@@ -197,7 +209,7 @@ def demo_fill(app: Any, ids: dict[str, str]) -> None:
                      "identifiedBy": "office-com" if appn == "Excel" else "shell" if appn == "Explorer" else "title+items",
                      "monitor": f"monitor {mon}", "isItem": is_item, "isNew": is_new, "note": note,
                      "candidates": [r"\\nas01\Project\P12513\ISO\Revision C\P12513-ISO-1050-C.pdf",
-                                    r"D:\Projects\P12513\Superseded\P12513-ISO-1050-C.pdf"] if st == "ambiguous" else []})
+                                    _job(r"Superseded\P12513-ISO-1050-C.pdf")] if st == "ambiguous" else []})
     DEMO["live"] = rows
     if fill(cap.live, rows):
         cap._running_id, cap._running_name, cap._running_label = lot7.id, lot7.name, lot7.label
@@ -213,9 +225,9 @@ def demo_fill(app: Any, ids: dict[str, str]) -> None:
                               for c, t, k, n, i in cps]):
         cap.checkpointsChanged.emit()
     fill(cap.startCandidates, [
-        {"entryKey": "s1", "ticked": True, "name": "Iso checklist.pdf", "path": r"D:\Projects\P12513\Iso checklist.pdf", "appName": "PDF-XChange", "status": "identified", "kind": "file"},
-        {"entryKey": "s2", "ticked": True, "name": "Line list.xlsx", "path": r"D:\Projects\P12513\Line list.xlsx", "appName": "Excel", "status": "identified", "kind": "file"},
-        {"entryKey": "s3", "ticked": True, "name": "P12513", "path": r"D:\Projects\P12513", "appName": "Explorer", "status": "identified", "kind": "folder"},
+        {"entryKey": "s1", "ticked": True, "name": "Iso checklist.pdf", "path": _job(r"Iso checklist.pdf"), "appName": "PDF-XChange", "status": "identified", "kind": "file"},
+        {"entryKey": "s2", "ticked": True, "name": "Line list.xlsx", "path": _job(r"Line list.xlsx"), "appName": "Excel", "status": "identified", "kind": "file"},
+        {"entryKey": "s3", "ticked": True, "name": "P12513", "path": _job(), "appName": "Explorer", "status": "identified", "kind": "folder"},
         {"entryKey": "s4", "ticked": False, "name": "Zoho Cliq", "path": "", "appName": "Cliq", "status": "unidentified", "kind": "", "note": "a chat window; it has no address to keep"},
         {"entryKey": "s5", "ticked": False, "name": "Inbox - Outlook", "path": "", "appName": "Outlook", "status": "unidentified", "kind": ""},
     ])
@@ -373,7 +385,12 @@ def _install_handler(verbose: bool) -> None:
 
 
 T0 = time.monotonic()
-DEMO: dict[str, Any] = {}
+DEMO: dict[str, Any] = {"job": r"D:\Projects\P12513"}
+
+
+def _job(rel: str = "") -> str:
+    """A path under the demo job folder (PO_DEMO_ROOT or the scratch demo), as the seeded items have it."""
+    return str(Path(DEMO["job"]) / rel) if rel else str(DEMO["job"])
 
 
 def trace(what: str) -> None:
@@ -424,7 +441,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(WORK / "shots"))
     ap.add_argument("--check", action="store_true", help="no screenshots: load every page, fail on warnings")
-    ap.add_argument("--stubs", action="store_true", help="leave the other builders' models as their stubs give them")
+    ap.add_argument("--empty", "--stubs", dest="stubs", action="store_true",
+                    help="leave the live models as the app fills them (the empty states)")
     ap.add_argument("--themes", default="dark,light")
     ap.add_argument("--sizes", default="1400x860,1040x660")
     ap.add_argument("--routes", default=",".join(ROUTES))
@@ -436,6 +454,11 @@ def main() -> int:
 
     work = Path(args.work)
     data_dir, hub_dir, demo_dir = work / "smoke-data", work / "smoke-hub", work / "demo"
+    if os.environ.get("PO_DEMO_ROOT"):
+        demo_dir = Path(os.environ["PO_DEMO_ROOT"]).parent       # D:\Projects\P12513 -> D:\Projects
+    if os.environ.get("PO_DEMO_HUB"):
+        hub_dir = Path(os.environ["PO_DEMO_HUB"])
+    DEMO["job"] = str(demo_dir / "P12513")
     os.environ["PO_DATA_DIR"] = str(data_dir)
     os.environ.setdefault("QML_DISK_CACHE_PATH", str(work / "qmlcache"))
     _install_handler(args.verbose)
@@ -450,6 +473,10 @@ def main() -> int:
     QQuickStyle.setStyle("Basic")
     from project_opener import constants as C
     C.legacy_v1_dir = lambda: work / "no-legacy"          # type: ignore[assignment]
+    if os.environ.get("PO_DEMO_DRIVES", "1") != "0":
+        # captures must never show this PC's real mappings (office servers): the demo map stands in
+        from project_opener.core import winutil
+        winutil.mapped_drives = lambda: {"Z:": r"\\nas01\Project", "W:": r"\\nas01\Submissions"}
     ids = seed(data_dir, hub_dir, demo_dir)
     trace('ids = seed(data_dir, hub_dir, demo_dir)')
     fast_offline_shares()
@@ -620,7 +647,7 @@ def SHEETS(ids: dict[str, str]) -> list[tuple[str, dict[str, Any]]]:  # noqa: N8
         ("TaskSheet", {"attachKind": "activity", "attachId": ids["lot7"]}),
         ("WatcherSheet", {"activityId": ids["lot7"]}),
         ("StartFromOpenSheet", {}),
-        ("AddChooserSheet", {"paths": [r"D:\Projects\P12513\Lot 8\Comment register.xlsx"]}),
+        ("AddChooserSheet", {"paths": [_job(r"Lot 8\Comment register.xlsx")]}),
         ("AttachPathSheet", {"entryKey": "k7", "windowTitle": "Drawing1 - AutoCAD", "appName": "AutoCAD"}),
     ]
 

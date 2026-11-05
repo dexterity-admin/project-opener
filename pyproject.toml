@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pyinstaller>=6.6", "ruff>=0.5"]
+dev = ["pytest>=8", "pytest-timeout>=2.3", "pyinstaller>=6.6", "ruff>=0.5"]
 
 [project.scripts]
 project-opener = "project_opener.app:main"
@@ -33,6 +33,9 @@ project_opener = ["resources/icon/*", "resources/fonts/*", "qml/**/*.qml", "qml/
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# Never wait on a hung test: every test fails after 180 s (thread method works on Windows).
+timeout = 180
+timeout_method = "thread"
 
 [tool.ruff]
 line-length = 120

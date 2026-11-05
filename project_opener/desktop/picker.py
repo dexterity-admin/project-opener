@@ -288,8 +288,8 @@ class WindowPicker(QObject):
         if hwnd:
             try:
                 self.facade.capture.addWindow(hwnd)
-            except NotImplementedError:
-                log.warning("picker: app.capture.addWindow is not available yet")
+            except Exception:  # noqa: BLE001
+                log.exception("picker: addWindow failed")
         self.finished.emit(hwnd)
 
     def close(self) -> None:
@@ -341,8 +341,9 @@ class WindowPicker(QObject):
             if changed and hwnd and hwnd not in self._labels:
                 try:
                     self.facade.capture.identifyForPicker(hwnd)
-                except NotImplementedError:
-                    self._labels[hwnd] = (False, f"{window_title(hwnd) or 'This window'} · cannot identify yet")
+                except Exception:  # noqa: BLE001
+                    log.exception("picker: identifyForPicker failed")
+                    self._labels[hwnd] = (False, f"{window_title(hwnd) or 'This window'} · cannot identify")
             self.hovered.emit(hwnd, list(rect))
             self.frameChanged.emit()
 

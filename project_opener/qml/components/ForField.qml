@@ -71,7 +71,7 @@ Column {
                 background: Item {}
                 Accessible.name: f.label
                 onTextEdited: {
-                    try { app.hub.setMentionQuery(text.replace(/^@/, "")) } catch (e) {}
+                    app.hub.setMentionQuery(text.replace(/^@/, ""))
                     picker.current = 0
                     picker.shown = text.length > 0 || activeFocus
                 }

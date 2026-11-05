@@ -36,6 +36,7 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
       tag_exists: ${{ steps.meta.outputs.tag_exists }}
+      is_dev: ${{ steps.meta.outputs.is_dev }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,15 +61,28 @@ jobs:
           git fetch --tags --quiet
           $exists = if (git tag -l "v$v") { "true" } else { "false" }
           "tag_exists=$exists" >> $env:GITHUB_OUTPUT
-          Write-Host "version $v (tag exists: $exists)"
+          # a development version (4.0.0.dev0, 4.0.0rc1 ...) is built and tested but never released
+          $dev = if ($v -match '(dev|a|b|rc)\d*$') { "true" } else { "false" }
+          "is_dev=$dev" >> $env:GITHUB_OUTPUT
+          Write-Host "version $v (tag exists: $exists, development build: $dev)"
 
       - name: Lint
         run: ruff check project_opener tests tools
 
       - name: Tests
-        run: python -m pytest tests -q
+        # pyproject sets a 180 s limit per test (pytest-timeout, thread method): a hung test fails, never stalls
+        run: python -m pytest tests -q --timeout 180 --durations=10
 
-      - name: UI smoke test (offscreen)
+      - name: v4 smoke test (offscreen; every page, sheet, palette and dock in both themes)
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PO_SMOKE_ROOT: ${{ runner.temp }}\po-smoke-v4
+        run: |
+          python tools/smoke_v4.py --out build/screens-v4
+          if ($LASTEXITCODE -ne 0) { throw "v4 smoke failed" }
+
+      - name: Classic (3.2) UI smoke test (offscreen; --classic until 4.0 ships)
         shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
@@ -88,7 +102,13 @@ jobs:
           # GUI-subsystem exe: PowerShell does not wait for it with '&', so use Start-Process.
           $p = Start-Process -FilePath dist\ProjectOpener\ProjectOpener.exe -ArgumentList "--version" -Wait -PassThru -NoNewWindow
           if ($p.ExitCode -ne 0) { throw "frozen exe failed with exit code $($p.ExitCode)" }
-          Write-Host "frozen exe exited 0"
+          # the v4 shell itself: start offscreen with a scratch data folder, quit after 8 s
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $data = Join-Path $env:RUNNER_TEMP "po-frozen-data"
+          $p = Start-Process -FilePath dist\ProjectOpener\ProjectOpener.exe -ArgumentList "--data-dir","`"$data`"","--minimised","--quit-after","8000" -PassThru -NoNewWindow
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "frozen v4 shell did not quit within 120 s" }
+          if ($p.ExitCode -ne 0) { throw "frozen v4 shell exited with $($p.ExitCode)" }
+          Write-Host "frozen exe exited 0 (--version and the v4 shell)"
 
       - name: Inno Setup installer
         shell: pwsh
@@ -125,13 +145,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ui-screenshots-${{ github.sha }}
-          path: build/screens/*.png
+          path: |
+            build/screens-v4/*.png
+            build/screens/*.png
           retention-days: 14
 
   release:
     needs: build
     if: >-
-      github.event_name != 'pull_request' &&
+      github.event_name != 'pull_request' && needs.build.outputs.is_dev != 'true' &&
       (startsWith(github.ref, 'refs/tags/v') ||
        (github.ref == 'refs/heads/main' && needs.build.outputs.tag_exists == 'false'))
     runs-on: ubuntu-latest

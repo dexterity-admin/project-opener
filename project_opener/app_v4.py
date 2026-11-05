@@ -33,7 +33,7 @@ def qml_dir() -> Path:
     return C.bundle_dir() / "qml" if C.is_frozen() else QML_DIR
 
 
-def _dev_data_dir() -> None:
+def dev_data_dir() -> None:
     """Point PO_DATA_DIR at a v4 development copy unless a data dir was given or the app is frozen."""
     if C.is_frozen() or os.environ.get("PO_DATA_DIR"):
         return
@@ -45,6 +45,17 @@ def _dev_data_dir() -> None:
             if (real / name).exists():
                 shutil.copy2(real / name, dev / name)
     os.environ["PO_DATA_DIR"] = str(dev)
+
+
+def instance_key(data_dir: str | None) -> str:
+    """The single-instance key: ``SINGLE_INSTANCE_KEY_V4``, or one per data folder when ``--data-dir`` names
+    one, so two test users can run side by side on one PC (Explorer's verb, which passes no --data-dir,
+    reaches the default instance only)."""
+    if not data_dir:
+        return C.SINGLE_INSTANCE_KEY_V4
+    import hashlib
+    norm = os.path.normcase(os.path.abspath(data_dir)).encode("utf-8")
+    return f"{C.SINGLE_INSTANCE_KEY_V4}.{hashlib.sha1(norm).hexdigest()[:10]}"
 
 
 def _install_message_handler() -> None:
@@ -91,7 +102,7 @@ def _choose_backend(facade: Any, app: Any) -> None:
 def main(args: Any) -> int:
     from project_opener.core.logging_setup import setup_logging
 
-    _dev_data_dir()
+    dev_data_dir()
     log_path = setup_logging()
     log.info("%s %s starting the Qt Quick shell (frozen=%s)", C.APP_NAME, C.VERSION, C.is_frozen())
     _install_message_handler()
@@ -113,16 +124,17 @@ def main(args: Any) -> int:
     app.setQuitOnLastWindowClosed(False)
 
     cmds = ipc.commands_from_args(args)
-    if ipc.forward(C.SINGLE_INSTANCE_KEY_V4, cmds):
+    key = instance_key(getattr(args, "data_dir", None))
+    if ipc.forward(key, cmds):
         log.info("another v4 instance is running; forwarded %d command(s) and exiting", len(cmds))
         return 0
     # N files chosen in Explorer start N processes at once: one claims the instance, the rest wait for its
     # socket and forward (V4-SEAMS, builder 3 ask 1).
-    if not ipc.claim_instance(C.SINGLE_INSTANCE_KEY_V4):
-        ok = ipc.forward_retry(C.SINGLE_INSTANCE_KEY_V4, cmds)
+    if not ipc.claim_instance(key):
+        ok = ipc.forward_retry(key, cmds)
         log.info("another v4 instance is starting; forwarded=%s", ok)
         return 0 if ok else 1
-    server = ipc.InstanceServer(C.SINGLE_INSTANCE_KEY_V4)
+    server = ipc.InstanceServer(key)
     server.listen()
 
     from project_opener.ui import theme
@@ -168,7 +180,22 @@ def main(args: Any) -> int:
     if args.quit_after:
         QTimer.singleShot(int(args.quit_after), app.quit)
 
+    # Windows ending the session (restart, shut down, sign out) closes every window the activity had open:
+    # its marker stays, so the next start offers Resume.  A Quit the user chose ends the activity.
+    session_ending = [False]
+
+    def on_commit_data(_manager: Any) -> None:
+        session_ending[0] = True
+        log.info("Windows is ending the session; the running activity stays resumable")
+
+    app.commitDataRequest.connect(on_commit_data)
+
     rc = app.exec()
+    if not session_ending[0]:
+        try:
+            facade.capture.endActivity()        # final "close" checkpoint, marker cleared (V4-SEAMS builder 2 ask 3)
+        except Exception:  # noqa: BLE001
+            log.exception("ending the running activity at quit failed")
     desktop.shutdown()
     facade.shutdown()
     server.close()

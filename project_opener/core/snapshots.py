@@ -78,12 +78,19 @@ class SnapshotStore:
         return next((c for c in self.checkpoints(activity_id) if c.id == checkpoint_id), None)
 
     def latest(self, activity_id: str) -> M.Snapshot | None:
-        """The live snapshot, else the newest checkpoint's."""
+        """What to resume: the live snapshot when it holds anything, else the newest checkpoint that does.
+
+        A live snapshot with no entries means the windows were closed before the app stopped (by hand, or by
+        Windows closing applications one by one); "nothing open" is not a state to restore, so the last
+        moment that held something wins.  With nothing anywhere, the empty live snapshot (or None) comes back."""
         live = self.live(activity_id)
-        if live is not None:
+        if live is not None and live.entries:
             return live
         cps = self.checkpoints(activity_id)
-        return cps[0].snapshot if cps else None
+        for cp in cps:
+            if cp.snapshot is not None and cp.snapshot.entries:
+                return cp.snapshot
+        return live if live is not None else (cps[0].snapshot if cps else None)
 
     def forget(self, activity_id: str) -> None:
         with self._lock:

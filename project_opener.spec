@@ -55,7 +55,9 @@ a = Analysis(
         "PySide6.QtRemoteObjects", "PySide6.QtScxml", "PySide6.QtStateMachine", "PySide6.QtTextToSpeech",
         "PySide6.QtWebSockets", "PySide6.QtWebChannel", "PySide6.QtHttpServer", "PySide6.QtGraphs",
         "PySide6.QtSpatialAudio", "PySide6.QtDesigner", "PySide6.QtUiTools", "PySide6.QtHelp", "PySide6.QtSql",
-        "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "PySide6.QtPrintSupport", "PySide6.QtXml",
+        # not PySide6.QtOpenGL: PySide6.QtQuick imports it (the frozen shell failed with "libshiboken: could not
+        # import module 'PySide6.QtOpenGL'" when it was excluded)
+        "PySide6.QtOpenGLWidgets", "PySide6.QtPrintSupport", "PySide6.QtXml",
         "PySide6.QtConcurrent", "PySide6.QtDBus", "PySide6.QtAsyncio",
         "tkinter", "unittest", "pydoc", "doctest", "xmlrpc", "pytest",
     ],

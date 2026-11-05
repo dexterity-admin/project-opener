@@ -35,7 +35,7 @@ New (N) and changed (C) modules. Unlisted 3.2 modules are kept unchanged (sectio
 project_opener/
 ├── __init__.py            C  __version__ = "4.0.0.dev0"
 ├── constants.py           C  SCHEMA_VERSION 4, v4 file names, capture cadence, hotkey ids, IPC key/protocol
-├── app.py                 C  CLI: --v4, --add, --sendto, --snapshot, --start-from-open; routes to app_v4
+├── app.py                 C  CLI: v4 by default; --classic (3.2), --add, --sendto, --snapshot, --start-from-open
 ├── app_v4.py              N  bootstrap of the Qt Quick shell (message handler, QApplication, IPC, engine, desktop)
 ├── ipc.py                 N  single-instance socket protocol 2 (JSON lines), deep-link parsing, forward/listen
 ├── core/
@@ -95,7 +95,7 @@ project_opener/
 │   ├── sheets/               (4) LaunchDock, Confirm, ActivityEditor, StartFromOpen, AddChooser, Publish,
 │   │                             Task, Watcher, AttachPath
 │   └── desktop/              (3) Pill, PillPanel, PickerOverlay
-└── ui/                       3.2 widgets UI, the default until integration; context.py and text.py change (4)
+└── ui/                       3.2 widgets UI, behind --classic until 4.0 ships; context.py and text.py change (4)
 ```
 
 ## 3. Data model and file formats
@@ -423,18 +423,18 @@ the context properties `app` and `pill`; it reads `app.capture` for everything i
 
 | Flag | Meaning |
 |---|---|
-| (none) | 3.2 widgets UI (until integration) |
-| `--v4` | the Qt Quick shell. From source, without `--data-dir`, it uses `%APPDATA%\DexterityDesign\ProjectOpener-v4dev` (seeded once from the real folder) so development never migrates the workspace an installed 3.2 uses |
+| (none) | the Qt Quick shell (since integration). From source, without `--data-dir`, it uses `%APPDATA%\DexterityDesign\ProjectOpener-v4dev` (seeded once from the real folder) so development never migrates the workspace an installed 3.2 uses; `--classic` from source uses the same folder |
+| `--classic` | the 3.2 widgets UI, until 4.0 ships (then it can be removed); `--v4` is kept as a no-op for old shortcuts |
 | `--add PATH...` | add to the running activity (Explorer verb); implies v4 |
 | `--sendto PATH...` | Send to > Project Opener; implies v4 |
 | `--snapshot` | checkpoint the running activity; implies v4 |
 | `--start-from-open` | open the Start-from-what's-open sheet; implies v4 |
-| `--minimised`, `--data-dir`, `--version` | as 3.2 |
+| `--minimised`, `--data-dir`, `--version` | as 3.2; `--data-dir` also gives the instance its own single-instance key (two test users on one PC) |
 | `projectopener://open/<project>` | 3.x project link (kept) |
 | `projectopener://activity/<id or name>` | open the activity's page |
 | `projectopener://task/<id>` | the hub's Tasks tab at that task |
 | `--quit-after MS` | hidden; quit after MS (smoke tests) |
-| env `PO_UI=quick` | same as `--v4` |
+| env `PO_UI=quick` / `PO_UI=classic` | force the shell / the 3.2 UI; `PO_CLIQ_DRY_RUN=1` logs Cliq messages instead of sending them (testing) |
 
 ### 8.2 Single-instance socket (`ipc.py`)
 
@@ -571,7 +571,7 @@ corrupt-file recovery and 1.x/2.x migration.
 | `tests/test_v4_core_*.py`, `tests/test_v4_hub_*.py` | 1 | new |
 | `tests/test_v4_capture_*.py` | 2 | new (pure parts: diff, titles, windows, identify keys) |
 | `tests/test_v4_desktop_*.py` | 3 | new (ipc batching, hotkey parsing, snapping, shellext against a fake registry root) |
-| `tests/test_v4_quick_*.py`, `tools/smoke_quick.py` | 4 | new (facade with a seeded store; QML loads offscreen with no warnings; minimum window) |
+| `tests/test_v4_quick_*.py`, `tools/smoke_v4.py` | 4 | new (facade with a seeded store; QML loads offscreen with no warnings; minimum window) |
 | `docs/V4-ARCHITECTURE.md` | A | changes by agreement |
 | `docs/ARCHITECTURE.md`, `DATA-FORMAT.md`, `LAN-HUB.md` | 1 | rewrite for 4.0 at integration |
 | `docs/DESIGN.md` | 4 | v4 section (Stage, motion levels) |

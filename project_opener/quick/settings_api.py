@@ -123,8 +123,11 @@ class SettingsApi(ApiBase):
             return
         s.save()
         if key == "capture_enabled":
-            self._call("capture", "setGlobal", bool(value))
+            self._call("capture", "setGlobal", bool(value))      # saves the setting and re-evaluates paused
             self.app.activities.refresh()
+        elif key in CAPTURE_KEYS:
+            # interval, browser URLs, ignore rules, Office via COM -> the capture thread (V4-SEAMS, builder 2 ask 1)
+            self._call("capture", "apply_settings")
         elif key in HOTKEY_KEYS:
             self._call("desktop", "applyHotkeys")
         elif key in SHELL_KEYS:
@@ -143,8 +146,6 @@ class SettingsApi(ApiBase):
             return
         try:
             getattr(obj, slot)(*args)
-        except NotImplementedError:
-            log.info("%s.%s not built yet", api, slot)
         except Exception:  # noqa: BLE001
             log.exception("%s.%s failed", api, slot)
 
@@ -230,8 +231,7 @@ class SettingsApi(ApiBase):
             self.cliqTested.emit(ok, msg)
 
         def fail(exc: Exception) -> None:
-            msg = "The Cliq client is not built yet." if isinstance(exc, NotImplementedError) else str(exc)
-            self.cliqTested.emit(False, msg)
+            self.cliqTested.emit(False, str(exc) or type(exc).__name__)
 
         self.app.run_async(work, done, fail)
 
