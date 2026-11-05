@@ -28,6 +28,7 @@ Card {
     }
     function windowsOn(n) {
         var m = app.capture.live, out = []
+        if (!panel.running) return out          // the live rows are the running activity's, not this page's
         for (var i = 0; i < m.count(); i++) {
             var r = m.get(i)
             if (r.monitor === "monitor " + n) out.push(r)

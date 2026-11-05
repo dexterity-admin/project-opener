@@ -103,6 +103,9 @@ class TrayController(QObject):
         cap = getattr(self.facade, "capture", None)
         if cap is not None and hasattr(cap, "stateChanged"):
             cap.stateChanged.connect(self.refresh)
+        acts = getattr(self.facade, "activities", None)
+        if acts is not None and hasattr(acts, "launchChanged"):
+            acts.launchChanged.connect(self.refresh)
         self.rebuild_menu()
         self.refresh()
         self.icon.show()
@@ -128,7 +131,19 @@ class TrayController(QObject):
             status = self.desktop.property("hotkeyStatus") or {}
         return {k: str(v.get("keys", "")) for k, v in status.items() if isinstance(v, dict) and v.get("ok")}
 
+    def _launching(self) -> bool:
+        acts = getattr(self.facade, "activities", None)
+        try:
+            return bool(acts is not None and acts.property("launching"))
+        except RuntimeError:
+            return False
+
     def refresh(self) -> None:
+        """The dot and the tooltip.  Each change is a synchronous Shell_NotifyIcon call into Explorer, which
+        is busy opening the dock's folders while a launch runs (a 0.5-1 s stall measured mid-dock), so
+        nothing changes while launching, and only a real change reaches the shell."""
+        if self._launching():
+            return                                  # launchChanged refreshes when the launch is done
         running = bool(self._cap("runningId", ""))
         color = str(self._cap("runningColor", "") or "") if running else ""
         if running and not color:
@@ -136,7 +151,10 @@ class TrayController(QObject):
         self.set_activity_dot(color)
         if self.icon is not None:
             label = str(self._cap("runningLabel", "") or self._cap("runningName", ""))
-            self.icon.setToolTip(f"{C.APP_NAME} · {label}" if running and label else C.APP_NAME)
+            tip = f"{C.APP_NAME} · {label}" if running and label else C.APP_NAME
+            if tip != getattr(self, "_tip", None):
+                self._tip = tip
+                self.icon.setToolTip(tip)
 
     def rebuild_menu(self) -> None:
         if self.menu is None:

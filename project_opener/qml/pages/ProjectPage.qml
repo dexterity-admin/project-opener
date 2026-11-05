@@ -81,9 +81,11 @@ Page {
 
     LaunchDock { width: page.contentW; forId: page.projectId }
 
-    // tags and the meta line share the title's left edge
+    // tags and the meta line share the title's left edge: indented by PageHeader's 40 px icon tile and its
+    // 14 px gap (DESIGN.md "Project page"; juror D3)
     Row {
         visible: page.known
+        x: page.known && proj.icon ? 40 + 14 : 0
         spacing: 12
         Row {
             spacing: 6
@@ -203,13 +205,13 @@ Page {
                     SectionHeading { width: parent.width; title: "Notes" }
                     Txt {
                         width: parent.width
-                        text: page.known && proj.notes !== "" ? proj.notes : "No notes. Rulings, contacts and the share's quirks belong here."
+                        text: page.known && proj.notes !== "" ? proj.notes : "No notes."
                         tone: page.known && proj.notes !== "" ? "ink" : "muted"
                         wrapMode: Text.Wrap
                         elide: Text.ElideNone
                     }
                     ActionButton {
-                        text: "Edit notes"
+                        text: page.known && proj.notes !== "" ? "Edit notes" : "Add notes"
                         icon: "pencil-simple"
                         kind: "ghost"
                         small: true

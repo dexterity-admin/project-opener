@@ -2,8 +2,8 @@ import QtQuick
 import QtQuick.Controls.Basic as C
 
 // The @ picker (brief 3.2): people and groups from app.hub.mentionCandidates (users/*.json and groups.json;
-// builder 1 narrows it with setMentionQuery), each with display name, login, role and the online dot; a group
-// shows its members.  A popup in the window's overlay (never clipped by a sheet) placed under the caret by its
+// builder 1 narrows it with setMentionQuery; never the user themself), each with display name, role and the
+// online dot (the login in a tooltip: DESIGN.md "People"); a group shows its members.  A popup in the window's overlay (never clipped by a sheet) placed under the caret by its
 // host; it never takes the focus: Up/Down/Enter arrive from the host's field.  Hosts: MentionField, ForField.
 C.Popup {
     id: pk
@@ -28,7 +28,7 @@ C.Popup {
     }
 
     background: Item {
-        Rectangle { x: -2; y: 6; width: parent.width + 4; height: parent.height + 2; radius: 14; color: pk.tk.shadow_soft }
+        Rectangle { visible: app.ui.dark; x: -2; y: 6; width: parent.width + 4; height: parent.height + 2; radius: 14; color: pk.tk.shadow_soft }
         Rectangle { anchors.fill: parent; radius: 12; color: pk.tk.surface; border.width: 1; border.color: pk.tk.border_strong }
     }
     contentItem: Column {
@@ -65,11 +65,12 @@ C.Popup {
                     anchors.rightMargin: 10
                     anchors.verticalCenter: parent.verticalCenter
                     text: model.isGroup ? "group · " + model.memberCount + " · " + model.role
-                                        : model.login + " · " + model.role + " · " + (model.online ? "online" : "offline")
+                                        : [model.role, model.online ? "online" : "offline"].filter(function (x) { return x && x !== "" }).join(" · ")
                     role: "small"
                     tone: "faint"
                 }
                 MouseArea { id: m; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: pk.chosen(model.login) }
+                Tip { visible: m.containsMouse && !model.isGroup; text: "@" + model.login }
             }
         }
         Txt { visible: rep.count === 0; x: 8; height: 32; text: "Nobody by that name"; tone: "muted" }

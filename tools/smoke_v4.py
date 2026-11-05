@@ -1,18 +1,34 @@
 r"""Smoke test and screenshots of the Qt Quick (4.0) shell: what CI runs for v4.  (tools/smoke_ui.py is the
 3.2 widgets UI's, which stays reachable with ``--classic`` until 4.0 ships.)
 
-Seeds a demo workspace through the v4 store (projects, activities drawn from several of them, a stale
-running marker so Home offers Resume, checkpoints), loads ``qml/Main.qml`` with the real facade, visits
-every route (and the sheets, the palette, the dock) in both themes at both sizes, and fails on any Qt or
-QML warning or on a page whose minimum width does not fit the 1040 x 660 window.
+Seeds a demo workspace through the v4 store and the hub, loads ``qml/Main.qml`` with the real facade, visits
+every route (each Team Hub tab, the sheets, the palette, the dock) in both themes at both sizes, then the long
+pages at full height, and fails on any Qt or QML warning or on a page whose minimum width does not fit the
+1040 x 660 window (or whose rows pass the page's right edge).
 
     python tools/smoke_v4.py --out build/screens-v4      (every page, sheet, palette and dock; what CI runs)
     python tools/smoke_v4.py --check                     (no screenshots: what the pytest smoke runs)
     python tools/smoke_v4.py --empty                     (live models as the app fills them: the empty states)
+    python tools/smoke_v4.py --first-run                 (a true empty workspace: no projects, no hub)
 
-By default the live models (capture, hub, tasks, watchers) are filled with demo rows *when they are still
-empty*, so the screenshots show every block in use; ``--empty`` keeps them as they are.  The launcher runs
-in dry-run mode: nothing is opened.
+Passes (all on by default; the pytest smoke splits them across tests):
+
+* the routes at ``--sizes`` (1400x860, 1040x660): ``home``, ``activity`` (Lot 7, waiting to be resumed),
+  ``activity-running`` (the activity that runs now), ``activities``, ``projects``, ``project``,
+  ``hub-<tab>`` for every Team Hub tab, ``updates``, ``settings``; then the sheets, the palette, the dock and
+  a toast at each size.
+* the tall pass at ``--tall-size`` (1400x3400; "" turns it off): Settings (each tab when the page has tabs),
+  Home, both activity pages, Updates and every hub tab at full height.  The layout checks apply.
+* ``--first-run``: a fresh data folder with no projects, activities, hub or running markers; every route.
+
+The demo story is one coherent set of facts, seeded as real objects so the app's own code computes the
+numbers (``STORY`` holds the times): Lot 7 check ran until the power cut (last checkpoint at 14:32, six
+things, all identified, four ticked to reopen) and waits to be resumed; nas01 has been down since 14:40,
+seen by 3 PCs; after the restart Mangala GAD review runs now (its files are on Z:, so they show offline).
+The Revision C watcher on Lot 7 fired "2 new sheets in Revision C" at 10:41; two open tasks hang on Lot 7.
+The offscreen platform gets two 1920 x 1080 screens, as the windows in the snapshots were seen on two.
+``--empty`` keeps the stored objects but leaves the live models as the app fills them.  The launcher runs in
+dry-run mode: nothing is opened, and the dock's open never starts capture on this PC's windows.
 
 Public captures show office-shaped paths, as tools/smoke_ui.py does for 3.2 (the repository is public):
 ``PO_DEMO_ROOT`` (e.g. D:\Projects\P12513; its parent holds the other demo jobs), ``PO_DEMO_HUB`` (the
@@ -24,17 +40,19 @@ named by the environment are only added to, never emptied.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import sys
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-if os.environ.get("QT_QPA_PLATFORM") == "offscreen" and sys.platform == "win32":
+if os.environ.get("QT_QPA_PLATFORM", "").startswith("offscreen") and sys.platform == "win32":
     fonts = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Fonts"
     if fonts.is_dir():
         os.environ.setdefault("QT_QPA_FONTDIR", str(fonts))
@@ -45,21 +63,95 @@ os.environ.setdefault("QSG_USE_SIMPLE_ANIMATION_DRIVER", "1")
 
 WORK = Path(os.environ.get("PO_SMOKE_ROOT", r"U:\Vikram\_Claude_Work\temp\b4"))
 SIZES = ((1400, 860), (1040, 660))
-ROUTES = ("home", "activity", "activities", "projects", "project", "hub", "updates", "settings")
+HUB_TABS = ("published", "inbox", "tasks", "announcements", "activity", "groups")
+ROUTES = ("home", "activity", "activity-running", "activities", "projects", "project",
+          *(f"hub-{t}" for t in HUB_TABS), "updates", "settings")
+TALL_ROUTES = ("settings", "home", "activity", "activity-running", "updates", *(f"hub-{t}" for t in HUB_TABS))
+FIRST_RUN_ROUTES = ("home", "activity", "activities", "projects", "project", "hub", "updates", "settings")
 MESSAGES: list[str] = []
 STEP = ["start"]                       # what the run was doing when a warning came (printed with it)
 # Messages that are not about our QML (the offscreen platform's own notes).
 BENIGN = ("propagateSizeHints", "QFont::setPointSize", "Populating font family aliases",
           "OpenType support missing", "This plugin does not support")
 
+# One story, one set of times (local, today).  Everything that prints a time reads it from here.
+STORY = {
+    "lot7_opened": "09:12",            # Lot 7 check opened (its session start)
+    "cp_early": "11:20",               # Lot 7 checkpoints kept by the watcher
+    "cp_mid": "13:05",
+    "rev_c_hit": "10:41",              # the Revision C watcher: 2 new sheets
+    "iso_1043_seen": "10:45",          # one of them opened in PDF-XChange
+    "resume": "14:32",                 # Lot 7's last checkpoint before the power cut
+    "drive_down": "14:40",             # nas01 down (the power cut), seen by 3 PCs
+    "gad_started": "15:05",            # after the restart: Mangala GAD review runs
+    "gad_cp": "15:20",
+    "gad_live": "15:24",
+}
+# Two monitors side by side (the offscreen platform is given the same two; see offscreen_screens()).
+SCREENS = ((r"\\.\DISPLAY1", 0, 0, 1920, 1080), (r"\\.\DISPLAY2", 1920, 0, 1920, 1080))
+
+
+def today_at(hhmm: str) -> str:
+    """Today at ``hhmm`` local time, as the ISO stamps the stores write."""
+    h, m = (int(v) for v in hhmm.split(":"))
+    return datetime.now().astimezone().replace(hour=h, minute=m, second=0, microsecond=0).isoformat(
+        timespec="seconds")
+
+
+def offscreen_screens(work: Path) -> None:
+    """Give the offscreen platform the demo's two screens (Qt's ``configfile`` option), so the Monitors panel
+    and the "monitor 1" / "monitor 2" of the snapshots agree.  Qt splits platform options at ':', so the path
+    is passed relative to the working folder (no drive letter)."""
+    if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+        return
+    work.mkdir(parents=True, exist_ok=True)
+    cfg = work / "offscreen-screens.json"
+    with open(cfg, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump({"screens": [{"name": n, "x": x, "y": y, "width": w, "height": h, "logicalDpi": 96,
+                                "logicalBpp": 32, "dpr": 1} for n, x, y, w, h in SCREENS]}, fh, indent=1)
+    if os.path.splitdrive(str(cfg))[0].lower() != os.path.splitdrive(os.getcwd())[0].lower():
+        os.chdir(cfg.parent)
+    rel = os.path.relpath(cfg).replace("\\", "/")
+    if ":" not in rel:
+        os.environ["QT_QPA_PLATFORM"] = f"offscreen:configfile={rel}"
+
 
 # ------------------------------------------------------------------- seed
+def _place(mon: int, x: int, y: int, w: int, h: int, maxed: bool = False) -> Any:
+    from project_opener.core import models as M
+    name, mx, my, mw, mh = SCREENS[mon - 1]
+    r = [mx, my, mx + mw, my + mh] if maxed else [mx + x, my + y, mx + x + w, my + y + h]
+    return M.WindowPlacement(show_cmd=3 if maxed else 1, normal_rect=list(r), window_rect=list(r), monitor=name,
+                             monitor_rect=[mx, my, mx + mw, my + mh])
+
+
+def _entry(path: str = "", app: str = "", process: str = "", *, status: str = "identified", kind: str = "file",
+           title: str = "", doc: str = "", by: str = "title+items", seen: str = "", mon: int = 1,
+           rect: tuple[int, int, int, int] = (40, 40, 1400, 900), maxed: bool = False, item_id: str = "",
+           note: str = "", candidates: list[str] | None = None, exe: str = "") -> Any:
+    from project_opener.core import models as M
+    ident = status == "identified" and bool(path)
+    if ident:
+        key = ("url:" + path) if kind == "url" else ("path:" + path.lower())
+    else:
+        key = f"win:{process.lower()}|{title}"
+    return M.SnapshotEntry(key=key, status=status, kind=kind, path=path if ident else "", title=title,
+                           process=process, exe=exe, app=app, identified_by=by if ident else "", doc_name=doc,
+                           candidates=list(candidates or []), note=note, item_id=item_id,
+                           placement=_place(mon, *rect, maxed=maxed), first_seen=today_at(seen) if seen else "")
+
+
 def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
     """A demo workspace in schema 4 plus a hub; returns ids the run needs."""
+    import psutil
+
     from project_opener.core import models as M
+    from project_opener.core.jsonio import write_json_atomic
     from project_opener.core.settings import Settings
     from project_opener.core.snapshots import SnapshotStore
     from project_opener.core.store import WorkspaceStore
+    from project_opener.core.tasks import TaskStore
+    from project_opener.lan.groups import GroupBook
     from project_opener.lan.hub import TeamHub
 
     shutil.rmtree(data_dir, ignore_errors=True)        # our own scratch data folder
@@ -74,11 +166,14 @@ def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
         "check": demo_dir / "P12513" / "Iso checklist.pdf", "lines": demo_dir / "P12513" / "Line list.xlsx",
         "register": demo_dir / "P12513" / "Lot 7" / "Comment register.xlsx",
         "iso": demo_dir / "P12513" / "P12513-ISO-1042-C.pdf", "anteo": demo_dir / "ANTEO" / "Line list.xlsx",
-        "clash": demo_dir / "Clash register.xlsx",
+        "clash": demo_dir / "Clash register.xlsx", "gad_comments": demo_dir / "DM-GAD" / "GAD comments.xlsx",
     }
+    files["gad_comments"].parent.mkdir(parents=True, exist_ok=True)
     for f in files.values():
         if not f.exists():
             f.write_bytes(b"demo")
+    me = M.current_user()
+    rev_c = r"\\nas01\Project\P12513\ISO\Revision C"
 
     s = Settings.load(data_dir)
     s.display_name, s.role, s.hub_path = "Vikram", "Piping QA", str(hub_dir)
@@ -98,8 +193,7 @@ def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
                        M.Item(path=str(files["lines"]), kind="file", group="Checking"),
                        M.Item(path=str(files["register"]), kind="file", group="Checking"),
                        M.Item(path=str(demo_dir / "P12513"), kind="folder", group="Folders", label="Working folder"),
-                       M.Item(path=r"\\nas01\Project\P12513\ISO\Revision C", kind="folder", group="Folders",
-                              label="Revision C"),
+                       M.Item(path=rev_c, kind="folder", group="Folders", label="Revision C"),
                        M.Item(path=r"{SERVER_ROOT}\P12513\Rulings.docx", kind="file", group="References"),
                        M.Item(path=str(files["iso"]), kind="file", group="Isos"),
                    ])
@@ -107,10 +201,11 @@ def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
                    tags=["isometrics", "handover"],
                    items=[M.Item(path=str(files["anteo"]), group="Checking"),
                           M.Item(path="https://teams.microsoft.com", kind="url", group="Links")])
+    gad_dir = r"Z:\Project\Mangala\GAD"
     p3 = M.Project(name="Mangala Piping GAD", client="Cairn", job_number="DM-GAD", color="#F97316",
                    icon="ph.factory", tags=["GAD", "piping"],
-                   items=[M.Item(path=r"Z:\Project\Mangala\GAD", kind="folder", label="GAD"),
-                          M.Item(path=r"Z:\Project\Mangala\GAD\GAD-0120-B.pdf", kind="file")])
+                   items=[M.Item(path=gad_dir, kind="folder", label="GAD"),
+                          M.Item(path=gad_dir + r"\GAD-0120-B.pdf", kind="file")])
     p4 = M.Project(name="Navisworks clash review", job_number="P14414", color="#8B5CF6", icon="ph.cube",
                    tags=["3D", "review"],
                    items=[M.Item(path=r"C:\Program Files\Autodesk\Navisworks Manage 2025\Roamer.exe", kind="app",
@@ -134,31 +229,99 @@ def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
     lot7 = M.Activity(name="Lot 7 check", short_name="Lot 7 check", icon="ph.checks", project_ids=[p1.id],
                       items=from_proj(p1, [0, 1, 2, 3, 4, 5, 6]) + from_proj(p2, [0]),
                       description="Back-check of lot 7 against the RLM mark-ups", pinned_at=M.now_iso())
-    lot7.open_count, lot7.last_opened = 14, M.now_iso()
+    lot7.open_count, lot7.last_opened = 14, today_at(STORY["lot7_opened"])
     gad = M.Activity(name="Mangala GAD review", project_ids=[p3.id], items=from_proj(p3, [0, 1]))
-    gad.open_count, gad.last_opened = 3, "2026-11-02T09:10:00+00:00"
+    gad.open_count, gad.last_opened = 3, today_at(STORY["gad_started"])
     clash = M.Activity(name="Tuesday clash meeting", project_ids=[p4.id], items=from_proj(p4, [0, 1]))
     anteo = M.Activity(name="ANTEO handover", project_ids=[p2.id], items=from_proj(p2, [0, 1]))
     for a in (lot7, gad, clash, anteo):
         store.add_activity(a)
 
+    # ---- Lot 7: what was open at each checkpoint; the last one (14:32) is what Resume offers
     snaps = SnapshotStore(data_dir)
-    entries = [
-        M.SnapshotEntry(key="path:" + str(files["check"]).lower(), status="identified", kind="file",
-                        path=str(files["check"]), title="Iso checklist.pdf - PDF-XChange Editor", app="PDF-XChange Editor",
-                        process="PDFXEdit.exe", identified_by="title+items", item_id=lot7.items[0].id),
-        M.SnapshotEntry(key="path:" + str(files["lines"]).lower(), status="identified", kind="file",
-                        path=str(files["lines"]), title="Line list.xlsx - Excel", app="Excel", process="EXCEL.EXE",
-                        identified_by="office-com", item_id=lot7.items[1].id),
-        M.SnapshotEntry(key="win:acad.exe|Drawing1", status="unidentified", title="Drawing1 - AutoCAD",
-                        app="AutoCAD", process="acad.exe", note="unsaved - cannot be restored"),
-    ]
-    snap = M.Snapshot(activity_id=lot7.id, taken_at="2026-11-05T09:02:00+00:00", entries=entries)
-    snaps.add_checkpoint(M.Checkpoint(activity_id=lot7.id, snapshot=snap, kind="auto",
-                                      taken_at="2026-11-05T09:02:00+00:00"))
-    snaps.mark_running(M.RunningMarker(activity_id=lot7.id, pid=999_999, started_at="2026-11-05T07:40:00+00:00",
-                                       last_seen="2026-11-05T09:02:00+00:00"))
+    opened = STORY["lot7_opened"]
+    l7 = {
+        "check": _entry(str(files["check"]), "PDF-XChange", "PDFXEdit.exe", title="Iso checklist.pdf - PDF-XChange Editor",
+                        seen=opened, mon=1, rect=(0, 0, 960, 1040), item_id=lot7.items[0].id),
+        "lines": _entry(str(files["lines"]), "Excel", "EXCEL.EXE", title="Line list.xlsx - Excel", by="office-com",
+                        seen=opened, mon=1, rect=(960, 0, 960, 1040), item_id=lot7.items[1].id),
+        "register": _entry(str(files["register"]), "Excel", "EXCEL.EXE", title="Comment register.xlsx - Excel",
+                           by="office-com", seen=opened, mon=2, maxed=True, item_id=lot7.items[2].id),
+        "iso1043": _entry(rev_c + r"\P12513-ISO-1043-C.pdf", "PDF-XChange", "PDFXEdit.exe",
+                          title="P12513-ISO-1043-C.pdf - PDF-XChange Editor", seen=STORY["iso_1043_seen"], mon=2,
+                          rect=(120, 80, 1500, 900)),
+        "timesheet": _entry(r"D:\Users\checker\Documents\Timesheet Nov.xlsx", "Excel", "EXCEL.EXE",
+                            title="Timesheet Nov.xlsx - Excel", by="office-com", seen=opened, mon=1,
+                            rect=(200, 120, 1200, 760)),
+        "clash": _entry(str(files["clash"]), "Excel", "EXCEL.EXE", title="Clash register.xlsx - Excel",
+                        by="office-com", seen=opened, mon=2, rect=(300, 200, 1200, 760)),
+    }
+    for when, keys, kind in (
+            (STORY["cp_early"], ("check", "lines", "register", "timesheet"), "auto"),
+            (STORY["cp_mid"], ("check", "lines", "register", "iso1043", "timesheet"), "auto"),
+            (STORY["resume"], ("check", "lines", "register", "iso1043", "timesheet", "clash"), "auto")):
+        snap = M.Snapshot(activity_id=lot7.id, taken_at=today_at(when), session_start=today_at(opened),
+                          monitors=[M.Monitor(device=n, rect=[x, y, x + w, y + h], work=[x, y, x + w, y + h - 40],
+                                              primary=i == 0) for i, (n, x, y, w, h) in enumerate(SCREENS)],
+                          entries=[M.SnapshotEntry.from_dict(l7[k].to_dict()) for k in keys])
+        snaps.add_checkpoint(M.Checkpoint(activity_id=lot7.id, snapshot=snap, kind=kind, taken_at=today_at(when)))
+    # the PC went down while it ran: a marker from a process that is gone
+    snaps.mark_running(M.RunningMarker(activity_id=lot7.id, pid=999_999, started_at=today_at(opened),
+                                       last_seen=today_at(STORY["resume"])))
 
+    # ---- Mangala GAD review: running now (this process's marker), its live snapshot and one checkpoint
+    started = STORY["gad_started"]
+    g = {
+        "pdf": _entry(gad_dir + r"\GAD-0120-B.pdf", "PDF-XChange", "PDFXEdit.exe", title="GAD-0120-B.pdf - PDF-XChange Editor",
+                      seen=started, mon=1, rect=(0, 0, 1100, 1040), item_id=gad.items[1].id),
+        "folder": _entry(gad_dir, "Explorer", "explorer.exe", kind="folder", title="GAD", by="shell", seen=started,
+                         mon=1, rect=(1100, 0, 820, 600), item_id=gad.items[0].id),
+        "ambiguous": _entry("", "PDF-XChange", "PDFXEdit.exe", status="ambiguous", kind="file",
+                            title="GAD-0121-B.pdf - PDF-XChange Editor", doc="GAD-0121-B.pdf", seen="15:12", mon=2,
+                            rect=(0, 0, 1100, 1040), note="two files with this name in the activity's folders",
+                            candidates=[gad_dir + r"\GAD-0121-B.pdf", gad_dir + r"\Superseded\GAD-0121-B.pdf"]),
+        "comments": _entry(str(files["gad_comments"]), "Excel", "EXCEL.EXE",
+                           title="GAD comments.xlsx - Excel", by="office-com", seen="15:14", mon=2,
+                           rect=(1100, 0, 820, 1040)),
+        "drawing1": _entry("", "AutoCAD", "acad.exe", status="unsaved", kind="", title="Drawing1 - AutoCAD",
+                           doc="Drawing1.dwg", seen=started, mon=2, maxed=True, note="unsaved - cannot be restored",
+                           exe=r"C:\Program Files\Autodesk\AutoCAD 2025\acad.exe"),
+        "dgn": _entry("", "MicroStation", "ustation.exe", status="unidentified", kind="",
+                      title="PIPE-GAD-0120.dgn - MicroStation", doc="PIPE-GAD-0120.dgn", seen=started, mon=1,
+                      rect=(160, 90, 1500, 900), note="MicroStation gave no file path",
+                      exe=r"C:\Program Files\Bentley\MicroStation\ustation.exe"),
+        "outlook": _entry("", "Outlook", "OUTLOOK.EXE", status="unidentified", kind="", title="Inbox - Outlook",
+                          seen=started, mon=2, rect=(300, 120, 1300, 860),
+                          exe=r"C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE"),
+        "portal": _entry("https://portal.cairn.example/DM-GAD", "Edge", "msedge.exe", kind="url",
+                         title="Cairn portal · DM-GAD - Microsoft Edge", doc="Cairn portal · DM-GAD", by="uia",
+                         seen="15:16", mon=1, rect=(240, 60, 1400, 950), note="active tab only"),
+    }
+    gad_mons = [M.Monitor(device=n, rect=[x, y, x + w, y + h], work=[x, y, x + w, y + h - 40], primary=i == 0)
+                for i, (n, x, y, w, h) in enumerate(SCREENS)]
+    cp = M.Snapshot(activity_id=gad.id, taken_at=today_at(STORY["gad_cp"]), session_start=today_at(started),
+                    monitors=gad_mons, entries=[M.SnapshotEntry.from_dict(g[k].to_dict())
+                                                for k in ("pdf", "folder", "drawing1", "dgn", "outlook")])
+    snaps.add_checkpoint(M.Checkpoint(activity_id=gad.id, snapshot=cp, kind="auto", taken_at=today_at(STORY["gad_cp"])))
+    snaps.save_live(M.Snapshot(activity_id=gad.id, taken_at=today_at(STORY["gad_live"]), session_start=today_at(started),
+                               monitors=gad_mons, entries=[M.SnapshotEntry.from_dict(e.to_dict()) for e in g.values()]))
+    try:
+        proc_started = float(psutil.Process().create_time())
+    except Exception:  # noqa: BLE001
+        proc_started = 0.0
+    snaps.mark_running(M.RunningMarker(activity_id=gad.id, pid=os.getpid(), process_started=proc_started,
+                                       started_at=today_at(started), last_seen=today_at(STORY["gad_live"])))
+    snaps.close()
+
+    # ---- watchers on Lot 7 (their hits are alerts; see seed_alerts)
+    w_rev = M.Watcher(name="Revision C sheets", kind="folder", target=rev_c, events=["new", "changed"],
+                      notify=M.Notify(toast=True, cliq_dm=True), activity_id=lot7.id)
+    w_nas = M.Watcher(name="nas01 health", kind="health", target=r"\\nas01", events=["down", "up"],
+                      notify=M.Notify(toast=True, cliq_dm=True), activity_id=lot7.id)
+    store.save_watcher(w_rev)
+    store.save_watcher(w_nas)
+
+    # ---- the hub: people, a group starting with "pr" (the @ picker), publishes, a mention, tasks, health
     hub = TeamHub(hub_dir, user="yokesh", display_name="Yokesh", role="Designer")
     hub.initialise()
     hub.heartbeat(current_project="ANTEO Isometrics")
@@ -166,20 +329,101 @@ def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
     hub.announce("Z: drive moves on Friday", "The Project share moves to the new NAS at 18:00.", "warning")
     hub2 = TeamHub(hub_dir, user="priya", display_name="Priya", role="Checker")
     hub2.heartbeat(current_project="DM-GAD · Mangala GAD review")
-    hub2.send(M.current_user(), p3, "Have a look at the Mangala bundle before the review.")
+    hub2.send(me, p3, "Have a look at the Mangala bundle before the review.")
+    hub2.send_mention([me], f"@{me} Revision C has two new sheets for lot 7.", title="P12513 · Lot 7 check")
     hub3 = TeamHub(hub_dir, user="ravi", display_name="Ravi", role="Designer")
     hub3.heartbeat(current_project="Navisworks clash review")
-    return {"lot7": lot7.id, "p1": p1.id, "gad": gad.id}
+    hub4 = TeamHub(hub_dir, user="prakash", display_name="Prakash", role="Procurement")
+    hub4.heartbeat()
+    hub4.sign_off()                                    # away: the picker lists him after those online
+    mine = TeamHub(hub_dir, user=me, display_name="Vikram", role="Piping QA")
+    mine.publish_activity(M.Activity.from_dict(lot7.to_dict()), description=(
+        "Lot 7 back-check set. Watch Revision C for the modeller's sheets."), for_targets=["checkers"],
+        projects=[M.Project.from_dict(p1.to_dict()), M.Project.from_dict(p2.to_dict())])
+    # A run takes minutes and the hub calls a heartbeat older than HUB_STALE_S offline: the colleagues' heartbeats
+    # (and their health observations below) are dated an hour ahead, so they stay online for the whole run.
+    ahead = time.time() + 3600
+    for login in ("yokesh", "priya", "ravi"):
+        f = hub_dir / "users" / f"{login}.json"
+        with open(f, encoding="utf-8") as fh:
+            rec = json.load(fh)
+        rec["ts"] = ahead
+        write_json_atomic(f, rec)
+    book = GroupBook(hub_dir)
+    for name, members in (("checkers", ["priya", me]), ("P12513-team", ["priya", "ravi", "yokesh", me]),
+                          ("procurement", ["prakash", "ravi"])):
+        book.save(M.Group(name=name, members=members), by="priya")
+
+    tasks = TaskStore(hub_dir / "tasks")
+    today = datetime.now().astimezone().date()
+    friday = today + timedelta(days=(4 - today.weekday()) % 7 or 7)
+    monday = today + timedelta(days=(0 - today.weekday()) % 7 or 7)
+    lot7_link = M.TaskLink(kind="activity", local_id=lot7.id, title="P12513 · Lot 7 check", job_number="P12513")
+    for t in (
+            M.Task("Send rev C sheets to FST", owner=me, due=today.isoformat(), created_by="yokesh", link=lot7_link),
+            M.Task("Back-check lot 7", owner=me, due=friday.isoformat(), created_by="yokesh",
+                   link=M.TaskLink(**lot7_link.to_dict())),
+            M.Task("GAD comments to Cairn", owner=me, due=monday.isoformat(), created_by="priya",
+                   link=M.TaskLink(kind="activity", local_id=gad.id, title="DM-GAD · Mangala GAD review",
+                                   job_number="DM-GAD")),
+            M.Task("Update line list after clash", owner="priya", created_by=me,
+                   link=M.TaskLink(kind="project", local_id=p4.id, title="Navisworks clash review",
+                                   job_number="P14414"))):
+        if t.owner == "priya":
+            t.mark_done("priya")
+        tasks.save(t)
+
+    # office-wide health: two colleagues see nas01 down since the power cut (this PC is the third)
+    down = today_at(STORY["drive_down"])
+    for login, host, jobs in (
+            ("yokesh", "PC-YOKESH", ["P12513", "P13020", "P13105", "P14002", "ANTEO-2", "P12877", "P13311"]),
+            ("priya", "PC-PRIYA", ["DM-GAD", "P12513", "P11870", "P12990", "P13562", "P14120", "P14415", "P14414"])):
+        write_json_atomic(hub_dir / "watch" / f"{login}.json", M.HealthObservation(
+            user=login, host=host, ts=datetime.fromtimestamp(ahead).astimezone().isoformat(timespec="seconds"),
+            roots=[M.RootObservation(r"\\nas01", "offline", down, jobs, 23)]).to_dict())
+    return {"lot7": lot7.id, "p1": p1.id, "gad": gad.id, "running": gad.id, "w_rev": w_rev.id, "w_nas": w_nas.id,
+            "rev_c": rev_c}
+
+
+def seed_alerts(app: Any, ids: dict[str, str]) -> None:
+    """The two watcher hits, written where the dispatcher keeps alerts (read back by the app at start)."""
+    from project_opener.core import models as M
+    from project_opener.core.jsonio import append_jsonl
+    path = app.watchers.dispatcher().alerts_path
+    for ev in (
+            M.WatchEvent(ids["w_rev"], "new", "2 new sheets in Revision C", "P12513-ISO-1043-C.pdf, P12513-ISO-1044-C.pdf",
+                         path=ids["rev_c"], level="info", ts=today_at(STORY["rev_c_hit"])),
+            M.WatchEvent(ids["w_nas"], "down", r"\\nas01 is down", "Z: and W: are not reachable from this PC",
+                         path=r"\\nas01", level="warning", ts=today_at(STORY["drive_down"]))):
+        append_jsonl(path, {**ev.to_dict(), "read": False})
+    # this PC first saw nas01 down at the same time (watch/<me>.json keeps it)
+    app.watchers._root_since = {r"\\nas01": ("offline", today_at(STORY["drive_down"])),
+                                "{SERVER_ROOT}": ("variable", today_at(STORY["lot7_opened"]))}
+
+
+def seed_first_run(data_dir: Path) -> None:
+    """A true empty workspace: a fresh data folder, no projects, activities, hub or running markers."""
+    from project_opener.core.settings import Settings
+    shutil.rmtree(data_dir, ignore_errors=True)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    s = Settings.load(data_dir)
+    s.presence_udp = False
+    s.update_check = False
+    s.capture_enabled = False
+    s.hub_path = ""
+    s.save()
 
 
 # ------------------------------------------------------- demo of the stubs
 def demo_fill(app: Any, ids: dict[str, str]) -> None:
-    """Fill the other builders' models with demo rows where they are still empty (stubs)."""
-    from project_opener.core import models as M
+    """The running activity (Mangala GAD review) from its stored live snapshot, worked by the capture API's own
+    code (counts, statuses, monitors, "Save N new" and the Resume sheet for Lot 7); hub rows only where the
+    hub left a model empty."""
+    from project_opener.capture import windows as W
     from project_opener.ui import text as T
 
-    cap, hub, tasks, watchers = app.capture, app.hub, app.tasks, app.watchers
-    lot7 = app.ctx.store.activity(ids["lot7"])
+    cap, hub = app.capture, app.hub
+    store = app.ctx.store
 
     def fill(model: Any, rows: list[dict[str, Any]]) -> bool:
         if model.rowCount() == 0:
@@ -187,174 +431,55 @@ def demo_fill(app: Any, ids: dict[str, str]) -> None:
             return True
         return False
 
-    live = [
-        ("Iso checklist.pdf", _job(r"Iso checklist.pdf"), "identified", "PDF-XChange", "file", 1, True, False, ""),
-        ("P12513-ISO-1042-C.pdf", r"\\nas01\Project\P12513\ISO\Revision C\P12513-ISO-1042-C.pdf", "identified", "PDF-XChange", "file", 2, True, False, ""),
-        ("P12513-ISO-1043-C.pdf", r"\\nas01\Project\P12513\ISO\Revision C\P12513-ISO-1043-C.pdf", "identified", "PDF-XChange", "file", 2, False, True, ""),
-        ("Line list.xlsx", _job(r"Line list.xlsx"), "identified", "Excel", "file", 1, True, False, ""),
-        ("Comment register.xlsx", _job(r"Lot 7\Comment register.xlsx"), "identified", "Excel", "file", 1, True, False, ""),
-        ("Working folder", _job(), "identified", "Explorer", "folder", 1, True, False, ""),
-        ("FST portal · P12513", "https://portal.fst.example/P12513", "identified", "Edge", "url", 2, False, True, "active tab only"),
-        ("", "", "unidentified", "AutoCAD", "", 1, False, False, "AutoCAD gave no file path; the drawing may be unsaved"),
-        ("", "", "unidentified", "Navisworks", "", 2, False, False, "no document title; the window may be a start page"),
-        ("", "", "ambiguous", "PDF-XChange", "file", 2, False, False, "two files with this name in the activity's folders"),
-    ]
-    titles = {"AutoCAD": "Drawing1 - AutoCAD", "Navisworks": "Navisworks Manage 2025",
-              "ambiguous": "P12513-ISO-1050-C.pdf - PDF-XChange Editor"}
-    rows = []
-    for n, (name, path, st, appn, kind, mon, is_item, is_new, note) in enumerate(live):
-        title = titles["ambiguous"] if st == "ambiguous" else titles.get(appn, name)
-        rows.append({"entryKey": f"k{n}", "status": st, "kind": kind, "name": name or title, "path": path,
-                     "title": title, "process": appn.lower() + ".exe", "appName": appn,
-                     "identifiedBy": "office-com" if appn == "Excel" else "shell" if appn == "Explorer" else "title+items",
-                     "monitor": f"monitor {mon}", "isItem": is_item, "isNew": is_new, "note": note,
-                     "candidates": [r"\\nas01\Project\P12513\ISO\Revision C\P12513-ISO-1050-C.pdf",
-                                    _job(r"Superseded\P12513-ISO-1050-C.pdf")] if st == "ambiguous" else []})
-    # the two tick lists (owner decisions of 5 November 2026): "Save N new as items" and Resume
-    def tick_row(key, name, path, app_name, status, kind, group, label, ticked, tickable=True, **extra):
-        return {"entryKey": key, "ticked": ticked, "tickable": tickable, "name": name, "path": path,
-                "appName": app_name, "status": status, "note": extra.get("note", ""), "kind": kind, "group": group,
-                "groupLabel": label, "action": extra.get("action", path), "monitor": extra.get("monitor", "")}
-    from project_opener.capture.windows import NEW_GROUPS, RESUME_GROUPS
-    rev_c = r"\\nas01\Project\P12513\ISO\Revision C"
-    fill(cap.newCandidates, [
-        tick_row("n1", "P12513-ISO-1043-C.pdf", rev_c + r"\P12513-ISO-1043-C.pdf", "PDF-XChange", "identified", "file",
-                 "since", NEW_GROUPS["since"], True),
-        tick_row("n2", "FST portal · P12513", "https://portal.fst.example/P12513", "Edge", "identified", "url",
-                 "since", NEW_GROUPS["since"], True),
-        tick_row("n3", "Timesheet Nov.xlsx", r"D:\Users\checker\Documents\Timesheet Nov.xlsx", "Excel", "identified",
-                 "file", "before", NEW_GROUPS["before"], False),
-        tick_row("n4", "Drawing1 - AutoCAD", "", "AutoCAD", "unsaved", "", "other", NEW_GROUPS["other"], False,
-                 action="Adds AutoCAD itself as an application"),
-        tick_row("n5", "Inbox - Outlook", "", "Outlook", "window", "", "other", NEW_GROUPS["other"], False,
-                 action="Adds Outlook itself as an application"),
-        tick_row("n6", "Calculator", "", "Calculator", "window", "", "other", NEW_GROUPS["other"], False, False,
-                 action=""),
-    ])
-    fill(cap.resumeCandidates, [
-        tick_row("r1", "Iso checklist.pdf", _job("Iso checklist.pdf"), "PDF-XChange", "identified", "file", "items",
-                 RESUME_GROUPS["items"], True, monitor="monitor 1"),
-        tick_row("r2", "Line list.xlsx", _job("Line list.xlsx"), "Excel", "identified", "file", "items",
-                 RESUME_GROUPS["items"], True, monitor="monitor 1"),
-        tick_row("r3", "Comment register.xlsx", _job(r"Lot 7\Comment register.xlsx"), "Excel", "identified", "file",
-                 "items", RESUME_GROUPS["items"], True, monitor="monitor 2"),
-        tick_row("r4", "P12513-ISO-1043-C.pdf", rev_c + r"\P12513-ISO-1043-C.pdf", "PDF-XChange", "identified", "file",
-                 "during", RESUME_GROUPS["during"], True, monitor="monitor 2"),
-        tick_row("r5", "Timesheet Nov.xlsx", r"D:\Users\checker\Documents\Timesheet Nov.xlsx", "Excel", "identified",
-                 "file", "other", RESUME_GROUPS["other"], False, monitor="monitor 1"),
-        tick_row("r6", "Drawing1 - AutoCAD", "", "AutoCAD", "unsaved", "", "other", RESUME_GROUPS["other"], False,
-                 False, note="Unsaved: no file to reopen", monitor="monitor 1"),
-    ])
-    DEMO["live"] = rows
-    if fill(cap.live, rows):
-        cap._running_id, cap._running_name, cap._running_label = lot7.id, lot7.name, lot7.label
-        cap._running_color, cap._state = "#2F5BFF", "needs"
-        cap._open, cap._identified, cap._needs_path, cap._new = len(rows), 7, 3, 2
-        cap._since_checkpoint, cap._last_checkpoint_text = 2, "10:52"
-        cap.stateChanged.emit()
-        cap.liveChanged.emit()
-    cps = [("c1", "2026-11-05T10:52:40+00:00", "manual", 12, 9), ("c2", "2026-11-05T10:20:00+00:00", "auto", 11, 9),
-           ("c3", "2026-11-05T09:12:00+00:00", "auto", 9, 8), ("c4", "2026-11-04T17:58:00+00:00", "close", 10, 9)]
-    if fill(cap.checkpoints, [{"checkpointId": c, "takenAt": t, "takenText": T.when_text(t), "kind": k,
-                               "label": T.checkpoint_label(k, t, n), "count": n, "identified": i, "isLatest": c == "c1"}
-                              for c, t, k, n, i in cps]):
-        cap.checkpointsChanged.emit()
-    fill(cap.startCandidates, [
-        {"entryKey": "s1", "ticked": True, "name": "Iso checklist.pdf", "path": _job(r"Iso checklist.pdf"), "appName": "PDF-XChange", "status": "identified", "kind": "file"},
-        {"entryKey": "s2", "ticked": True, "name": "Line list.xlsx", "path": _job(r"Line list.xlsx"), "appName": "Excel", "status": "identified", "kind": "file"},
-        {"entryKey": "s3", "ticked": True, "name": "P12513", "path": _job(), "appName": "Explorer", "status": "identified", "kind": "folder"},
-        {"entryKey": "s4", "ticked": False, "name": "Zoho Cliq", "path": "", "appName": "Cliq", "status": "unidentified", "kind": "", "note": "a chat window; it has no address to keep"},
-        {"entryKey": "s5", "ticked": False, "name": "Inbox - Outlook", "path": "", "appName": "Outlook", "status": "unidentified", "kind": ""},
-    ])
+    # capture is on (in memory only: the engine never runs an activity in the smoke, so no window is read)
+    app.ctx.settings.capture_enabled = True
+    gad = store.activity(ids["running"])
+    cap._set_running(gad)
+    cap._ignored, cap._left_out = app.snapshots.review(gad.id)
+    cap._snapshot = app.snapshots.live(gad.id)
+    cap._hook_watchers()
+    cap._refresh_live()
+    cap._refresh_checkpoints()
+    cap.prepareSaveNew()
+    cap.prepareResume(ids["lot7"])
+    snap = cap._snapshot
+    cap._candidates.reset([{"entryKey": e.key, "ticked": W.default_ticked(e), "name": W.entry_name(e),
+                            "path": e.path, "appName": e.app, "status": W.display_status(e), "kind": e.kind,
+                            "note": e.note} for e in (snap.entries if snap else [])])
+    DEMO["live_snapshot"] = snap
 
     people = [("yokesh", "Yokesh", "Designer", True, "in ANTEO Isometrics", "#8A5A00"),
               ("priya", "Priya", "Checker", True, "in DM-GAD · Mangala GAD review", "#4F46A3"),
               ("ravi", "Ravi", "Designer", True, "in Navisworks clash review", "#B4452E"),
-              ("pradeep", "Pradeep", "Designer", False, "away since 13:10", "#0F766E")]
+              ("prakash", "Prakash", "Procurement", False, "away", "#0F766E")]
     if fill(hub.peers, [{"login": lg, "displayName": dn, "role": r, "host": "PC-" + lg.upper(), "online": on,
-                         "doing": d, "initials": T.initials(dn), "hue": h, "cliqLinked": lg != "pradeep"}
+                         "doing": d, "initials": T.initials(dn), "hue": h, "cliqLinked": lg != "prakash"}
                         for lg, dn, r, on, d, h in people]):
-        hub._configured, hub._reachable = True, True
-        hub._status_text, hub._peers_online, hub._inbox_count, hub._mention_count = "Connected", 3, 2, 1
-        hub.hubChanged.emit()
         hub.peersChanged.emit()
-        hub.inboxChanged.emit()
-    fill(hub.published, [
-        {"publishedId": "pub1", "type": "activity", "title": "P12513 · Lot 7 check", "spine": "P12513", "author": M.current_user(),
-         "authorName": "Vikram", "revision": 3, "publishedText": "10:58", "forText": "for @checkers",
-         "description": "Lot 7 back-check set. Watch Revision C for the modeller's sheets.", "isMine": True, "cloned": False, "itemCount": 11},
-        {"publishedId": "pub2", "type": "project", "title": "ANTEO Isometrics", "spine": "ANTEO", "author": "yokesh",
-         "authorName": "Yokesh", "revision": 2, "publishedText": "yesterday", "forText": "",
-         "description": "Standard ANTEO checking bundle, rev B line list", "isMine": False, "cloned": True, "itemCount": 2},
-        {"publishedId": "pub3", "type": "project", "title": "DM-GAD · Mangala Piping GAD", "spine": "DM-GAD", "author": "priya",
-         "authorName": "Priya", "revision": 1, "publishedText": "Mon 3 Nov", "forText": "for Vikram",
-         "description": "GAD review bundle, rev B drawings", "isMine": False, "cloned": False, "itemCount": 2},
-    ])
-    fill(hub.inbox, [
-        {"messageId": "m1", "kind": "mention", "sender": "priya", "senderName": "Priya", "sentText": "10:41",
-         "message": "@vikram Revision C has two new sheets for lot 7.", "title": "P12513 · Lot 7 check", "mentionsMe": True, "link": ""},
-        {"messageId": "m2", "kind": "project", "sender": "priya", "senderName": "Priya", "sentText": "yesterday",
-         "message": "Have a look at the Mangala bundle before the review.", "title": "DM-GAD · Mangala Piping GAD", "mentionsMe": False, "link": ""},
-    ])
-    fill(hub.announcements, [{"announcementId": "an1", "title": "Z: drive moves on Friday",
-                              "body": "The Project share moves to the new NAS at 18:00. Mapped drives reconnect automatically.",
-                              "level": "warning", "authorName": "Yokesh", "tsText": "09:15", "mine": False}])
-    fill(hub.groups, [{"groupName": "checkers", "members": ["priya", "vikram"], "memberCount": 2, "dotColor": "#4F46A3", "updatedBy": "Priya"},
-                      {"groupName": "P12513-team", "members": ["priya", "ravi", "yokesh", "vikram"], "memberCount": 4, "dotColor": "#2F5BFF", "updatedBy": "Vikram"}])
-    fill(hub.mentionCandidates, [
-        {"login": "priya", "displayName": "Priya", "role": "Checker", "online": True, "isGroup": False, "memberCount": 0},
-        {"login": "pradeep", "displayName": "Pradeep", "role": "Designer", "online": False, "isGroup": False, "memberCount": 0},
-        {"login": "P12513-team", "displayName": "P12513-team", "role": "Priya, Ravi, Yokesh, you", "online": True, "isGroup": True, "memberCount": 4}])
     fill(hub.register, [
-        {"job": "P12513 · Lot 7 check", "event": "published for @checkers", "revision": "3", "by": "Vikram", "whenText": "10:58"},
-        {"job": "P12513 · Lot 7 check", "event": "watcher hit · 2 new sheets in Revision C", "revision": "", "by": "this PC", "whenText": "10:41"},
-        {"job": "P12513 · Lot 7 check", "event": "task created · Send rev C sheets to FST", "revision": "", "by": "Yokesh", "whenText": "09:50"},
-        {"job": "P12513 · Lot 7 check", "event": "opened 2× today", "revision": "2", "by": "Vikram", "whenText": "09:12"},
-        {"job": "ANTEO Isometrics", "event": "published", "revision": "2", "by": "Yokesh", "whenText": "10:30"},
-        {"job": "ANTEO Isometrics", "event": "cloned", "revision": "2", "by": "Ravi", "whenText": "10:33"},
+        {"job": "P12513 · Lot 7 check", "event": "published for @checkers", "revision": "1", "by": "Vikram",
+         "whenText": STORY["resume"]},
+        {"job": "P12513 · Lot 7 check", "event": "watcher hit · 2 new sheets in Revision C", "revision": "",
+         "by": "this PC", "whenText": STORY["rev_c_hit"]},
+        {"job": "P12513 · Lot 7 check", "event": "task created · Send rev C sheets to FST", "revision": "",
+         "by": "Yokesh", "whenText": "09:50"},
+        {"job": "ANTEO Isometrics", "event": "published", "revision": "1", "by": "Yokesh", "whenText": "08:30"},
     ])
-    task_rows = [
-        ("t1", "Send rev C sheets to FST", "vikram", "Vikram", "2026-11-05", "Due today", True, False, "Yokesh", "activity", lot7.id, "Lot 7 check", "P12513"),
-        ("t2", "Back-check lot 7", "vikram", "Vikram", "2026-11-07", "Fri 7 Nov", False, False, "Yokesh", "activity", lot7.id, "Lot 7 check", "P12513"),
-        ("t3", "GAD comments to Cairn", "vikram", "Vikram", "2026-11-10", "Mon 10 Nov", False, False, "Priya", "activity", ids["gad"], "Mangala GAD review", "DM-GAD"),
-        ("t4", "Update line list after clash", "priya", "Priya", "", "", False, True, "Vikram", "project", "", "Navisworks clash review", "P14414"),
-    ]
-    rows = [{"taskId": t, "title": ti, "owner": o, "ownerName": on, "due": d, "dueText": dt, "overdue": False, "done": done,
-             "doneAt": "14:02" if done else "", "doneBy": on if done else "", "createdBy": cb.lower(), "createdByName": cb,
-             "attachKind": ak, "attachId": ai, "attachTitle": at, "jobNumber": jn, "note": "", "mine": o == "vikram",
-             "dueSoon": dt == "Due today"} for t, ti, o, on, d, dt, _soon, done, cb, ak, ai, at, jn in task_rows]
-    if fill(tasks.all, rows):
-        fill(tasks.mine, [r for r in rows if r["mine"] and not r["done"]])
-        tasks._open_count, tasks._mine_open_count = 3, 3
-        tasks.tasksChanged.emit()
-    fill(watchers.roots, [
-        {"rootName": r"\\nas01", "status": "offline", "statusLabel": "Server offline", "mapping": r"Z: → \\nas01\Project",
-         "uses": "2 activities · P12513 · DM-GAD", "seenBy": 3, "since": "09:40", "sinceText": "down since 09:40 · seen by 3 PCs", "jobsAffected": 14},
-        {"rootName": "{SERVER_ROOT}", "status": "variable", "statusLabel": "Undefined variable", "mapping": "",
-         "uses": "1 activity · lot 7 check", "seenBy": 1, "since": "", "sinceText": "", "jobsAffected": 1},
-        {"rootName": "D:", "status": "ok", "statusLabel": "Reachable", "mapping": "", "uses": "3 activities", "seenBy": 1,
-         "since": "", "sinceText": "", "jobsAffected": 0},
-        {"rootName": r"\\fileserver", "status": "ok", "statusLabel": "Reachable", "mapping": r"Y: → \\fileserver\Standards",
-         "uses": "1 activity", "seenBy": 1, "since": "", "sinceText": "", "jobsAffected": 0},
-    ])
-    fill(watchers.watchers, [
-        {"watcherId": "w1", "name": "Revision C sheets", "kind": "folder", "target": r"\\nas01\Project\P12513\ISO\Revision C",
-         "events": ["new", "changed"], "watcherEnabled": True, "notifyText": "Toast · Cliq DM", "lastHitText": "2 new sheets 10:41",
-         "activityId": lot7.id, "projectId": ""},
-        {"watcherId": "w2", "name": "nas01 health", "kind": "health", "target": r"\\nas01", "events": ["down", "up"],
-         "watcherEnabled": True, "notifyText": "Toast · Cliq DM when it comes back", "lastHitText": "down since 09:40",
-         "activityId": lot7.id, "projectId": ""},
-    ])
-    fill(watchers.alerts, [{"alertKey": "al1", "tsText": "10:41", "title": "2 new sheets in Revision C",
-                            "detail": "P12513-ISO-1043-C.pdf, P12513-ISO-1044-C.pdf", "level": "info", "link": "",
-                            "unread": True, "watcherId": "w1"}])
-    try:
-        watchers.alertsChanged.emit()
-        watchers.rootsChanged.emit()
-        watchers.watchersChanged.emit()
-    except Exception:  # noqa: BLE001
-        pass
     app.activities.refresh()
+
+
+def wait_for(app: Any, what: str, cond: Any, seconds: float) -> bool:
+    """Pump until ``cond()`` holds (the app's loads run on its pool); say so when it never does."""
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        try:
+            if cond():
+                return True
+        except Exception:  # noqa: BLE001
+            pass
+        pump(app, 100)
+    print(f"[seed] {what}: not ready after {seconds:.0f} s")
+    return False
 
 
 def fast_offline_shares() -> None:
@@ -366,7 +491,7 @@ def fast_offline_shares() -> None:
     from project_opener.core import launcher as L
     from project_opener.core import winutil
 
-    fake = ("\\\\nas01", "\\\\fileserver")
+    fake = ("\\\\nas01", "\\\\fileserver", "z:", "w:")
 
     class _Path:
         def __getattr__(self, name: str) -> Any:
@@ -388,19 +513,6 @@ def fast_offline_shares() -> None:
     L.os = _Os()          # type: ignore[assignment]
     real = winutil.host_reachable
     winutil.host_reachable = lambda host, timeout=0.8: False if host.lower() in ("nas01", "fileserver") else real(host, timeout)
-
-
-def set_running(app: Any, activity_id: str) -> None:
-    """Demo only: show ``activity_id`` as the running one (the stub capture API has no engine)."""
-    cap = app.capture
-    if type(cap).__module__.endswith("capture_api") and getattr(cap, "_engine", None) is None:
-        act = app.ctx.store.activity(activity_id) if activity_id else None
-        cap._running_id = activity_id
-        cap._running_name = act.name if act else ""
-        cap._running_label = act.label if act else ""
-        cap._state = "needs" if act else "idle"
-        cap.stateChanged.emit()
-        app.activities.refresh()
 
 
 # --------------------------------------------------------------------- run
@@ -472,23 +584,67 @@ def overflow(page: Any, limit: float) -> list[str]:
     return out
 
 
+def _plain(v: Any) -> Any:
+    """A QML ``var`` read from Python (QJSValue or already converted) as Python data."""
+    return v.toVariant() if hasattr(v, "toVariant") else v
+
+
+def settings_tabs(page: Any) -> tuple[str, list[str]]:
+    """(the property that holds the current tab, the tab keys) when the Settings page shows one area at a time;
+    ("", []) while it is one long page."""
+    if page is None:
+        return "", []
+    for name in ("tab", "currentTab", "section", "currentSection", "area"):
+        if isinstance(page.property(name), str):
+            for list_name in ("tabs", "sections", "areas"):
+                rows = _plain(page.property(list_name))
+                if isinstance(rows, list) and rows:
+                    keys = [str(r.get("key", "")) for r in rows if isinstance(r, dict) and r.get("key")]
+                    if keys:
+                        return name, keys
+    return "", []
+
+
+def route_target(route: str, ids: dict[str, str]) -> tuple[str, dict[str, Any]]:
+    """A smoke route ("hub-inbox", "activity-running", "settings-hub") as (the app's route, its payload)."""
+    if route.startswith("hub-"):
+        return "hub", {"tab": route[4:]}
+    if route == "activity":
+        return "activity", {"activityId": ids.get("lot7", "")}
+    if route == "activity-running":
+        return "activity", {"activityId": ids.get("running", "")}
+    if route == "project":
+        return "project", {"projectId": ids.get("p1", "")}
+    if route.startswith("settings-"):
+        key = route[len("settings-"):]
+        return "settings", {"tab": key, "section": key}
+    return route, {}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(WORK / "shots"))
     ap.add_argument("--check", action="store_true", help="no screenshots: load every page, fail on warnings")
     ap.add_argument("--empty", "--stubs", dest="stubs", action="store_true",
                     help="leave the live models as the app fills them (the empty states)")
+    ap.add_argument("--first-run", action="store_true",
+                    help="a true empty workspace: no projects, activities, hub or markers; every route")
     ap.add_argument("--themes", default="dark,light")
-    ap.add_argument("--sizes", default="1400x860,1040x660")
-    ap.add_argument("--routes", default=",".join(ROUTES))
+    ap.add_argument("--sizes", default="1400x860,1040x660", help='"" skips the routes at the normal sizes')
+    ap.add_argument("--routes", default="")
+    ap.add_argument("--tall-size", default="1400x3400", help='the full-height pass; "" turns it off')
+    ap.add_argument("--tall-routes", default=",".join(TALL_ROUTES))
     ap.add_argument("--sheets", action="store_true", default=True)
     ap.add_argument("--no-sheets", dest="sheets", action="store_false")
     ap.add_argument("--work", default=str(WORK))
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
-    work = Path(args.work)
+    work = Path(args.work).absolute()          # absolute, not resolved: U: stays U: (not its UNC path)
+    out = Path(args.out).absolute()
     data_dir, hub_dir, demo_dir = work / "smoke-data", work / "smoke-hub", work / "demo"
+    if args.first_run:
+        data_dir = work / "smoke-first-run"
     if os.environ.get("PO_DEMO_ROOT"):
         demo_dir = Path(os.environ["PO_DEMO_ROOT"]).parent       # D:\Projects\P12513 -> D:\Projects
     if os.environ.get("PO_DEMO_HUB"):
@@ -496,6 +652,7 @@ def main() -> int:
     DEMO["job"] = str(demo_dir / "P12513")
     os.environ["PO_DATA_DIR"] = str(data_dir)
     os.environ.setdefault("QML_DISK_CACHE_PATH", str(work / "qmlcache"))
+    offscreen_screens(work)
     _install_handler(args.verbose)
 
     from PySide6.QtCore import Q_ARG, QMetaObject, QUrl
@@ -512,8 +669,12 @@ def main() -> int:
         # captures must never show this PC's real mappings (office servers): the demo map stands in
         from project_opener.core import winutil
         winutil.mapped_drives = lambda: {"Z:": r"\\nas01\Project", "W:": r"\\nas01\Submissions"}
-    ids = seed(data_dir, hub_dir, demo_dir)
-    trace('ids = seed(data_dir, hub_dir, demo_dir)')
+    if args.first_run:
+        seed_first_run(data_dir)
+        ids: dict[str, str] = {}
+    else:
+        ids = seed(data_dir, hub_dir, demo_dir)
+    trace("seed")
     fast_offline_shares()
 
     from project_opener.app_v4 import qml_dir
@@ -523,9 +684,11 @@ def main() -> int:
 
     theme.load_fonts()
     facade = AppFacade(data_dir)
-    trace('facade = AppFacade(data_dir)')
+    trace("facade")
     facade.ctx.launcher.dry_run = True
     facade.ui.set_machine(MO.MachineFacts(screen_w=1920, screen_h=1080), "rhi")
+    if ids:
+        seed_alerts(facade, ids)
     try:
         from project_opener.desktop.integration import DesktopApi
         desk = DesktopApi(facade)
@@ -534,7 +697,7 @@ def main() -> int:
                                "panel": {"keys": "Ctrl+Alt+P", "ok": True, "error": ""},
                                "palette": {"keys": "Ctrl+Alt+K", "ok": False,
                                            "error": "Hot key is already registered."}}
-        if not args.stubs:
+        if not args.stubs and not args.first_run:
             facade.set_desktop(desk)
     except Exception as exc:  # noqa: BLE001
         print(f"desktop api unavailable: {exc}")
@@ -542,7 +705,7 @@ def main() -> int:
     engine = QQmlApplicationEngine()
     engine.rootContext().setContextProperty("app", facade)
     engine.load(QUrl.fromLocalFile(str(qml_dir() / "Main.qml")))
-    trace('engine.load(QUrl.fromLocalFile(str(qml_d')
+    trace("engine.load")
     if not engine.rootObjects():
         print("\n".join(MESSAGES))
         print("Main.qml failed to load")
@@ -551,19 +714,29 @@ def main() -> int:
     facade.ui.attach_window(win)
     win.show()
     facade.start()
-    trace('facade.start()')
+    trace("facade.start()")
     facade.ctx.hub_timer.stop()
+    for t in ("_timer", "_retry_timer"):              # no watcher pass: the seeded hits are the story
+        timer = getattr(facade.watchers, t, None)
+        if timer is not None:
+            timer.stop()
     pump(app, 1500)
-    if not args.stubs:
+    if ids:
+        w = facade.watchers
+        wait_for(app, "hub", lambda: facade.hub.configured and facade.hub.mentionCandidates.rowCount() > 0, 15)
+        wait_for(app, "tasks", lambda: facade.tasks.all.rowCount() > 0, 15)
+        wait_for(app, "alerts", lambda: w.alerts.rowCount() >= 2, 15)
+        wait_for(app, "drive map", lambda: any(r.get("rootName", "").lower() == "\\\\nas01" and r.get("status") == "offline"
+                                               for r in w.roots.rows), 20)
+    if ids and not args.stubs:
         demo_fill(facade, ids)
-        trace('demo_fill(facade, ids)')
+        trace("demo_fill")
     pump(app, 400)
 
-    out = Path(args.out)
     if not args.check:
         out.mkdir(parents=True, exist_ok=True)
-    payloads = {"activity": {"activityId": ids["lot7"]}, "project": {"projectId": ids["p1"]}}
     problems: list[str] = []
+    notes: list[str] = []
     shots = 0
 
     def shot(name: str) -> None:
@@ -578,9 +751,50 @@ def main() -> int:
         QMetaObject.invokeMethod(win, fn, *[Q_ARG("QVariant", v) for v in vals])
         flush_deletes()
 
+    def check_layout(tag: str, w: int, h: int, overflow_check: bool) -> None:
+        page_min = int(win.property("pageMinimumWidth") or 0)
+        if page_min > C_MIN_AVAIL:
+            problems.append(f"{tag}: minimum width {page_min} > {C_MIN_AVAIL} beside the rail")
+        if overflow_check:
+            page = win.property("pageItem")
+            if page is not None:
+                for o in overflow(page, w - 68)[:5]:
+                    problems.append(f"{tag}: {o}")
+
+    def visit(route: str, tag: str, w: int, h: int, overflow_check: bool, take: bool = True) -> Any:
+        real, payload = route_target(route, ids)
+        STEP[0] = tag
+        facade.ui.go(real, payload)
+        flush_deletes()
+        pump(app, 700)
+        page = win.property("pageItem")
+        if real == "hub" and payload.get("tab") and page is not None and facade.hub.configured \
+                and page.property("tab") != payload["tab"]:
+            problems.append(f"{tag}: the hub shows tab {page.property('tab')!r}, not {payload['tab']!r}")
+        call("clearToasts")
+        pump(app, 50)
+        check_layout(tag, w, h, overflow_check)
+        if h > 1000 and page is not None:
+            ch = float(page.property("contentHeight") or 0)
+            if ch > h:
+                notes.append(f"{tag}: page is {ch:.0f} px tall, the window {h} px (the shot shows the top)")
+        if take:
+            shot(tag)
+        trace(tag)
+        return page
+
     themes = [t for t in args.themes.split(",") if t]
     sizes = [tuple(int(v) for v in s.split("x")) for s in args.sizes.split(",") if s]
-    routes = [r for r in args.routes.split(",") if r]
+    if args.routes:
+        routes = [r for r in args.routes.split(",") if r]
+    else:
+        routes = list(FIRST_RUN_ROUTES if args.first_run else ROUTES)
+    if not ids.get("running"):
+        routes = [r for r in routes if r != "activity-running"]
+    tall = tuple(int(v) for v in args.tall_size.split("x")) if args.tall_size and not args.first_run else None
+    tall_routes = [r for r in args.tall_routes.split(",") if r and (ids.get("running") or r != "activity-running")]
+    prefix = "first-" if args.first_run else ""
+    lot7_toast = toast_text(facade, ids)
     for th in themes:
         STEP[0] = f"theme {th}"
         facade.ui.setTheme(th)
@@ -588,104 +802,132 @@ def main() -> int:
             win.resize(w, h)
             pump(app, 200)
             for route in routes:
-                if not args.stubs:
-                    set_running(facade, ids["lot7"] if route == "activity" else "")
-                STEP[0] = f"{th} {w}x{h} {route}"
-                facade.ui.go(route, payloads.get(route, {}))
-                flush_deletes()
-                pump(app, 700)
-                if route == "activity" and not args.stubs and DEMO.get("live") and facade.capture.live.rowCount() == 0:
-                    cap = facade.capture                 # the capture API cleared its live list for a stub run
-                    cap.live.reset([{r: row.get(r, "") for r in cap.live.roles} for row in DEMO["live"]])
-                    cap._open, cap._identified, cap._needs_path, cap._new = len(DEMO["live"]), 7, 3, 2
-                    cap.liveChanged.emit()
-                    pump(app, 400)
-                call("clearToasts")
-                pump(app, 50)
-                tag = f"{th}-{w}x{h}-{route}"
-                page_min = int(win.property("pageMinimumWidth") or 0)
-                avail = w - 68
-                if page_min > C_MIN_AVAIL:
-                    problems.append(f"{route}: minimum width {page_min} > {C_MIN_AVAIL} beside the rail")
-                if (w, h) == (1040, 660):
-                    page = win.property("pageItem")
-                    if page is not None:
-                        for o in overflow(page, avail)[:5]:
-                            problems.append(f"{tag}: {o}")
-                shot(tag)
-                trace('shot(tag)')
-            if args.sheets and (w, h) in ((1400, 860), (1040, 660)):
+                visit(route, f"{prefix}{th}-{w}x{h}-{route}", w, h, (w, h) == (1040, 660))
+            if args.sheets:
                 for n, (sheet, props) in enumerate(SHEETS(ids), start=1):
                     facade.ui.go("home", {})
                     flush_deletes()
                     pump(app, 200)
                     STEP[0] = f"{th} {w}x{h} sheet {sheet}"
+                    if props.get("demoMention"):
+                        facade.hub.setMentionQuery("pr")   # typed before the picker shows: it opens narrowed
                     call("openSheet", sheet, props)
                     pump(app, 600)
                     call("clearToasts")
                     pump(app, 50)
-                    shot(f"{th}-{w}x{h}-sheet-{n:02d}-{sheet}")
+                    shot(f"{prefix}{th}-{w}x{h}-sheet-{n:02d}-{sheet}")
                     call("closeSheet")
                     pump(app, 200)
+                    if props.get("demoMention"):
+                        facade.hub.setMentionQuery("")
                 facade.ui.go("home", {})
                 STEP[0] = f"{th} {w}x{h} palette"
                 call("openPalette", "lot")
                 pump(app, 500)
-                shot(f"{th}-{w}x{h}-palette")
+                shot(f"{prefix}{th}-{w}x{h}-palette")
                 call("closePalette")
                 pump(app, 200)
-                # The dock: open Lot 7 check (dry run) and catch it mid-way and settled.
+            if ids.get("lot7") and args.sheets:
+                # The dock: open Lot 7 check (dry run) and catch it mid-way and settled.  Capture is not
+                # started (it would read this PC's windows); Lot 7 stays the one waiting to be resumed.
+                cap = facade.capture
                 facade.ctx.settings.confirm_launch_over = 0
                 STEP[0] = f"{th} {w}x{h} dock"
-                facade.activities.open(ids["lot7"])
-                pump(app, 900)
-                shot(f"{th}-{w}x{h}-dock-opening")
-                pump(app, 3500)
-                shot(f"{th}-{w}x{h}-dock-settled")
-                facade.activities.closeDock()
+                cap.startActivity = lambda _aid: None          # type: ignore[method-assign]
+                before = facade.ctx.store.activity(ids["lot7"]).to_dict()
+                try:
+                    facade.activities.open(ids["lot7"])
+                    pump(app, 900)
+                    shot(f"{prefix}{th}-{w}x{h}-dock-opening")
+                    pump(app, 3500)
+                    shot(f"{prefix}{th}-{w}x{h}-dock-settled")
+                    facade.activities.closeDock()
+                finally:
+                    del cap.startActivity
+                    # the dock's open counted a launch; Lot 7 is still the one paused at 14:32
+                    from project_opener.core import models as M
+                    facade.ctx.store.update_activity(M.Activity.from_dict(before))
+                    facade.activities.refresh()
                 facade.ctx.settings.confirm_launch_over = 8
-                facade.toast.emit("Saved · 12 things · 14:32", "The checkpoint is in the activity's history.", "success")
-                pump(app, 500)
-                shot(f"{th}-{w}x{h}-toast")
+                facade.ui.go("home", {})
                 pump(app, 300)
+                call("clearToasts")
+                facade.toast.emit(lot7_toast, "The checkpoint is in the activity's history.", "success")
+                pump(app, 500)
+                shot(f"{prefix}{th}-{w}x{h}-toast")
+                pump(app, 300)
+        if tall is not None and tall_routes:
+            w, h = tall
+            win.resize(w, h)
+            pump(app, 300)
+            for route in tall_routes:
+                page = visit(route, f"{th}-tall-{route}", w, h, True, take=route != "settings")
+                if route == "settings":
+                    prop, keys = settings_tabs(page)
+                    if not keys:
+                        shot(f"{th}-tall-settings")
+                    for key in keys:
+                        tag = f"{th}-tall-settings-{key}"
+                        p = visit(f"settings-{key}", tag, w, h, True)
+                        if p is not None and p.property(prop) != key:
+                            p.setProperty(prop, key)
+                            pump(app, 400)
+                            check_layout(tag, w, h, True)
+                            shot(tag)
+            win.resize(*(sizes[0] if sizes else SIZES[0]))
+            pump(app, 200)
 
     pump(app, 300)
-    warnings = [m for m in MESSAGES]
+    warnings = list(MESSAGES)
     for m in warnings:
         print(m)
     for p in problems:
         print("[layout]", p)
+    for n in notes:
+        print("[note]", n)
     print(f"{shots} screenshots in {out}" if not args.check else "check pass done")
     print(f"{len(warnings)} Qt/QML warnings, {len(problems)} layout problems")
+    print(f"run time {time.monotonic() - T0:.0f} s")
     win.close()
-    trace('win.close()')
+    trace("win.close()")
     import shiboken6
     win = None
     shiboken6.delete(engine)
     facade.shutdown()
-    trace('facade.shutdown()')
+    trace("facade.shutdown()")
     return 1 if warnings or problems else 0
+
+
+def toast_text(app: Any, ids: dict[str, str]) -> str:
+    """"Saved · 6 things · 14:32" from Lot 7's newest checkpoint (the one Resume offers)."""
+    from project_opener.ui import text as T
+    cps = app.snapshots.checkpoints(ids["lot7"]) if ids.get("lot7") else []
+    if not cps:
+        return "Saved"
+    return f"Saved · {T.plural(cps[0].snapshot.open_count, 'thing')} · {T.clock(cps[0].taken_at)}"
 
 
 C_MIN_AVAIL = 1040 - 68
 
 
 def SHEETS(ids: dict[str, str]) -> list[tuple[str, dict[str, Any]]]:  # noqa: N802
+    lot7, p1 = ids.get("lot7", ""), ids.get("p1", "")
     return [
-        ("ActivityEditor", {"activityId": ids["lot7"]}),
-        ("ActivityEditor", {"activityId": "", "projectId": ids["p1"]}),
-        ("ProjectEditor", {"projectId": ids["p1"]}),
+        ("ActivityEditor", {"activityId": lot7}),
+        ("ActivityEditor", {"activityId": "", "projectId": p1}),
+        ("ProjectEditor", {"projectId": p1}),
         ("ConfirmSheet", {"title": "Delete Lot 7 check?", "body": "Its 8 items and checkpoints go; the projects stay.",
                           "confirm": "Delete activity", "destructive": True}),
-        ("PublishSheet", {"mode": "activity", "targetId": ids["lot7"], "demoMention": True}),
+        ("PublishSheet", {"mode": "activity", "targetId": lot7, "demoMention": True}),
         ("PublishSheet", {"mode": "announce"}),
-        ("TaskSheet", {"attachKind": "activity", "attachId": ids["lot7"]}),
-        ("WatcherSheet", {"activityId": ids["lot7"]}),
+        ("TaskSheet", {"attachKind": "activity", "attachId": lot7}),
+        ("WatcherSheet", {"activityId": lot7}),
         ("StartFromOpenSheet", {}),
         ("SaveNewSheet", {}),
         ("ResumeSheet", {}),
         ("AddChooserSheet", {"paths": [_job(r"Lot 8\Comment register.xlsx")]}),
-        ("AttachPathSheet", {"entryKey": "k7", "windowTitle": "Drawing1 - AutoCAD", "appName": "AutoCAD"}),
+        ("AttachPathSheet", {"entryKey": "win:ustation.exe|PIPE-GAD-0120.dgn - MicroStation",
+                             "windowTitle": "PIPE-GAD-0120.dgn - MicroStation", "appName": "MicroStation"}),
     ]
 
 

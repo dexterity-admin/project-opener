@@ -50,14 +50,16 @@ Sheet {
     }
     Row {
         visible: s.kind === "folder" || s.kind === "health"
+        width: parent.width
         spacing: 12
         Field {
             id: target
-            width: 420
+            width: parent.width - (browseBtn.visible ? browseBtn.width + 12 : 0)
             label: s.kind === "folder" ? "Folder" : "Server, share or drive"
             placeholder: s.kind === "folder" ? "\\\\nas01\\Project\\P12513\\ISO\\Revision C" : "\\\\nas01"
         }
         ActionButton {
+            id: browseBtn
             visible: s.kind === "folder"
             y: 25
             text: "Browse"
@@ -65,12 +67,13 @@ Sheet {
             onClicked: { var p = app.settings.browseFolder("Folder to watch", target.text); if (p !== "") target.text = p }
         }
     }
-    Field { id: pattern; visible: s.kind === "folder"; width: 220; label: "Files"; placeholder: "*.pdf"; help: "Empty: every file." }
+    Field { id: pattern; visible: s.kind === "folder"; width: (parent.width - 16) / 2; label: "Files"; placeholder: "*.pdf"; help: "Empty: every file." }
     Column {
+        width: parent.width
         spacing: 6
         Txt { text: "When"; strong: true }
         Flow {
-            width: s.width
+            width: parent.width
             spacing: 6
             Repeater {
                 model: s.eventsFor[s.kind]
@@ -87,5 +90,5 @@ Sheet {
     SwitchRow { id: toast; label: "Tell me with a toast"; checked: true; onToggled: (v) => checked = v }
     ForField { id: tell; width: parent.width; label: "Also tell"; help: "People and groups get it in their inbox." }
     SwitchRow { id: dm; label: "Message on Cliq"; help: "To me and the people above, when linked."; checked: app.settings.value("notify_cliq_default") === true; onToggled: (v) => checked = v }
-    Field { id: channel; width: 300; label: "Cliq channel"; placeholder: "#p12513"; help: "Optional: post there too." }
+    Field { id: channel; width: (parent.width - 16) / 2; label: "Cliq channel"; placeholder: "#p12513"; help: "Optional: post there too." }
 }

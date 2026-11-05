@@ -17,7 +17,7 @@ Sheet {
     property string query: ""
 
     title: creating ? "New activity" : "Edit activity"
-    subtitle: creating ? "Open what it needs later, or save what is open while it runs." : (act.title || "")
+    subtitle: creating ? "" : (act.title || "")
     confirmText: creating ? "Create activity" : "Save"
     sheetWidth: 680
     confirmEnabled: nameField.text.trim() !== ""
@@ -67,14 +67,16 @@ Sheet {
         visible: s.tab === "details" || s.creating
         width: parent.width
         spacing: 16
+        // two fields share the row equally and end on the content edge (juror D6)
         Row {
+            width: parent.width
             spacing: 16
-            Field { id: nameField; width: 360; label: "Name"; placeholder: "Lot 7 check"; onAccepted: s.accept() }
-            Field { id: shortField; width: 236; label: "Short name"; help: "On the pill and the tray; up to 18 characters."; placeholder: nameField.text.slice(0, 18); input.maximumLength: 18 }
+            Field { id: nameField; width: (parent.width - 16) / 2; label: "Name"; placeholder: "Lot 7 check"; onAccepted: s.accept() }
+            Field { id: shortField; width: (parent.width - 16) / 2; label: "Short name"; help: "On the pill and the tray; up to 18 characters."; placeholder: nameField.text.slice(0, 18); input.maximumLength: 18 }
         }
         ChoiceField {
             id: job
-            width: 360
+            width: (parent.width - 16) / 2
             label: "Job"
             options: {
                 var out = [{ value: "", text: "No project" }]
@@ -86,12 +88,13 @@ Sheet {
         }
         AreaField { id: descField; width: parent.width; label: "Description"; placeholder: "Back-check of lot 7 against the RLM mark-ups"; boxHeight: 64 }
         Column {
+            width: parent.width
             spacing: 6
             Txt { text: "Icon"; strong: true }
             Flow {
                 id: iconPick
                 property string value: "stack"
-                width: s.width
+                width: parent.width
                 spacing: 6
                 Repeater {
                     model: ["stack", "checks", "compass", "ruler", "cube", "factory", "anchor", "buildings", "clipboard-text", "calendar", "magnifying-glass", "users-three", "wrench", "lightning", "flag", "star"]

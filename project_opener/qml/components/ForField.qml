@@ -24,11 +24,8 @@ Column {
         t.splice(i, 1)
         targets = t
     }
-    function nameFor(login) {
-        var m = app.hub.mentionCandidates
-        for (var i = 0; i < m.count(); i++) { var r = m.get(i); if (r.login === login) return r.isGroup ? "@" + login : r.displayName }
-        return login
-    }
+    // a person by display name, a group as @name (the picker's rows narrow as you type, so ask the hub)
+    function nameFor(login) { return app.hub.nameFor(login) || login }
 
     Txt { text: f.label; strong: true; width: f.width }
     Item {

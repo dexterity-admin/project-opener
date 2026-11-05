@@ -31,12 +31,12 @@ log = logging.getLogger(__name__)
 PEER_ROLES = ("login", "displayName", "role", "host", "online", "doing", "initials", "hue", "cliqLinked")
 PUBLISHED_ROLES = (
     "publishedId", "type", "title", "spine", "author", "authorName", "revision", "publishedAt", "publishedText",
-    "forText", "description", "isMine", "cloned", "itemCount",
+    "forText", "forTip", "description", "isMine", "cloned", "itemCount",
 )
 INBOX_ROLES = ("messageId", "kind", "sender", "senderName", "sentAt", "sentText", "message", "title", "mentionsMe",
                "link")
 ANNOUNCEMENT_ROLES = ("announcementId", "title", "body", "level", "author", "authorName", "ts", "tsText", "mine")
-GROUP_ROLES = ("groupName", "members", "memberCount", "dotColor", "updatedBy")
+GROUP_ROLES = ("groupName", "members", "memberNames", "memberCount", "dotColor", "updatedBy")
 MENTION_ROLES = ("login", "displayName", "role", "online", "isGroup", "memberCount")
 PULSE_ROLES = ("ts", "tsText", "login", "displayName", "event", "detail", "mentionsMe")
 REGISTER_ROLES = ("job", "event", "revision", "by", "when", "whenText")
@@ -171,12 +171,30 @@ class HubApi(ApiBase):
         return self.ctx.resolver.portable
 
     def name_for(self, login: str) -> str:
+        """A person's display name (DESIGN.md: people by name everywhere, the login only in a tooltip)."""
         if not login:
             return ""
-        if login == self.me:
+        if login.lower() == self.me.lower():
             return self.ctx.display_name()
         d = self._users.get(login.lower(), {})
         return str(d.get("display_name") or "") or login
+
+    def target_name(self, target: str) -> str:
+        """A "for" target as shown: a group as "@name", a person by display name."""
+        t = (target or "").strip().lstrip("@")
+        if any(g.name.lower() == t.lower() for g in self._group_list):
+            return f"@{t}"
+        return self.name_for(t)
+
+    def for_text(self, targets: list[str]) -> str:
+        """"for Priya, @checkers" ("" when for everyone)."""
+        names = [self.target_name(t) for t in targets if (t or "").strip()]
+        return f"for {', '.join(names)}" if names else ""
+
+    @Slot(str, result=str)
+    def nameFor(self, login: str) -> str:  # noqa: N802
+        """QML's name for a login or a group (the "For" field's chips)."""
+        return self.target_name(login)
 
     def _toast(self, title: str, body: str = "", level: str = "info") -> None:
         try:
@@ -282,8 +300,10 @@ class HubApi(ApiBase):
         self.peersChanged.emit()
 
     def _sync_groups(self) -> None:
-        self._groups.sync([{"groupName": g.name, "members": list(g.members), "memberCount": len(g.members),
-                            "dotColor": g.color, "updatedBy": self.name_for(g.updated_by)} for g in self._group_list])
+        self._groups.sync([{"groupName": g.name, "members": list(g.members),
+                            "memberNames": ", ".join(sorted((self.name_for(m) for m in g.members), key=str.lower)),
+                            "memberCount": len(g.members), "dotColor": g.color, "updatedBy": self.name_for(g.updated_by)}
+                           for g in self._group_list])
         self.groupsChanged.emit()
 
     def _local_clone_ids(self) -> set[str]:
@@ -335,7 +355,8 @@ class HubApi(ApiBase):
                  fors: list[str], description: str, cloned: bool, count: int) -> dict[str, Any]:
         return {"publishedId": pid, "type": type_, "title": title, "spine": spine, "author": author,
                 "authorName": self.name_for(author), "revision": revision, "publishedAt": at,
-                "publishedText": when_text(at), "forText": ", ".join(f"@{t}" for t in fors),
+                "publishedText": when_text(at), "forText": self.for_text(fors),
+                "forTip": ", ".join(f"@{t.lstrip('@')}" for t in fors if t),
                 "description": description, "isMine": author == self.me, "cloned": cloned, "itemCount": count}
 
     def _register_row(self, job: str, revision: int, author: str, at: str) -> dict[str, Any]:
@@ -430,7 +451,10 @@ class HubApi(ApiBase):
         q = self._query.strip().lstrip("@").lower()
         online = {p.user.lower(): p.online for p in self.ctx.peers}
         rows = []
+        me = self.me.lower()
         for login, rec in self._users.items():
+            if login.lower() == me:              # the picker never offers the user themself
+                continue
             name = str(rec.get("display_name") or "") or login
             if q and q not in login and q not in name.lower():
                 continue

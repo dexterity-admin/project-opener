@@ -19,9 +19,9 @@ Window {
 
     // Ambient loops (the office breathing) only in rich motion and only while the window is active.
     readonly property bool ambientOn: app.ui.ambient && root.active
-    readonly property int pageMinimumWidth: pageLoader.item && pageLoader.item.minimumWidth !== undefined
-                                            ? pageLoader.item.minimumWidth : 0
-    readonly property var pageItem: pageLoader.item
+    readonly property bool onActivity: app.ui.route === "activity"
+    readonly property var pageItem: onActivity ? activityLoader.item : pageLoader.item
+    readonly property int pageMinimumWidth: pageItem && pageItem.minimumWidth !== undefined ? pageItem.minimumWidth : 0
     property string lastSheet: ""
 
     readonly property var pages: ({
@@ -117,12 +117,21 @@ Window {
             height: parent.height
             // (re)loaded on every route change by the Connections below, so a page reads its payload once,
             // at creation, and never reacts to a route change while it is being torn down
-            focus: true
-            onLoaded: {
-                if (app.ui.k > 0) enter.restart()
-                var tint = item && item.tint !== undefined ? item.tint : ""
-                if (tint !== "" && app.ui.k > 0) { sweep.color = tint; sweepIn.restart() }
-            }
+            focus: !root.onActivity
+            onLoaded: root.entered(item)
+        }
+        // The activity page is built once and kept: a visit shows it and re-selects its models instead of
+        // building ~1 s of QML each time (juror U1).  Built in the background on a real screen; synchronously
+        // offscreen (the smoke), where there is no frame loop to incubate it.
+        Loader {
+            id: activityLoader
+            width: parent.width
+            height: parent.height
+            asynchronous: Qt.platform.pluginName !== "offscreen"
+            source: "pages/ActivityPage.qml"
+            visible: root.onActivity
+            focus: root.onActivity
+            onLoaded: if (root.onActivity) root.showActivityPage()
         }
         // Page transitions carry the job's colour: entering an activity or a project, a 3 px line in its own
         // colour draws across the top of the page and fades (identity colour, never chrome; not in off).
@@ -142,8 +151,8 @@ Window {
         // Page change: the page settles in 8 px and fades in (purposeful scales it; off is a cut).
         ParallelAnimation {
             id: enter
-            NumberAnimation { target: pageLoader; property: "opacity"; from: 0; to: 1; duration: Math.round(220 * app.ui.k); easing.type: Easing.OutCubic }
-            NumberAnimation { target: pageLoader; property: "y"; from: 8; to: 0; duration: Math.round(260 * app.ui.k); easing.type: Easing.OutCubic }
+            NumberAnimation { target: root.onActivity ? activityLoader : pageLoader; property: "opacity"; from: 0; to: 1; duration: Math.round(220 * app.ui.k); easing.type: Easing.OutCubic }
+            NumberAnimation { target: root.onActivity ? activityLoader : pageLoader; property: "y"; from: 8; to: 0; duration: Math.round(260 * app.ui.k); easing.type: Easing.OutCubic }
         }
     }
 
@@ -182,8 +191,20 @@ Window {
         target: app.capture
         function onSaveNewRequested() { root.openSheet("SaveNewSheet", {}) }
     }
+    function entered(item) {
+        if (app.ui.k > 0) enter.restart()
+        var tint = item && item.tint !== undefined ? item.tint : ""
+        if (tint !== "" && app.ui.k > 0) { sweep.color = tint; sweepIn.restart() }
+    }
+    function showActivityPage() {
+        var page = activityLoader.item
+        if (!page) return                       // still being built: onLoaded shows it
+        page.show(app.ui.routePayload.activityId || "")
+        root.entered(page)
+    }
     function loadPage() {
         pageLoader.source = ""
+        if (app.ui.route === "activity") { showActivityPage(); return }
         pageLoader.source = root.pages[app.ui.route] || root.pages["home"]
     }
     Component.onCompleted: loadPage()

@@ -184,7 +184,7 @@ def pill_view(f: PillFacts) -> dict[str, Any]:
         return {**base, "kind": "paused", "dot": "hollow", "detail": "paused"}
     if f.state == "needs" or f.needs_path > 0 or f.drive_down:
         if f.drive_down:
-            return {**base, "kind": "needs", "ring": "bad", "detail": "server offline"}
+            return {**base, "kind": "needs", "ring": "bad", "detail": "Server offline"}
         n = f.needs_path
         return {**base, "kind": "needs", "ring": "warn",
                 "detail": f"{n} needs a path" if n == 1 else f"{n} need a path"}

@@ -38,6 +38,8 @@ ACTIVITY_ROLES = (
     # additive
     "title", "subtitle", "description", "previewNames", "previewGlyphs", "previewMore", "problems", "okCount", "pausedAt",
     "pausedText", "projectCount", "shortName", "captureText", "resumeOnStart", "notes", "projectIds",
+    # round 2: one capture-state word set (U4), the drive-down fact (C2), the watcher's figure (C4), open tasks
+    "captureState", "driveDown", "driveText", "newFiles", "openTasks",
 )
 PROJECT_ROLES = (
     "projectId", "name", "title", "spine", "client", "dotColor", "icon", "itemCount", "activityCount",
@@ -251,6 +253,69 @@ class ActivitiesApi(ApiBase):
             return {}
         return {m.activity_id: m for m in marks}
 
+    # ------------------------------------------------------------- facts
+    def _offline_roots(self) -> dict[str, dict[str, Any]]:
+        """Roots the office-wide drive map reports not reachable (app.watchers.roots: the one source for
+        "down since"), keyed by folded root."""
+        try:
+            rows = self.app.watchers.roots.rows
+        except (AttributeError, RuntimeError):
+            return {}
+        return {str(r.get("rootName", "")).lower(): r for r in rows
+                if r.get("rootName") and str(r.get("status", "")).lower() not in ("ok", "")}
+
+    def _root_of(self, path: str) -> str:
+        from project_opener.core.health import path_root, root_key
+        try:
+            path = self.app.ctx.resolver.resolve(path).resolved or path
+        except Exception:  # noqa: BLE001
+            pass
+        root = path_root(path)
+        if not root:
+            return ""
+        try:
+            folded, _share = root_key(root, self.app.ctx.resolver.drive_map)
+        except Exception:  # noqa: BLE001
+            folded = root
+        return folded.lower()
+
+    def _drive_fact(self, act: M.Activity, offline: dict[str, dict[str, Any]]) -> tuple[bool, str]:
+        """(a root this activity uses is down, "\nas01 down since 14:40")."""
+        if not offline:
+            return False, ""
+        for it in act.items:
+            r = offline.get(self._root_of(it.path))
+            if r is not None:
+                since = str(r.get("sinceText", "")).split(" · ")[0]
+                return True, T.join_facts(str(r.get("rootName", "")), since)
+        return False, ""
+
+    def _open_tasks(self, act_id: str) -> list[dict[str, Any]]:
+        try:
+            rows = self.app.tasks.all.rows
+        except (AttributeError, RuntimeError):
+            return []
+        out = [{"taskId": r.get("taskId", ""), "title": r.get("title", ""), "dueText": r.get("dueText", ""),
+                "overdue": bool(r.get("overdue"))}
+               for r in rows if r.get("attachKind") == "activity" and r.get("attachId") == act_id and not r.get("done")]
+        return out[:3]
+
+    def _new_files(self, act: M.Activity) -> dict[str, Any]:
+        try:
+            fact = self.app.watchers.new_files(act.id, lambda p: act.item_by_path(p) is not None)
+        except Exception:  # noqa: BLE001
+            return {}
+        if fact:
+            fact = {**fact, "timeText": T.clock(fact.get("time", ""))}
+        return fact
+
+    def capture_state(self, act: M.Activity, running: bool) -> str:
+        if not self.app.ctx.settings.capture_enabled or not act.capture_enabled:
+            return "off"
+        if running:
+            return "paused" if self._cap("state", "") == "paused" else "watching"
+        return "idle"
+
     # ------------------------------------------------------------- rows
     def activity_row(self, act: M.Activity, projects: dict[str, M.Project] | None = None,
                      stale: dict[str, M.RunningMarker] | None = None) -> dict[str, Any]:
@@ -293,15 +358,17 @@ class ActivitiesApi(ApiBase):
         count = T.plural(len(act.items), "item") + (f" {from_projects}" if from_projects else "")
         subtitle = T.join_facts(client, count, opened)
         names = [i.display_name for i in act.items]
-        if not global_capture:
-            capture_text = "Capture off for every activity"
-        elif not act.capture_enabled:
-            capture_text = "Capture off for this activity"
-        elif running:
-            capture_text = "Capture on · " + T.things_line(open_now, ident)
-        else:
-            capture_text = "Capture on · the snapshot is kept fresh while it runs"
+        state = self.capture_state(act, running)
+        last = ""
+        if state != "watching":
+            try:
+                snap = self.app.snapshots.latest(act.id)
+                last = snap.taken_at if snap is not None and snap.entries else ""
+            except Exception:  # noqa: BLE001
+                last = ""
+        capture_text = T.capture_line(state, last, open_now, ident)
         task = self._task_line("activity", act.id)
+        drive_down, drive_text = self._drive_fact(act, self._offline_roots())
         return {
             "activityId": act.id, "name": act.name, "label": act.label,
             "icon": _icon(act.icon), "dotColor": self._color_for(act, projects), "spine": spine,
@@ -319,6 +386,8 @@ class ActivitiesApi(ApiBase):
             "pausedAt": paused_at, "pausedText": f"paused at {T.clock(paused_at)}" if paused_at else "",
             "projectCount": len(pids), "shortName": act.short_name, "captureText": capture_text,
             "resumeOnStart": act.resume_on_start, "notes": act.notes, "projectIds": list(act.project_ids),
+            "captureState": state, "driveDown": drive_down, "driveText": drive_text,
+            "newFiles": self._new_files(act), "openTasks": self._open_tasks(act.id),
         }
 
     def item_row(self, item: M.Item, order: int, owner_id: str, projects: dict[str, M.Project],
@@ -353,11 +422,18 @@ class ActivitiesApi(ApiBase):
     # -------------------------------------------------------------- slots
     def start(self) -> None:
         """Fill the models, compute the Resume band (stale RunningMarkers), check paths."""
-        for name, sig in (("capture", "stateChanged"), ("capture", "liveChanged"), ("tasks", "tasksChanged")):
+        for name, sig in (("capture", "stateChanged"), ("capture", "liveChanged"), ("tasks", "tasksChanged"),
+                          ("watchers", "rootsChanged"), ("watchers", "alertsChanged"),
+                          ("watchers", "watchersChanged")):
             try:
                 getattr(getattr(self.app, name), sig).connect(self._refresh_timer.start)
             except Exception:  # noqa: BLE001
                 pass
+        try:
+            # the band and a running activity are one object: once it runs again, the band goes
+            self.app.capture.stateChanged.connect(self._compute_resume)
+        except Exception:  # noqa: BLE001
+            pass
         self.refresh()
         self._compute_resume()
         self.recheck()
@@ -964,6 +1040,8 @@ class ActivitiesApi(ApiBase):
             act = store.activity(aid)
             if act is None or not act.resume_on_start or aid in self._resume_dismissed:
                 continue
+            if self._cap("runningId", "") == aid:
+                continue                        # it runs again: the band and the activity are one object
             try:
                 snap = self.app.snapshots.latest(aid)
             except Exception:  # noqa: BLE001
@@ -976,7 +1054,7 @@ class ActivitiesApi(ApiBase):
         else:
             when, act, snap = best
             proj = store.get(act.primary_project_id)
-            count = snap.identified_count if snap and snap.entries else len(act.items)
+            count = snap.open_count if snap and snap.entries else len(act.enabled_items)
             title, text = T.resume_text(act.name, count, when, proj.spine if proj else "")
             new = {"activityId": act.id, "title": title, "count": count, "takenAt": T.clock(when), "text": text,
                    "name": act.name}

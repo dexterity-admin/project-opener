@@ -71,6 +71,7 @@ class Settings:
     open_office_via_com: bool = True    # Office files through COM (no Protected View stall on the share)
     # Snapshot surfaces (brief 3.8)
     pill_enabled: bool = True
+    settings_tab: str = ""            # the Settings page's last tab (remembered across restarts)
     pill_rest_style: str = "pill"       # pill | edge
     pill_pinned: bool = False           # show even when no activity runs (offers Start from what's open)
     pill_positions: dict[str, dict[str, Any]] = field(default_factory=dict)  # monitor-layout key -> {edge, offset, monitor}

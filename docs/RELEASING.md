@@ -26,8 +26,22 @@ Pre-release: run the workflow manually (*Actions → build → Run workflow*) wi
 ## After the release
 
 - Clients with a token see the update within 4 hours (or immediately via *Check for updates*).
-- An admin should open *Updates*, download, and click **Mirror to Team Hub for colleagues** so the
-  whole office can update from the LAN without tokens or internet.
+- An admin should open *Updates*, download, and click **Copy X.Y.Z to the Team Hub** so the
+  whole office can update from the LAN without tokens or internet. To put the version the office
+  already runs on the hub (no newer download pending), use **Copy this version to the Team Hub**
+  under *Update sources*; it fetches that version's installer from its release, verifies it and
+  copies it. It is available only in an installed (frozen) build; a source run says why not.
+
+## Delivery: the program runs from each PC, the share holds the installer
+
+- The installer copies the app to each PC, per user, under `%LOCALAPPDATA%\Programs\Project Opener`
+  (no administrator rights). The Start-menu shortcut and `projectopener://` links point there.
+- The office share holds only the installer and the update mirror (`<hub>\updates\`: the two newest
+  installers and `latest.json`). Never deploy the app folder or the portable zip's contents to the
+  share for people to run in place.
+- Reason (measured): the frozen exe started from the share takes about 60 s to reach Python, because
+  Windows reads every bundled file over SMB; installed locally it starts in a few seconds.
+- The user guide says the same in section 2.1 (Install).
 
 ## Landing page (GitHub Pages)
 

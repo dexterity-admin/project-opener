@@ -14,6 +14,15 @@ Page {
     readonly property int cols: contentW >= 1180 ? 3 : 2
     readonly property int cardW: Math.floor((contentW - (cols - 1) * 16) / cols)
 
+    // A line of facts drops whole facts from the right until it fits (DESIGN.md): a card's pill never runs
+    // under its Open button ("1 server offline · 1 undefined variable · 5 reachable" -> "1 server offline").
+    FontMetrics { id: pillMetrics; font.family: page.tk.face; font.pixelSize: 12; font.weight: Font.Medium }
+    function fitFacts(text, maxW) {
+        var parts = String(text).split(" · ")
+        while (parts.length > 1 && pillMetrics.advanceWidth(parts.join(" · ")) + 16 > maxW) parts.pop()
+        return parts.join(" · ")
+    }
+
     PageHeader {
         title: "Projects"
         subtitle: app.activities.projectCount === 0 ? "" : app.activities.projectCount + (app.activities.projectCount === 1 ? " project" : " projects")
@@ -78,8 +87,11 @@ Page {
             model: app.activities.projects
             delegate: Card {
                 id: card
-                // a lone card in the last row keeps its column width (DESIGN.md)
-                width: page.cardW
+                // the last row: two or more cards share its full width; a lone card keeps its column width
+                // (DESIGN.md "Card grids", 3.2's justified last row)
+                readonly property int lastRow: rep.count % page.cols
+                readonly property bool inLastRow: lastRow >= 2 && index >= rep.count - lastRow
+                width: inLastRow ? Math.floor((page.contentW - (lastRow - 1) * 16) / lastRow) : page.cardW
                 height: 196
                 color: cardMouse.containsMouse ? tk.surface_2 : tk.surface
                 Behavior on color { ColorAnimation { duration: Math.round(140 * app.ui.k) } }
@@ -129,6 +141,7 @@ Page {
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: card.pad - 4
                     ActionButton {
+                        id: openBtn
                         text: "Open project"
                         small: true
                         onClicked: app.activities.openProject(model.projectId)
@@ -137,7 +150,7 @@ Page {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         status: model.healthWorst === "ok" ? "ok" : model.healthWorst === "offline" ? "bad" : model.healthWorst === "" ? "neutral" : "warn"
-                        label: model.healthWorst === "" ? "" : model.healthText
+                        label: model.healthWorst === "" ? "" : page.fitFacts(model.healthText, parent.width - openBtn.width - 12)
                     }
                 }
                 Icon {

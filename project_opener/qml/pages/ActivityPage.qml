@@ -10,7 +10,13 @@ Page {
     id: page
     minimumWidth: 860
     readonly property string tint: { var m = app.activities.activities; var i = m.indexOf(page.activityId); return i >= 0 ? m.get(i).dotColor : "" }
-    readonly property string activityId: app.ui.routePayload.activityId || ""
+    // set by Main.showActivityPage: the page is kept between visits and shown for one activity at a time
+    property string activityId: ""
+    function show(id) {
+        contentY = 0
+        activityId = id
+        Qt.callLater(function () { if (page.activityId !== "") app.activities.select(page.activityId) })
+    }
     readonly property var act: app.activities.current
     readonly property bool known: act.activityId !== undefined && act.activityId === activityId
     readonly property bool running: known && app.capture.runningId === activityId
@@ -18,12 +24,20 @@ Page {
     readonly property bool hasRecord: app.activities.dockId === activityId && app.activities.dock.count() > 0
                                      && app.activities.launchProgress >= 0
     readonly property bool stack: contentW < 1080
+    // below 1180 px the identity is never cut (juror U3): Snapshot now and Add a window move into the menu
+    readonly property bool compactHeader: page.width < 1180
+    // the page shows at once on a visit; its live rows (dashed tiles, health lookups) fill a moment later
+    property bool liveReady: false
+    onVisibleChanged: { if (visible) liveTimer.restart(); else { liveTimer.stop(); liveReady = false } }
+    Timer { id: liveTimer; interval: 40; onTriggered: page.liveReady = true }
+    Component.onCompleted: if (visible) liveTimer.restart()
 
-    Component.onCompleted: { var id = page.activityId; Qt.callLater(function () { app.activities.select(id) }) }
 
     function subtitle() {
         if (!known) return ""
         if (running) {
+            // one capture-state line (juror U4): "Capture off · last snapshot 14:32" when it is not watching
+            if (app.capture.captureState !== "watching") return app.capture.captureLine
             var parts = [app.capture.openCount + (app.capture.openCount === 1 ? " thing open" : " things open"),
                          app.capture.identifiedCount + " identified"]
             if (app.capture.needsPathCount > 0) parts.push(app.capture.needsPathCount + " need a path")
@@ -32,7 +46,7 @@ Page {
             if (app.capture.lastCheckpointText !== "")
                 parts.push("checkpoint " + app.capture.lastCheckpointText + (since > 0 ? ", " + since + " new since" : ""))
             else if (since > 0) parts.push(since + " new since the start")
-            return "Running · " + parts.join(" · ")
+            return "Watching · " + parts.join(" · ")
         }
         return act.subtitle
     }
@@ -44,6 +58,8 @@ Page {
     function menuAction(a) {
         var w = Window.window
         switch (a) {
+        case "snapshot": page.snapshot(); break
+        case "addWindow": page.addWindow(); break
         case "edit": w.openSheet("ActivityEditor", { activityId: page.activityId }); break
         case "pin": app.activities.togglePin(page.activityId); break
         case "duplicate": { var id = app.activities.duplicate(page.activityId); if (id) app.ui.go("activity", { activityId: id }); break }
@@ -80,13 +96,13 @@ Page {
             }
         }
         ActionButton {
-            visible: page.running && page.newCount > 0
+            visible: page.running && page.newCount > 0 && !page.compactHeader
             text: "Snapshot now"
             icon: "camera"
             onClicked: page.snapshot()
         }
         ActionButton {
-            visible: page.running
+            visible: page.running && !page.compactHeader
             text: "Add a window"
             icon: "selection-plus"
             onClicked: page.addWindow()
@@ -105,6 +121,8 @@ Page {
         MenuButton {
             visible: page.known
             entries: [
+                { text: "Snapshot now", icon: "camera", action: "snapshot", hidden: !(page.running && page.compactHeader && page.newCount > 0) },
+                { text: "Add a window", icon: "selection-plus", action: "addWindow", hidden: !(page.running && page.compactHeader) },
                 { text: "Edit activity", icon: "pencil-simple", action: "edit" },
                 { text: act.pinned ? "Unpin from the stage" : "Pin to the stage", icon: "push-pin", action: "pin" },
                 { text: "Duplicate", icon: "copy", action: "duplicate" },
@@ -174,6 +192,7 @@ Page {
                 }
                 LiveList {
                     visible: page.running
+                    active: page.liveReady && page.running
                     width: parent.width
                     activityId: page.activityId
                 }
@@ -268,7 +287,7 @@ Page {
             MonitorsPanel {
                 width: parent.width
                 height: implicitHeight
-                running: page.running
+                running: page.running && page.visible
             }
             CheckpointsPanel {
                 width: parent.width

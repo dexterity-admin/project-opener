@@ -116,10 +116,15 @@
         Leave <b>Start Project Opener when I sign in to Windows (minimised to the tray)</b> unticked unless you want it running from sign-in; you can change this later in Settings.</li>
     <li>Project Opener starts at the end of the installation. A Start-menu shortcut is added, and <code>projectopener://</code> links open in it.</li>
   </ol>
+  <div class="note"><b>The program runs from your PC, not from the share.</b> The installer copies Project Opener to this PC, for your
+  Windows user (<code>%LOCALAPPDATA%\Programs\Project Opener</code>), and the Start-menu shortcut points there. The office share holds only
+  the installer and the update mirror (<code>…\_ProjectOpenerHub\updates\</code>). Do not start <b>ProjectOpener.exe</b> from the share:
+  Windows then reads every program file over the network, and the window takes about a minute to appear (60 s measured) instead of a
+  few seconds.</div>
   <div class="note warn"><b>If Windows shows "Windows protected your PC" (SmartScreen)</b>, click <b>More info → Run anyway</b>. This appears because the
   installer is an internal build. Download the installer only from the hub folder or the official page above.</div>
-  <p>A portable zip is published with every release as well. Unzip it anywhere and run <b>ProjectOpener.exe</b>; it keeps its data in the same
-  per-user folder as the installed version, so you can switch between the two.</p>
+  <p>A portable zip is published with every release as well. Unzip it to a folder on this PC (not on the share, for the reason above) and run
+  <b>ProjectOpener.exe</b>; it keeps its data in the same per-user folder as the installed version, so you can switch between the two.</p>
 
   <h3>2.2 First start</h3>
   <div class="cols w60">

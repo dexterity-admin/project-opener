@@ -112,7 +112,7 @@ def test_needs_amber_and_red():
     assert (v["kind"], v["ring"], v["detail"]) == ("needs", "warn", "3 need a path")
     assert view(state="needs", needs_path=1)["detail"] == "1 needs a path"
     v = view(state="needs", needs_path=3, drive_down=True)
-    assert (v["ring"], v["detail"]) == ("bad", "server offline")
+    assert (v["ring"], v["detail"]) == ("bad", "Server offline")
     assert view(state="running", needs_path=2)["ring"] == "warn"     # counts win over a stale state
 
 

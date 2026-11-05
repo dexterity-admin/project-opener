@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import logging
 import shutil
+import threading
+from collections import deque
 from collections.abc import Callable, Iterable
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +33,56 @@ log = logging.getLogger(__name__)
 Listener = Callable[[str, Any], None]
 
 
+class _Writer:
+    """One thread that does a store's disk writes in order.  Consecutive workspace saves coalesce (the newest
+    content wins); history rows are appended in order.  ``flush`` waits for everything submitted."""
+
+    def __init__(self) -> None:
+        self._q: deque[tuple[str, Callable[[], None]]] = deque()
+        self._cond = threading.Condition()
+        self._busy = False
+        self._closed = False
+        self._thread = threading.Thread(target=self._loop, name="po-workspace-writer", daemon=True)
+        self._thread.start()
+
+    def submit(self, key: str, fn: Callable[[], None]) -> None:
+        with self._cond:
+            if key == "workspace" and self._q and self._q[-1][0] == "workspace":
+                self._q[-1] = (key, fn)
+            else:
+                self._q.append((key, fn))
+            self._cond.notify_all()
+
+    def _loop(self) -> None:
+        while True:
+            with self._cond:
+                while not self._q and not self._closed:
+                    self._cond.wait()
+                if not self._q:
+                    return
+                _key, fn = self._q.popleft()
+                self._busy = True
+            try:
+                fn()
+            except Exception:  # noqa: BLE001 - a failed write is logged; the next save writes everything again
+                log.exception("workspace write failed")
+            finally:
+                with self._cond:
+                    self._busy = False
+                    self._cond.notify_all()
+
+    def flush(self, timeout: float) -> bool:
+        with self._cond:
+            return self._cond.wait_for(lambda: not self._q and not self._busy, timeout)
+
+    def close(self, timeout: float) -> bool:
+        ok = self.flush(timeout)
+        with self._cond:
+            self._closed = True
+            self._cond.notify_all()
+        return ok
+
+
 class WorkspaceStore:
     def __init__(self, root: Path | None = None):
         self.root = Path(root) if root else C.data_dir()
@@ -44,6 +96,7 @@ class WorkspaceStore:
         self.migration: dict[str, Any] = {}
         self.migrated_from: str | None = None
         self._listeners: list[Listener] = []
+        self._writer: _Writer | None = None
         self.load()
 
     # ---------------------------------------------------------------- events
@@ -155,10 +208,41 @@ class WorkspaceStore:
                          watchers=self.watchers, migration=self.migration, schema=C.SCHEMA_VERSION)
         return ws.to_dict(app_version=C.VERSION)
 
-    def save(self, backup: bool = True) -> None:
+    def write_in_background(self, on: bool = True) -> None:
+        """The app: every save and history row is written by one background thread, so the GUI thread never
+        waits on the data folder's share (recording a launch took up to 0.68 s on U:).  The content is taken on
+        the calling thread, so a save is always a consistent picture.  ``flush``/``close`` at shutdown."""
+        if on and self._writer is None:
+            self._writer = _Writer()
+        elif not on and self._writer is not None:
+            self._writer.close(10.0)
+            self._writer = None
+
+    def flush(self, timeout: float = 10.0) -> bool:
+        return self._writer.flush(timeout) if self._writer is not None else True
+
+    def close_writer(self, timeout: float = 2.0) -> bool:
+        """Stop the background writer after at most ``timeout`` seconds; later saves are synchronous."""
+        w, self._writer = self._writer, None
+        return w.close(timeout) if w is not None else True
+
+    def _write_workspace(self, data: dict[str, Any], backup: bool) -> None:
         if backup and self.path.exists():
             self._rotate_backup()
-        write_json_atomic(self.path, self.to_dict())
+        write_json_atomic(self.path, data)
+
+    def _append_history(self, row: dict[str, Any]) -> None:
+        if self._writer is not None:
+            self._writer.submit("history", lambda: append_jsonl(self.history_path, row))
+        else:
+            append_jsonl(self.history_path, row)
+
+    def save(self, backup: bool = True) -> None:
+        data = self.to_dict()
+        if self._writer is not None:
+            self._writer.submit("workspace", lambda: self._write_workspace(data, backup))
+        else:
+            self._write_workspace(data, backup)
         self._emit("saved")
 
     def _rotate_backup(self) -> None:
@@ -369,7 +453,7 @@ class WorkspaceStore:
     def record_activity_launch(self, activity: M.Activity, items: list[M.Item], ok: int = 0, missing: int = 0) -> None:
         activity.mark_opened()
         self.update_activity(activity)
-        append_jsonl(self.history_path, {
+        self._append_history({
             "ts": M.now_iso(), "activity_id": activity.id, "activity": activity.name,
             "project_id": activity.primary_project_id, "project": "", "set": "",
             "count": len(items), "ok": ok, "missing": missing,
@@ -414,7 +498,7 @@ class WorkspaceStore:
                       ok: int = 0, missing: int = 0) -> None:
         project.mark_opened()
         self.update(project)
-        append_jsonl(self.history_path, {
+        self._append_history({
             "ts": M.now_iso(), "project_id": project.id, "project": project.name,
             "set": launch_set, "count": len(items), "ok": ok, "missing": missing,
         })

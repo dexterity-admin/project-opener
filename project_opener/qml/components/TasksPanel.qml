@@ -2,11 +2,12 @@ import QtQuick
 
 // Footlight 2: My tasks (brief 3.3), due soonest first.  A row: the done box, the title over "lot 7 check ·
 // from Yokesh", the due text on the right (a warn pill when due today or overdue).  Rows capped at 4 so the
-// three footlights share a bottom edge.  Data: app.tasks.mine (builder 1).
+// three footlights end level; the panel is as tall as its rows (no panel-void) and its action, Tasks, sits in
+// the heading with the count of the rest ("3 · 2 more"), never at the foot.  Data: app.tasks.mine.
 Card {
     id: panel
     property int maxRows: 4
-    implicitHeight: 64 + Math.max(1, Math.min(rep.count, maxRows)) * 48 + 40
+    implicitHeight: list.y + list.implicitHeight + pad
 
     Item {
         id: head
@@ -16,7 +17,8 @@ Card {
         SectionHeading {
             anchors.verticalCenter: parent.verticalCenter
             title: "My tasks"
-            facts: app.tasks.mineOpenCount > 0 ? String(app.tasks.mineOpenCount) : ""
+            facts: (app.tasks.mineOpenCount > 0 ? String(app.tasks.mineOpenCount) : "")
+                 + (rep.count > panel.maxRows ? " · " + (rep.count - panel.maxRows) + " more" : "")
         }
         ActionButton {
             anchors.right: parent.right
@@ -31,8 +33,7 @@ Card {
     Column {
         id: list
         x: panel.pad
-        anchors.top: head.bottom
-        anchors.topMargin: 6
+        y: head.y + head.height + 6
         width: panel.width - 2 * panel.pad
         Repeater {
             id: rep
@@ -52,13 +53,6 @@ Card {
             action: "New task"
             actionIcon: "plus"
             onTriggered: Window.window.openSheet("TaskSheet", {})
-        }
-        ActionButton {
-            visible: rep.count > panel.maxRows
-            text: (rep.count - panel.maxRows) + " more"
-            kind: "link"
-            small: true
-            onClicked: app.ui.go("hub", { tab: "tasks" })
         }
     }
 }

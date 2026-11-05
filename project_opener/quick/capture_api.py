@@ -206,6 +206,33 @@ class CaptureApi(ApiBase):
     sinceCheckpoint = ro(int, "_since_checkpoint", liveChanged)  # "2 new since"
     driveDown = ro(bool, "_drive_down", stateChanged)            # a root the activity uses is offline (red ring)
 
+    @Property(str, notify=stateChanged)
+    def captureState(self) -> str:  # noqa: N802
+        """The one capture-state word (ui.text.CAPTURE_STATES): watching | paused | off | idle."""
+        if not self._running_id:
+            return "idle"
+        if not self._capture_on():
+            return "off"
+        return "paused" if self._user_paused else "watching"
+
+    @Property(str, notify=liveChanged)
+    def captureLine(self) -> str:  # noqa: N802
+        """"Capture on · watching · 12 things open · 9 identified" / "Capture off · last snapshot 14:32" ...
+        for the running activity (the card, the page header, the live list and the pill say the same)."""
+        from project_opener.ui import text as T
+        state = self.captureState
+        last = ""
+        if state != "watching" and self._running_id:
+            cps = self.app.snapshots.checkpoints(self._running_id)
+            snap = self._snapshot or (cps[0].snapshot if cps else None)
+            last = snap.taken_at if snap is not None else ""
+        return T.capture_line(state, last, self._open, self._identified)
+
+    @Property(bool, notify=stateChanged)
+    def liveStale(self) -> bool:  # noqa: N802
+        """The live list shows the last snapshot, not what is open now (capture off or paused)."""
+        return bool(self._running_id) and self.captureState in ("off", "paused")
+
     @Property(bool, notify=stateChanged)
     def globalEnabled(self) -> bool:
         return bool(self.app.ctx.settings.capture_enabled)
@@ -446,7 +473,8 @@ class CaptureApi(ApiBase):
         self._update_state()
 
     def _on_identified(self, hwnd: int, entry: M.SnapshotEntry | None, purpose: str) -> None:
-        own = entry is not None and entry.pid in self._exclude_pids
+        from project_opener.capture import win32
+        own = entry is not None and win32.is_own_window(entry.pid, entry.exe, entry.window_class, self._exclude_pids)
         if purpose == "hover":
             if entry is None:
                 self.hoverIdentified.emit(hwnd, False, "")
@@ -552,7 +580,7 @@ class CaptureApi(ApiBase):
         """Stop the capture thread; write a final live snapshot; do NOT clear running markers
         (a clean exit with an activity still running keeps its marker only if the user chose so)."""
         if self._engine is not None:
-            self._engine.stop()
+            self._engine.stop(timeout=2.0)          # quit: at most 2 s (the final checkpoint is queued first)
             self._engine = None
 
     def apply_settings(self) -> None:
@@ -798,7 +826,7 @@ class CaptureApi(ApiBase):
         """The picker's click: identify ``hwnd`` (GA_ROOT) and add it; answer with ``addResult``."""
         from project_opener.capture import win32
         root = win32.root_of(int(hwnd))
-        if win32.window_pid(root) in self._exclude_pids:
+        if win32.is_own_hwnd(root, self._exclude_pids):
             self.addResult.emit(False, "That is Project Opener's own window", False, "")
             return
         self._ensure_engine().request_identify(root, "add")
@@ -808,7 +836,7 @@ class CaptureApi(ApiBase):
         """Hovering in the picker: answer with ``hoverIdentified`` (cached, cheap)."""
         from project_opener.capture import win32
         root = win32.root_of(int(hwnd))
-        if win32.window_pid(root) in self._exclude_pids:
+        if win32.is_own_hwnd(root, self._exclude_pids):
             self.hoverIdentified.emit(int(hwnd), False, "Project Opener")
             return
         self._ensure_engine().request_identify(root, "hover")

@@ -308,6 +308,45 @@ def root_of(hwnd: int) -> int:
     return int(_user32.GetAncestor(hwnd, GA_ROOT) or hwnd)
 
 
+# ---------------------------------------------------------------- our own windows
+# Brief 3.8: the app is left out of its own captures.  The process id alone misses another copy of the app
+# (a frozen build's windows when the capture runs elsewhere, a second user's instance, an installed 3.2), so a
+# window is ours when its process is this one, when its image is this frozen build's own executable, or when
+# it is a Qt-registered window class ("Qt6..QWindowIcon") of a process whose image is ProjectOpener.exe.
+OWN_IMAGE = "projectopener.exe"
+
+
+def own_exe() -> str:
+    """This build's executable (normalised); "" when running from source (python.exe is not ours)."""
+    if getattr(sys, "frozen", False):
+        return os.path.normcase(os.path.abspath(sys.executable))
+    return ""
+
+
+def is_qt_class(window_class: str) -> bool:
+    return window_class.startswith("Qt") and "QWindow" in window_class
+
+
+def is_own_window(pid: int, exe: str, window_class: str, exclude_pids: set[int],
+                  own_exe_path: str | None = None) -> bool:
+    """Pure: whether a window belongs to Project Opener itself (never captured, never added)."""
+    if pid in exclude_pids:
+        return True
+    e = os.path.normcase(exe or "")
+    own = own_exe() if own_exe_path is None else own_exe_path
+    if own and e == own:
+        return True
+    return is_qt_class(window_class or "") and os.path.basename(e) == OWN_IMAGE
+
+
+def is_own_hwnd(hwnd: int, exclude_pids: set[int]) -> bool:
+    pid = window_pid(hwnd)
+    if pid in exclude_pids:
+        return True
+    _name, exe = process_name(pid)
+    return is_own_window(pid, exe, class_name(hwnd), exclude_pids)
+
+
 # ---------------------------------------------------------------- enumeration
 def _info(hwnd: int, with_placement: bool = True) -> WindowInfo:
     pid = window_pid(hwnd)
@@ -366,9 +405,12 @@ def enumerate_windows(exclude_pids: set[int] | None = None) -> list[WindowInfo]:
         if pid in exclude:
             continue
         try:
-            out.append(_info(h))
+            info = _info(h)
         except OSError:  # pragma: no cover
             continue
+        if is_own_window(info.pid, info.exe, info.window_class, exclude):
+            continue
+        out.append(info)
     _prune_proc_cache(pids | exclude)
     return out
 

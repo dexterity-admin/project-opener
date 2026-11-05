@@ -57,7 +57,12 @@ Page {
                         anchors.rightMargin: 16
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 2
-                        Txt { width: parent.width; text: model.title + (model.pinned ? "  ·  pinned" : ""); strong: true }
+                        Row {
+                            width: parent.width
+                            spacing: 6
+                            Txt { id: actTitle; width: Math.min(implicitWidth, parent.width - (pinMark.visible ? 20 : 0)); text: model.title; strong: true }
+                            Icon { id: pinMark; visible: model.pinned; name: "push-pin"; size: 12; tone: "faint"; anchors.verticalCenter: actTitle.verticalCenter; Accessible.name: "Pinned" }
+                        }
                         Txt {
                             width: parent.width
                             text: [model.subtitle, model.taskLine].filter(function (s) { return s && s !== "" }).join(" · ")

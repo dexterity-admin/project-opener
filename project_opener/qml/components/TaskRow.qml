@@ -1,13 +1,16 @@
 import QtQuick
 
 // One task (Home strip, the hub's Tasks tab, an activity page): the done box, title over its line, the owner
-// (wide rows), the due text on the right.  Marking done goes through app.tasks.setDone (tells the creator).
-// Reads the delegate's `model` (TASK_ROLES).
+// (wide rows, unless the list is already grouped by owner: showOwner false), the due text, and "…" (Edit,
+// Mail this task).  Clicking the title edits the task.  Marking done goes through app.tasks.setDone (tells
+// the creator).  People by display name; the login only in the owner's tooltip.  Reads the delegate's `model`
+// (TASK_ROLES).
 Item {
     id: row
     readonly property var tk: app.ui.tokens
     property bool first: false
     property bool compact: false
+    property bool showOwner: !compact
     readonly property bool done: model.done === true
     readonly property bool urgent: !done && (model.overdue === true || String(model.dueText).indexOf("today") >= 0
                                              || String(model.dueText).indexOf("Overdue") === 0)
@@ -55,9 +58,17 @@ Item {
             tone: "faint"
         }
     }
+    MouseArea {                                   // the title edits the task
+        anchors.left: box.right
+        anchors.leftMargin: 8
+        anchors.right: owner.visible ? owner.left : due.left
+        height: parent.height
+        cursorShape: Qt.PointingHandCursor
+        onClicked: Window.window.openSheet("TaskSheet", { taskId: model.taskId })
+    }
     Row {
         id: owner
-        visible: !row.compact
+        visible: row.showOwner
         width: 140
         anchors.right: due.left
         anchors.rightMargin: 12
@@ -65,12 +76,15 @@ Item {
         spacing: 8
         Avatar { size: 22; initials: String(model.ownerName).charAt(0); online: false; anchors.verticalCenter: parent.verticalCenter }
         Txt { text: model.ownerName; tone: "muted"; width: 110; anchors.verticalCenter: parent.verticalCenter }
+        HoverHandler { id: ownerHover }
+        Tip { visible: ownerHover.hovered && model.owner !== ""; text: "@" + model.owner }
     }
     Item {
         id: due
         width: row.compact ? 96 : 110
         height: 20
-        anchors.right: parent.right
+        anchors.right: more.left
+        anchors.rightMargin: 8
         anchors.verticalCenter: parent.verticalCenter
         StatusPill {
             anchors.right: parent.right
@@ -85,6 +99,21 @@ Item {
             text: row.done ? "done" : model.dueText
             tone: "muted"
             figures: true
+        }
+    }
+    MenuButton {
+        id: more
+        small: true
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        tooltip: "More for this task"
+        entries: [
+            { text: "Edit task", icon: "pencil-simple", action: "edit" },
+            { text: "Mail this task", icon: "envelope-simple", action: "mail" }
+        ]
+        onTriggered: (a) => {
+            if (a === "edit") Window.window.openSheet("TaskSheet", { taskId: model.taskId })
+            else if (a === "mail") Window.window.safe(function () { app.tasks.mailTask(model.taskId) })
         }
     }
 }

@@ -42,12 +42,12 @@ Rectangle {
     function statusOf(st) {
         if (st === "identified") return "ok"
         if (st === "offline") return "bad"
-        if (st === "ambiguous" || st === "unidentified" || st === "unsaved") return "warn"
+        if (st === "ambiguous" || st === "unidentified") return "warn"
         return "neutral"
     }
     function wordsOf(st) {
         return ({ identified: "Identified", offline: "Server offline", ambiguous: "Ambiguous",
-                  unidentified: "Needs a path", unsaved: "Unsaved", window: "Not a file" })[st] || st
+                  unidentified: "Needs a path", unsaved: "Not a file", window: "Not a file" })[st] || st
     }
 
     implicitWidth: Math.max(400, buttons.implicitWidth + 32)

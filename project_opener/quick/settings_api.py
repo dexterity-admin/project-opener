@@ -11,7 +11,14 @@ hotkey and Explorer keys tell ``app.desktop``.
 Updates (no other sub-API owns them): ``updateState`` (idle | checking |
 available | none | downloading | ready | skipped | error | mirroring) and the
 slots ``checkUpdates``, ``downloadUpdate``, ``installUpdate``, ``skipUpdate``,
-``unskipUpdate``, ``mirrorUpdate`` over the 3.2 ``AppContext`` update flow.
+``unskipUpdate``, ``mirrorUpdate`` over the 3.2 ``AppContext`` update flow;
+``updateSources`` (the LAN mirror's reachability and GitHub, as 3.2 showed them,
+probed off the GUI thread by ``refreshSources``) and ``mirrorCurrent`` (copy the
+version the office is running to the hub, as 3.2's "Mirror <version> to the Team
+Hub": an installed, frozen build only; ``mirrorCurrentReason`` says why not).
+
+The Settings page's tab: ``settingsTab`` / ``setSettingsTab`` (kept for the
+session, and saved when ``core.settings.Settings`` carries ``settings_tab``).
 """
 from __future__ import annotations
 
@@ -23,6 +30,7 @@ from typing import Any
 from PySide6.QtCore import Property, Signal, Slot
 
 from project_opener import constants as C
+from project_opener.core.jsonio import read_json
 from project_opener.core.settings import Settings
 from project_opener.quick.base import ApiBase, ro
 from project_opener.ui import text as T
@@ -38,6 +46,8 @@ HOTKEY_KEYS = {"hotkeys", "hotkeys_enabled"}
 SHELL_KEYS = {"explorer_verb", "sendto_entry"}
 PILL_KEYS = {"pill_enabled", "pill_rest_style", "pill_positions", "hide_when_fullscreen"}
 SECRET_KEYS = {"github_token_enc", "cliq_token_enc"}
+SETTINGS_TABS = ("profile", "appearance", "launching", "paths", "hub", "snapshot", "pill", "cliq", "watchers",
+                 "updates")
 FIELD_TYPES = {f.name: f.default if f.default is not dataclasses.MISSING else f.default_factory()  # type: ignore[misc]
                for f in dataclasses.fields(Settings)}
 
@@ -67,12 +77,18 @@ class SettingsApi(ApiBase):
     changed = Signal(str)
     cliqTested = Signal(bool, str)
     updatesChanged = Signal()
+    settingsTabChanged = Signal()
 
     def __init__(self, app: Any):
         super().__init__(app)
         self._update_state = "idle"
         self._update_error = ""
         self._update_progress = 0.0
+        self._lan_ok: bool | None = None            # None: not probed yet
+        self._lan_version = ""                      # the version latest.json on the hub offers
+        self._mirror_version = ""
+        self._mirror_back = "idle"                  # the state to return to after mirroring
+        self._settings_tab = ""
         ctx = app.ctx
         ctx.update_checked.connect(self._on_checked)
         ctx.update_progress.connect(self._on_progress)
@@ -278,6 +294,24 @@ class SettingsApi(ApiBase):
     def dataFolder(self) -> str:  # noqa: N802
         return str(getattr(self.app.ctx.store, "root", C.data_dir()))
 
+    # ------------------------------------------------------ settings tab
+    @Property(str, notify=settingsTabChanged)
+    def settingsTab(self) -> str:  # noqa: N802
+        """The Settings page's last tab ("profile" first)."""
+        key = self._settings_tab or str(getattr(self.app.ctx.settings, "settings_tab", "") or "")
+        return key if key in SETTINGS_TABS else "profile"
+
+    @Slot(str)
+    def setSettingsTab(self, key: str) -> None:  # noqa: N802
+        if key not in SETTINGS_TABS or key == self.settingsTab:
+            return
+        self._settings_tab = key
+        s = self.app.ctx.settings
+        if hasattr(s, "settings_tab"):              # saved across restarts once the Settings field exists
+            s.settings_tab = key
+            s.save()
+        self.settingsTabChanged.emit()
+
     # ----------------------------------------------------------- updates
     updateState = ro(str, "_update_state", updatesChanged)
     updateError = ro(str, "_update_error", updatesChanged)
@@ -382,3 +416,110 @@ class SettingsApi(ApiBase):
             self._set_update("ready")
 
         self.app.run_async(lambda: updater.mirror_to_lan(info, installer), done, fail)
+
+    # ------------------------------------------------- sources and mirroring the running version
+    mirrorVersion = ro(str, "_mirror_version", updatesChanged)
+
+    @Property("QVariantList", notify=updatesChanged)
+    def updateSources(self) -> list[dict[str, str]]:  # noqa: N802
+        """[{key, name, detail, status, label}]: the LAN mirror (checked first) and GitHub, as 3.2 listed them."""
+        ctx = self.app.ctx
+        hub_dir = ctx.hub.updates_dir()
+        if hub_dir is None:
+            lan = {"key": "lan", "name": "LAN mirror", "status": "neutral", "label": "Not set",
+                   "detail": "Needs a Team Hub folder (Settings › Team Hub). Checked first; works without internet."}
+        else:
+            holds = f" · holds {self._lan_version}" if self._lan_version else " · no installer yet"
+            lan = {"key": "lan", "name": "LAN mirror", "detail": str(hub_dir) + (holds if self._lan_ok else ""),
+                   "status": "neutral" if self._lan_ok is None else "ok" if self._lan_ok else "bad",
+                   "label": "Checking…" if self._lan_ok is None else "Reachable" if self._lan_ok else "Not reachable"}
+        res = ctx.last_check
+        gh_error = bool(res and any(str(e).startswith("GitHub") for e in res.errors))
+        gh_checked = bool(res and "github" in res.checked_sources)
+        token = "token set, higher API rate limit" if ctx.settings.github_token_enc else "public, no token needed"
+        gh = {"key": "github", "name": "GitHub releases", "detail": f"{C.GITHUB_OWNER}/{C.GITHUB_REPO} · {token}",
+              "status": "bad" if gh_error else "ok" if gh_checked else "neutral",
+              "label": "Not reachable" if gh_error else "Reachable" if gh_checked else "Not checked yet"}
+        return [lan, gh]
+
+    @Slot()
+    def refreshSources(self) -> None:  # noqa: N802
+        """Probe the hub's updates folder on the pool (a share can stall the GUI thread)."""
+        hub_dir = self.app.ctx.hub.updates_dir()
+        if hub_dir is None:
+            self._lan_ok, self._lan_version = None, ""
+            self.updatesChanged.emit()
+            return
+
+        def work() -> tuple[bool, str]:
+            if not hub_dir.parent.is_dir():
+                return False, ""
+            manifest = hub_dir / "latest.json"
+            d = read_json(manifest, {}) if manifest.is_file() else {}
+            return True, str(d.get("version", "")) if isinstance(d, dict) else ""
+
+        def done(result: tuple[bool, str]) -> None:
+            self._lan_ok, self._lan_version = result
+            self.updatesChanged.emit()
+
+        def fail(exc: Exception) -> None:
+            log.info("update sources: %s", exc)
+            self._lan_ok, self._lan_version = False, ""
+            self.updatesChanged.emit()
+
+        self.app.run_async(work, done, fail)
+
+    @Property(bool, notify=updatesChanged)
+    def mirrorCurrentShown(self) -> bool:  # noqa: N802
+        """Shown with a Team Hub and until a newer installer is downloaded (DESIGN.md: then the one mirror
+        action on the screen is the downloaded version's)."""
+        return bool(self.app.ctx.hub.configured) and self.app.ctx.downloaded is None
+
+    @Property(str, notify=updatesChanged)
+    def mirrorCurrentReason(self) -> str:  # noqa: N802
+        """"" when "Copy this version to the Team Hub" can run, else why not."""
+        ctx = self.app.ctx
+        if not C.is_frozen():
+            return "Only an installed copy can do this; this one runs from source."
+        if not ctx.hub.configured:
+            return "Needs a Team Hub folder (Settings › Team Hub)."
+        if self._lan_ok is False:
+            return "The Team Hub folder cannot be reached."
+        if self._update_state in ("mirroring", "downloading"):
+            return "Busy with another copy."
+        return ""
+
+    @Slot()
+    def mirrorCurrent(self) -> None:  # noqa: N802
+        """Copy the installer of the running version (fetched from its GitHub release and verified) into the
+        hub's updates/ folder, so the office can install the version it runs from the LAN (3.2's
+        "Mirror <version> to the Team Hub", for an admin, without a pending download)."""
+        reason = self.mirrorCurrentReason
+        if reason:
+            self.app.toast.emit("Cannot copy this version", reason, "warning")
+            return
+        ctx = self.app.ctx
+        updater, version, lan_dir = ctx.updater, C.VERSION, ctx.hub.updates_dir()
+        self._mirror_back, self._mirror_version = self._update_state, version
+        self._set_update("mirroring")
+
+        def work() -> Path:
+            rel = updater.fetch_release(f"v{version}")
+            if rel is None:
+                raise RuntimeError(f"release v{version} has no installer on GitHub")
+            path = updater.download(rel)                 # verifies SHA-256
+            return updater.mirror_to_lan(rel, path, lan_dir)
+
+        def done(dest: Path) -> None:
+            self.app.toast.emit("Copied to the Team Hub",
+                                f"Version {version} · colleagues can install it from {dest.parent}", "success")
+            self._mirror_version = ""
+            self._set_update(self._mirror_back)
+            self.refreshSources()
+
+        def fail(exc: Exception) -> None:
+            self.app.toast.emit("Copy to the Team Hub failed", str(exc), "error")
+            self._mirror_version = ""
+            self._set_update(self._mirror_back)
+
+        self.app.run_async(work, done, fail)

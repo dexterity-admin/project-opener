@@ -51,8 +51,10 @@ def test_launch_words_are_the_pill_words():
 
 def test_resume_band_text():
     title, line = T.resume_text("Lot 7 check", 11, "", "P12513")
-    assert title == "Resume lot 7 check"
+    assert title == "Resume Lot 7 check"                  # the name keeps its case (juror T5)
     assert line == "11 items · P12513 · the PC shut down while it ran"
+    _t, at = T.resume_text("Lot 7 check", 6, "2026-11-05T09:32:00+00:00")
+    assert at.startswith("6 things open at ")                 # the snapshot's open count, as the toast and checkpoint
     title, _ = T.resume_text("GAD review", 1, "")
     assert title == "Resume GAD review"                   # an acronym keeps its case
 

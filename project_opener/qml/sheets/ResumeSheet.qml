@@ -11,8 +11,9 @@ Sheet {
     readonly property var r: app.activities.resume
     property int ticked: 0
     title: r.title !== undefined ? r.title : "Resume"
-    subtitle: (r.takenAt !== undefined && r.takenAt !== "" ? "What was open at " + r.takenAt : "What was open")
-              + " · tick what to reopen"
+    // the band's own words: one snapshot, one count (juror T1)
+    subtitle: (r.count !== undefined ? r.count + (r.count === 1 ? " thing" : " things") + " open" : "What was open")
+              + (r.takenAt !== undefined && r.takenAt !== "" ? " at " + r.takenAt : "") + " · tick what to reopen"
     confirmText: "Reopen " + ticked
     confirmEnabled: ticked > 0
     sheetWidth: 640

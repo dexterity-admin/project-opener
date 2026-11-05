@@ -5,31 +5,46 @@ import QtQuick
 // title in quotes, the reason, and the two actions: Attach a path, Ignore.  Ambiguous rows name their
 // candidates; nothing is guessed.  Identified rows carry the path's health pill and "New" when they are not
 // items yet.  Rows are keyed by entryKey: a row never jumps under the pointer (the model syncs in place).
+// Round 2: one capture-state line heads the list (juror U4); with capture off or paused the rows are the last
+// snapshot's, greyed under "Capture off · last snapshot 14:32".  Two words for "no file" (T3): "Needs a path"
+// (a document whose path is unknown) and "Not a file" (an application window or an unsaved document).
+// Ignore leaves the window out of this activity (owner decision, 5 November 2026), as the pill's Ignore does.
 Column {
     id: live
     readonly property var tk: app.ui.tokens
     property string activityId: ""
+    // false while the (kept-alive) activity page is hidden: no delegate work on every capture pass
+    property bool active: true
     spacing: 0
 
     // Rows arrive worst first (builder 2): ambiguous, unidentified, offline, unsaved, window, identified.
     function groupOf(st) {
-        return st === "identified" ? "identified" : st === "unsaved" ? "unsaved" : st === "offline" ? "offline"
-             : st === "window" ? "window" : "needs"
+        return st === "identified" ? "identified" : st === "offline" ? "offline"
+             : st === "window" || st === "unsaved" ? "window" : "needs"
     }
     function heading(g) {
-        if (g === "needs") return "Not identified · " + app.capture.needsPathCount + " · listed as seen, nothing guessed"
-        if (g === "offline") return "Server offline · identified, reopens when the server answers"
-        if (g === "unsaved") return "Unsaved · cannot be restored until saved"
-        if (g === "window") return "Not a file · applications with no document to reopen"
+        if (g === "needs") return "Needs a path · " + app.capture.needsPathCount
+        if (g === "offline") return "Server offline · reopens when the server answers"
+        if (g === "window") return "Not a file · nothing to reopen"
         return "Identified · " + app.capture.identifiedCount + (app.capture.newCount > 0 ? " · " + app.capture.newCount + " new" : "")
     }
 
+    Txt {                                   // the one capture-state line, when it is not simply watching
+        visible: app.capture.liveStale
+        width: live.width
+        bottomPadding: 6
+        text: app.capture.captureLine + (rep.count > 0 ? " · what was open then" : "")
+        tone: "muted"
+        strong: true
+        figures: true
+    }
     Repeater {
         id: rep
-        model: app.capture.live
+        model: live.active ? app.capture.live : null
         delegate: Column {
             id: entry
             width: live.width
+            opacity: app.capture.liveStale ? 0.55 : 1
             readonly property string group: live.groupOf(model.status)
             readonly property bool firstOfGroup: index === 0 || live.groupOf(app.capture.live.get(index - 1).status) !== group
             readonly property bool needs: group === "needs"
@@ -146,8 +161,8 @@ Column {
                         text: "Ignore"
                         kind: "ghost"
                         small: true
-                        tooltip: "Leave windows like this out of every capture"
-                        onClicked: Window.window.safe(function () { app.capture.ignoreEntry(model.entryKey) })
+                        tooltip: "Leave this window out of this activity's list"
+                        onClicked: Window.window.safe(function () { app.capture.ignoreForActivity(model.entryKey) })
                     }
                     ActionButton {
                         visible: entry.needs || model.status === "unsaved"
@@ -164,6 +179,6 @@ Column {
     EmptyBlock {
         visible: rep.count === 0
         width: live.width
-        line: "Watching. Nothing that belongs to this activity is open yet."
+        line: app.capture.captureState === "watching" ? "Watching. Nothing is open yet." : app.capture.captureLine
     }
 }

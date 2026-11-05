@@ -72,7 +72,9 @@ def bundle_draft(activity: M.Activity, resolver: PathResolver, link: str) -> Dra
     return Draft(subject, "\n".join(lines), body_html)
 
 
-def task_draft(task: M.Task, link: str, owner_name: str = "") -> Draft:
+def task_draft(task: M.Task, link: str, owner_name: str = "", done_by_name: str = "") -> Draft:
+    """The task as a mail: title, owner and the one who finished it by display name (the login when no
+    name is given), due date, what it is for, the note, and the projectopener:// link.  Pure."""
     lines = [f"Task: {task.title}"]
     if task.owner:
         lines.append(f"Owner: {owner_name or task.owner}")
@@ -81,7 +83,7 @@ def task_draft(task: M.Task, link: str, owner_name: str = "") -> Draft:
     if task.link and task.link.title:
         lines.append(f"For: {task.link.title}" + (f" ({task.link.job_number})" if task.link.job_number else ""))
     if task.done:
-        lines.append(f"Done: {task.done_at[:10]} by {task.done_by}")
+        lines.append(f"Done: {task.done_at[:10]} by {done_by_name or task.done_by}")
     if task.note:
         lines += ["", task.note]
     if link:

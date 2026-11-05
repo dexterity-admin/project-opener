@@ -258,9 +258,11 @@ class Updater:
     # ---------------------------------------------------------------- mirror
     def mirror_to_lan(self, info: UpdateInfo, installer: Path, lan_dir: Path | None = None) -> Path:
         """Copy an installer + manifest into the hub so colleagues update offline."""
-        target_dir = Path(lan_dir or self.lan_dir or "")
-        if not str(target_dir):
+        target = lan_dir or self.lan_dir
+        if not target or not str(target).strip():
+            # Path("") is "." (the working folder): never mirror there when no hub is set
             raise RuntimeError("no Team Hub folder configured")
+        target_dir = Path(target)
         target_dir.mkdir(parents=True, exist_ok=True)
         dest = target_dir / installer.name
         shutil.copy2(installer, dest)

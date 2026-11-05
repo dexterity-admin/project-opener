@@ -1,7 +1,7 @@
 import QtQuick
 
-// One Settings section: a card with its heading, one finding line, and its rows (labels above controls,
-// one grammar: DESIGN.md "Settings rows").
+// One Settings section: a card with its heading (none when a tab already names it), one finding line, and its
+// rows (labels above controls, one grammar: DESIGN.md "Settings rows").
 Card {
     id: sec
     property string title: ""
@@ -18,8 +18,9 @@ Card {
         spacing: 16
         Column {
             width: parent.width
+            visible: sec.title !== "" || sec.line !== ""
             spacing: 4
-            Txt { text: sec.title; role: "heading"; Accessible.role: Accessible.Heading }
+            Txt { visible: sec.title !== ""; text: sec.title; role: "heading"; Accessible.role: Accessible.Heading }
             Txt { visible: sec.line !== ""; width: parent.width; text: sec.line; tone: "muted"; wrapMode: Text.Wrap; elide: Text.ElideNone }
         }
         Column {

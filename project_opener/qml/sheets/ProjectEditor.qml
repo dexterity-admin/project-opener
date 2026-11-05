@@ -40,9 +40,10 @@ Sheet {
 
     Field { id: nameField; width: parent.width; label: "Name"; placeholder: "As-built isometrics"; onAccepted: s.accept() }
     Row {
+        width: parent.width
         spacing: 16
-        Field { id: client; width: 260; label: "Client"; placeholder: "FST" }
-        Field { id: jobNo; width: 260; label: "Job number"; placeholder: "P12513"; help: "Leads every title: P12513 · As-built isometrics." }
+        Field { id: client; width: (parent.width - 16) / 2; label: "Client"; placeholder: "FST" }
+        Field { id: jobNo; width: (parent.width - 16) / 2; label: "Job number"; placeholder: "P12513"; help: "Leads every title: P12513 · As-built isometrics." }
     }
     Field { id: desc; width: parent.width; label: "Description"; placeholder: "RLM red-line cross-check" }
     Field { id: tags; width: parent.width; label: "Tags"; placeholder: "as-built, isometrics"; help: "Separate with commas." }
@@ -69,12 +70,13 @@ Sheet {
         }
     }
     Column {
+        width: parent.width
         spacing: 6
         Txt { text: "Icon"; strong: true }
         Flow {
             id: iconPick
             property string value: "folder"
-            width: s.width
+            width: parent.width
             spacing: 6
             Repeater {
                 model: app.activities.projectIcons

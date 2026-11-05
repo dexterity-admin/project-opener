@@ -11,13 +11,11 @@ Page {
     property string tab: app.ui.routePayload.tab || "published"
     readonly property bool configured: app.hub.configured
 
+    // only what no tab says (the tabs carry the published, inbox, task and group counts)
     function subtitle() {
         if (!configured) return "Not connected"
-        var parts = [String(app.settings.value("hub_path"))]
-        parts.push(app.hub.peersOnline + (app.hub.peersOnline === 1 ? " colleague online" : " colleagues online"))
-        if (pubRep.count > 0) parts.push(pubRep.count + " published")
-        if (app.tasks.openCount > 0) parts.push(app.tasks.openCount + (app.tasks.openCount === 1 ? " task open" : " tasks open"))
-        return parts.join(" · ")
+        return String(app.settings.value("hub_path")) + " · " + app.hub.peersOnline
+               + (app.hub.peersOnline === 1 ? " colleague online" : " colleagues online")
     }
 
     PageHeader {
@@ -130,6 +128,8 @@ Page {
                             role: "small"
                             tone: "faint"
                             figures: true
+                            HoverHandler { id: pubHover }
+                            Tip { visible: pubHover.hovered; text: "by @" + model.author + (model.forTip ? " · for " + model.forTip : "") }
                         }
                     }
                     Txt {
@@ -212,9 +212,14 @@ Page {
                             spacing: 8
                             Icon { name: model.kind === "mention" ? "at" : model.kind === "task" ? "check-square" : model.kind === "activity" ? "stack" : "folder"; size: 14; anchors.verticalCenter: parent.verticalCenter }
                             Txt {
-                                text: model.senderName + (model.kind === "mention" ? " mentioned you" : model.kind === "task" ? " gave you a task" : " sent you " + model.title)
+                                // a task note is either an assignment or a "<name> finished <title>" (tasks_api)
+                                text: model.senderName + (model.kind === "mention" ? " mentioned you"
+                                      : model.kind === "task" ? (String(model.message).indexOf(" finished ") >= 0 ? " finished a task" : " gave you a task")
+                                      : " sent you " + model.title)
                                 strong: true
                                 anchors.verticalCenter: parent.verticalCenter
+                                HoverHandler { id: fromHover }
+                                Tip { visible: fromHover.hovered && model.sender !== ""; text: "@" + model.sender }
                             }
                             Txt { text: model.sentText; tone: "faint"; figures: true; anchors.verticalCenter: parent.verticalCenter }
                         }
@@ -264,11 +269,10 @@ Page {
             Item {
                 width: parent.width
                 height: 34
-                SectionHeading {
+                SectionHeading {                    // the count is the tab's, the grouping the switch's
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width - groupBy.width - 16
                     title: "Tasks"
-                    facts: app.tasks.openCount + " open · by " + (app.tasks.groupBy === "job" ? "job" : "owner")
                 }
                 Segmented {
                     id: groupBy
@@ -289,13 +293,14 @@ Page {
                         return (app.tasks.groupBy === "job" ? (p.jobNumber || p.attachTitle || "No job") : p.ownerName) !== groupKey
                     })()
                     Txt { visible: parent.firstOfGroup; text: parent.groupKey; role: "small"; tone: "faint"; topPadding: index === 0 ? 0 : 10; bottomPadding: 4 }
-                    TaskRow { width: taskCol.width; first: parent.firstOfGroup; compact: false }
+                    // grouped by owner, the heading names the owner once: no owner column on the rows
+                    TaskRow { width: taskCol.width; first: parent.firstOfGroup; compact: false; showOwner: app.tasks.groupBy !== "owner" }
                 }
             }
             EmptyBlock {
                 visible: taskRep.count === 0
                 width: taskCol.width
-                line: "No tasks yet. Anyone may assign one; the record shows who."
+                line: "No tasks yet."
                 action: "New task"
                 actionIcon: "plus"
                 onTriggered: Window.window.openSheet("TaskSheet", {})
@@ -420,7 +425,14 @@ Page {
                         anchors.rightMargin: 16
                         anchors.verticalCenter: parent.verticalCenter
                         Txt { width: parent.width; text: "@" + model.groupName + " · " + model.memberCount + (model.memberCount === 1 ? " member" : " members"); strong: true; figures: true }
-                        Txt { width: parent.width; text: (model.members || []).join(", ") + (model.updatedBy ? " · changed by " + model.updatedBy : ""); role: "small"; tone: "faint" }
+                        Txt {
+                            width: parent.width
+                            text: (model.memberNames || (model.members || []).join(", ")) + (model.updatedBy ? " · changed by " + model.updatedBy : "")
+                            role: "small"
+                            tone: "faint"
+                            HoverHandler { id: memHover }
+                            Tip { visible: memHover.hovered; text: (model.members || []).map(function (m) { return "@" + m }).join(", ") }
+                        }
                     }
                     Row {
                         id: gAct

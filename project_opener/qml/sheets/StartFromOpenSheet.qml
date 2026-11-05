@@ -8,10 +8,22 @@ Sheet {
     id: s
     property int ticked: 0
     title: "Start from what's open"
-    subtitle: rep.count > 0 ? rep.count + " windows · tick what belongs to the activity" : ""
+    subtitle: rep.count > 0 ? rep.count + (rep.count === 1 ? " window open" : " windows open") : ""
     confirmText: "Start activity · " + ticked + (ticked === 1 ? " item" : " items")
     confirmEnabled: nameField.text.trim() !== "" && ticked > 0
     sheetWidth: 640
+
+    // The shared words for a window (the panel, the pill, Save new and Resume use the same): an app or chat
+    // window and an unsaved document are "Not a file" (neutral: nothing is wrong); a document whose file is
+    // not known "Needs a path" (warn); several files of that name "Ambiguous" (warn).
+    function pillLevel(st) {
+        return st === "identified" ? "ok" : st === "offline" ? "bad"
+             : st === "ambiguous" || st === "unidentified" ? "warn" : "neutral"
+    }
+    function pillWord(st) {
+        return st === "identified" ? "Identified" : st === "offline" ? "Server offline" : st === "ambiguous" ? "Ambiguous"
+             : st === "unidentified" ? "Needs a path" : "Not a file"
+    }
 
     function recount() {
         var m = app.capture.startCandidates, n = 0
@@ -36,12 +48,14 @@ Sheet {
         if (ok) s.close()
     }
 
+    // two fields share the row equally and end on the content edge (juror D6)
     Row {
+        width: parent.width
         spacing: 16
-        Field { id: nameField; width: 320; label: "Name"; placeholder: "Lot 8 check" }
+        Field { id: nameField; width: (parent.width - 16) / 2; label: "Name"; placeholder: "Lot 8 check" }
         ChoiceField {
             id: job
-            width: 260
+            width: (parent.width - 16) / 2
             label: "Job"
             value: ""
             options: {
@@ -74,22 +88,22 @@ Sheet {
                     Accessible.name: model.name
                     Accessible.checked: model.ticked
                 }
-                Icon { id: g; anchors.left: box.right; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter; name: model.kind === "folder" ? "folder" : model.kind === "url" ? "link" : model.status === "identified" ? "file" : "app-window" }
+                Icon { id: g; anchors.left: box.right; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter; name: model.kind === "folder" ? "folder" : model.kind === "url" ? "link" : model.status === "identified" || model.status === "offline" ? "file" : "app-window" }
                 Column {
                     anchors.left: g.right
                     anchors.leftMargin: 10
                     anchors.right: pill.left
                     anchors.rightMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
-                    Txt { width: parent.width; text: model.status === "identified" ? model.name : "A window titled ‘" + model.name + "’"; strong: model.ticked }
+                    Txt { width: parent.width; text: model.status === "identified" || model.status === "offline" ? model.name : "A window titled ‘" + model.name + "’"; strong: model.ticked }
                     Txt { width: parent.width; text: [model.appName, model.path !== "" ? model.path : model.note].filter(function (x) { return x && x !== "" }).join(" · "); role: "small"; tone: "faint"; elide: Text.ElideMiddle }
                 }
                 StatusPill {
                     id: pill
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    status: model.status === "identified" ? "ok" : model.status === "unsaved" ? "neutral" : "warn"
-                    label: model.status === "identified" ? "Identified" : model.status === "unsaved" ? "Unsaved" : model.status === "ambiguous" ? "Ambiguous" : "No path"
+                    status: s.pillLevel(model.status)
+                    label: s.pillWord(model.status)
                 }
                 MouseArea {
                     anchors.fill: parent

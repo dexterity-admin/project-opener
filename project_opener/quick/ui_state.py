@@ -60,15 +60,19 @@ def _argb(rgba: str) -> str:
 
 def tokens_for(dark: bool, accent: str, density: str) -> dict[str, Any]:
     """``theme.build_tokens`` as a map, plus the QML-only ones: ``shadow_q`` (the floating surfaces'
-    shadow as #AARRGGBB), ``scrim`` (the 40 % ink behind a sheet), ``shadow_soft`` (its outer ring)."""
+    shadow as #AARRGGBB, dark only), ``scrim`` (the 40 % ink behind a sheet), ``shadow_soft`` (its outer
+    ring, dark only; both are transparent on light, where the border_strong ring alone floats a surface)."""
     from project_opener.ui import theme
     t = dict(dataclasses.asdict(theme.build_tokens(dark=dark, accent=accent, density=density)))
     if dark and (accent or "").upper() == theme.DEFAULT_ACCENT.upper():
         # docs/DESIGN.md's dark accent for the default green (#3BC98F, ink on it); build_tokens' generic
         # lightening gives #62A994, which reads as a disabled control on the Stage's dark ground.
         t.update(accent=DARK_ACCENT, accent_fg="#0F1211", accent_hover="#5ED3A3", accent_soft="#163A2C")
-    t["shadow_q"] = _argb(t["shadow"])
-    t["shadow_soft"] = "#26000000" if dark else "#0F101814"
+    # The floating shadow is two offset rings (the software renderer has no blur).  On dark they read as
+    # depth; on light they read as a misregistered grey slab, so light keeps only the surface's own 1 px
+    # border_strong ring and both offset rings are transparent (juror round 1, D4).
+    t["shadow_q"] = _argb(t["shadow"]) if dark else "#00000000"
+    t["shadow_soft"] = "#26000000" if dark else "#00000000"
     t["scrim"] = "#8C000000" if dark else "#66141A17"
     t["face"] = theme.FONT_FAMILY
     return t

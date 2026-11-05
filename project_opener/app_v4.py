@@ -144,6 +144,9 @@ def main(args: Any) -> int:
     from project_opener.quick.facade import AppFacade
 
     facade = AppFacade()
+    # the GUI thread never waits on the data folder's share: workspace saves and history rows go to one
+    # background writer (recording a launch used to block for up to 0.68 s on U:)
+    facade.ctx.store.write_in_background()
     _choose_backend(facade, app)
     from PySide6.QtQuickControls2 import QQuickStyle
     QQuickStyle.setStyle("Basic")            # the shell styles every control itself; no native style warnings
@@ -189,6 +192,8 @@ def main(args: Any) -> int:
         log.info("Windows is ending the session; the running activity stays resumable")
 
     app.commitDataRequest.connect(on_commit_data)
+    # Quit is felt as instant: every window goes first, then the workers get at most 2 s each (juror U1).
+    app.aboutToQuit.connect(window.hide)
 
     rc = app.exec()
     if not session_ending[0]:

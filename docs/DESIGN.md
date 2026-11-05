@@ -302,8 +302,9 @@ Concept "Stage" (docs/V4-BRIEF.md section 4, the concept round's `concept-1-stag
   the avatar and fades over 2.4 s.  Only in rich motion and only while the window is active.
 - **Colour.** Unchanged discipline: identity (6 px dot, the icon tile's tint) and health (the pills) only.
   QML reads `app.ui.tokens` (= `ui.theme.build_tokens`) plus three QML-only tokens: `shadow_q` and
-  `shadow_soft` (the floating shadow as `#AARRGGBB`, two offset rings: QML cannot parse `rgba()` and the
-  software renderer has no blur), `scrim` (the 40 % ink behind a sheet or the palette).  With the default
+  `shadow_soft` (the floating shadow as `#AARRGGBB`, two offset rings on dark only: QML cannot parse `rgba()` and the
+  software renderer has no blur; on light both are transparent and the surface's 1 px `border_strong` ring is
+  the whole edge, because an offset ring read as a misregistered second shape), `scrim` (the 40 % ink behind a sheet or the palette).  With the default
   green, the dark accent is this file's `#3BC98F` with ink on it (`build_tokens`' generic lightening gives
   `#62A994`, which reads as a disabled control on the dark ground).
 - **Icons** are Phosphor (regular) from the icon font qtawesome ships, one stroke everywhere; 3.x

@@ -19,7 +19,7 @@ Column {
     }
     function wordsOf(st) {
         return ({ identified: "Identified", offline: "Server offline", ambiguous: "Ambiguous",
-                  unidentified: "Needs a path", unsaved: "Unsaved", window: "Not a file" })[st] || st
+                  unidentified: "Needs a path", unsaved: "Not a file", window: "Not a file" })[st] || st
     }
     function glyphOf(kind, status) {
         if (kind === "folder") return "folder"

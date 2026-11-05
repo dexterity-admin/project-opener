@@ -59,9 +59,11 @@ Sheet {
         }
     }
     Row {
+        width: parent.width
         spacing: 12
-        Field { id: pathField; width: 440; label: "Path"; placeholder: "\\\\nas01\\Project\\P12513\\CAD\\Lot 7.dwg"; onAccepted: s.accept() }
+        Field { id: pathField; width: parent.width - browse.width - 12; label: "Path"; placeholder: "\\\\nas01\\Project\\P12513\\CAD\\Lot 7\\GA-0101.dwg"; onAccepted: s.accept() }
         ActionButton {
+            id: browse
             y: 25
             text: "Browse"
             icon: "folder-open"

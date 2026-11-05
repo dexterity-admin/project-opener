@@ -6,11 +6,15 @@ import QtQuick.Controls.Basic as C
 // its item is tried, then settles.  A 3 px progress line under the heading.  Footer: "9 opened · 2 not
 // opened · 0 skipped · 3.4 s", "Open the 2 again" when something did not open, the task line on the right.
 // `record`: the same rows as the activity page's "Opened at 09:12" column (static, no arrival).
+// `embedded`: on Home the centre scene keeps its own title row through the grow (the shared element), so the
+// dock shows only its line, the progress and the rows.  `holdMs`: rows start arriving after the grow.
 Item {
     id: dock
     readonly property var tk: app.ui.tokens
     property bool record: false
     property int maxRows: 8
+    property bool embedded: false
+    property int holdMs: 0
     readonly property int rowH: tk.pad < 20 ? 40 : 46
     property int failed: 0
     signal closeRequested()
@@ -36,9 +40,11 @@ Item {
     Item {
         id: head
         width: parent.width
-        height: dock.record ? 30 : 56
+        height: dock.record ? 30 : dock.embedded ? 8 : 56
         Row {
             id: titleRow
+            visible: !dock.embedded
+            height: visible ? implicitHeight : 0
             spacing: 8
             Dot { tint: app.activities.dockColor; anchors.verticalCenter: parent.verticalCenter; visible: !dock.record }
             Txt {
@@ -57,16 +63,16 @@ Item {
             }
         }
         Txt {
-            visible: !dock.record
+            visible: !dock.record && !dock.embedded       // embedded: the scene's header says it
             anchors.top: titleRow.bottom
-            anchors.topMargin: 2
+            anchors.topMargin: dock.embedded ? 0 : 2
             width: parent.width - 60
             text: app.activities.dockLine
             tone: "muted"
             figures: true
         }
         ActionButton {
-            visible: !dock.record
+            visible: !dock.record && !dock.embedded       // embedded: the scene's header has the ×
             anchors.right: parent.right
             anchors.top: parent.top
             kind: "ghost"
@@ -110,7 +116,7 @@ Item {
             Component.onCompleted: if (!dock.record && app.ui.k > 0) arrive.start()
             SequentialAnimation {
                 id: arrive
-                PauseAnimation { duration: Math.round(60 * Math.min(Math.max(0, index), 10) * app.ui.k) }
+                PauseAnimation { duration: dock.holdMs + Math.round(60 * Math.min(Math.max(0, index), 10) * app.ui.k) }
                 ParallelAnimation {
                     NumberAnimation { target: row; property: "opacity"; to: 1; duration: Math.round(200 * app.ui.k); easing.type: Easing.OutCubic }
                     NumberAnimation { target: row; property: "rise"; to: 0; duration: Math.round(240 * app.ui.k); easing.type: Easing.OutCubic }
@@ -130,14 +136,16 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 1
                     Txt { width: parent.width; text: model.name; strong: true }
-                    Txt {
+                    Txt {                  // group · step · path: two rows of one name still differ (U5)
                         width: parent.width
-                        text: (model.group !== "" ? model.group + " · " : "") + model.order
-                              + (model.status !== "opened" && model.status !== "queued" && model.status !== "opening" && model.message !== ""
-                                 ? " · " + model.message : "")
+                        text: [model.group, String(model.order),
+                               (model.status !== "opened" && model.status !== "queued" && model.status !== "opening"
+                                && model.message !== "") ? model.message : "", model.path]
+                              .filter(function (x) { return x !== "" }).join(" · ")
                         role: "small"
                         tone: "faint"
                         figures: true
+                        elide: Text.ElideMiddle
                     }
                 }
                 StatusPill {
@@ -185,7 +193,9 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             spacing: 8
-            Txt {
+            Icon { visible: app.activities.dockTaskLine !== ""; name: "check-square"; size: 14; anchors.verticalCenter: parent.verticalCenter }
+            Txt {                          // "Task: back-check lot 7, due Fri" (brief 3.3)
+                visible: text !== ""
                 text: app.activities.dockTaskLine
                 tone: "muted"
                 width: Math.min(implicitWidth, dock.width * 0.4)

@@ -1,7 +1,7 @@
 import QtQuick
 
 // Toasts: bottom right over the page, newest at the bottom, each with the floating shadow; an action toast
-// carries one button that routes (app.toastAction).  They arrive with a 8 px rise and fade (180 ms), leave
+// carries one button that routes (app.toastAction).  The shadow's offset rings show on dark only.  They arrive with a 8 px rise and fade (180 ms), leave
 // faster, and go by themselves after 4.5 s (actions 8 s) unless hovered.  "Show notifications" off hides
 // them; feedback the page shows itself (the dock) never comes here.
 Item {
@@ -49,11 +49,13 @@ Item {
                     running: !t.hovered
                     onTriggered: list.remove(index)
                 }
-                Rectangle {            // the floating shadow: two soft rings under the card
+                Rectangle {            // the floating shadow: two soft rings under the card, on dark only
+                    visible: app.ui.dark   // (on light the card's border_strong ring alone floats it)
                     x: -2; y: 6; width: card.width + 4; height: card.height + 4
                     radius: 14; color: toastLayer.tk.shadow_soft
                 }
                 Rectangle {
+                    visible: app.ui.dark
                     x: 0; y: 3; width: card.width; height: card.height
                     radius: 12; color: toastLayer.tk.shadow_q
                 }

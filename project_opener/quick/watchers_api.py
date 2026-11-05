@@ -46,6 +46,40 @@ STATUS_LABELS = {"ok": "Reachable", "offline": "Server not answering", "missing"
 SINCE_WORDS = {"offline": "down", "missing": "missing", "variable": "undefined"}
 
 
+def new_files_fact(rows: list[dict[str, Any]], watchers: list[Any], activity_id: str,
+                   is_item: Any = None) -> dict[str, Any]:
+    """Pure: the files an activity's folder watchers found new and nobody has dealt with (unread "new" alerts),
+    as the centre card's figure: {count, text, time (ISO), paths, keys}; {} when there are none.
+
+    One alert per file has the file as ``path``; a collapsed alert ("12 new files in Revision C") has the
+    folder as ``path`` and the names in ``detail``.  Files that are already items are not counted."""
+    ids = {w.id: w for w in watchers if getattr(w, "activity_id", "") == activity_id and w.kind == "folder"}
+    paths: list[str] = []
+    keys: list[str] = []
+    titles: list[str] = []
+    latest = ""
+    for r in rows:
+        if r.get("read") or r.get("event") != "new" or str(r.get("watcher_id", "")) not in ids:
+            continue
+        path, detail = str(r.get("path", "")), str(r.get("detail", ""))
+        names = [n.strip() for n in detail.split(" and ")[0].split(",") if n.strip()] if detail else []
+        found = [os.path.join(path, n) for n in names] if names and not os.path.splitext(path)[1] else [path]
+        found = [f for f in found if f and not (is_item and is_item(f))]
+        if not found:
+            continue
+        keys.append(str(r.get("key", "")))
+        titles.append(str(r.get("title", "")))
+        for f in found:
+            if f.lower() not in {x.lower() for x in paths}:
+                paths.append(f)
+        latest = max(latest, str(r.get("ts", "")))
+    if not paths:
+        return {}
+    folder = os.path.basename(os.path.dirname(paths[0]).rstrip(r"\/")) or paths[0]
+    text = titles[0] if len(titles) == 1 and titles[0][:1].isdigit() else f"{len(paths)} new in {folder}"
+    return {"count": len(paths), "text": text, "time": latest, "paths": paths, "keys": keys}
+
+
 def since_text(status: str, since_iso: str, seen_by: int) -> str:
     """"down since 14:45 · seen by 2 PCs" for a root that is not reachable; "" for one that is."""
     if status == "ok":
@@ -93,6 +127,7 @@ class WatchersApi(ApiBase):
         self._local_roots: dict[str, str] = {}             # this PC: root -> status (health watchers)
         self._root_since: dict[str, tuple[str, str]] = {}
         self._last_hit: dict[str, str] = {}
+        self._alert_raw: list[dict[str, Any]] = []
         self._timer: QTimer | None = None
         self._retry_timer: QTimer | None = None
         self._roots_timer: QTimer | None = None
@@ -210,6 +245,7 @@ class WatchersApi(ApiBase):
         disp = self.dispatcher()
 
         def done(rows: list[dict[str, Any]]) -> None:
+            self._alert_raw = list(rows)
             for r in reversed(rows):
                 wid, ts = str(r.get("watcher_id", "")), str(r.get("ts", ""))
                 if ts > self._last_hit.get(wid, ""):
@@ -451,6 +487,12 @@ class WatchersApi(ApiBase):
         self.alertsChanged.emit()
         disp = self.dispatcher()
         self.app.run_async(lambda: disp.mark_read(alert_key))
+
+    def new_files(self, activity_id: str, is_item: Any = None) -> dict[str, Any]:
+        """``new_files_fact`` over the loaded alerts (read flags as the model shows them)."""
+        unread = {r["alertKey"] for r in self._alerts.rows if r.get("unread")}
+        rows = [{**r, "read": str(r.get("key", "")) not in unread} for r in self._alert_raw]
+        return new_files_fact(rows, list(self.ctx.store.watchers), activity_id, is_item)
 
     @Slot()
     def recheckRoots(self) -> None:  # noqa: N802

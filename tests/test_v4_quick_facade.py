@@ -188,7 +188,7 @@ def test_resume_band_from_a_stale_marker(facade, seeded):
     facade.snapshots.mark_running(M.RunningMarker(activity_id=seeded["act"], pid=999_999))
     facade.activities._compute_resume()
     r = facade.activities.resume
-    assert r["activityId"] == seeded["act"] and r["title"] == "Resume lot 7 check"
+    assert r["activityId"] == seeded["act"] and r["title"] == "Resume Lot 7 check"    # the name keeps its case (juror T5)
     assert "the PC shut down while it ran" in r["text"]
     facade.activities.dismissResume()
     assert facade.activities.resume == {}
@@ -396,4 +396,11 @@ def test_task_notes_are_not_titled_as_mentions(facade):
     facade.toastAction.connect(lambda *a: seen.append(a[0]))
     facade._on_mentioned("yokesh", "Yokesh finished Back-check lot 7", "projectopener://task/t1")
     facade._on_mentioned("priya", "@vikram Revision C is in", "")
-    assert seen == ["Task from yokesh", "priya mentioned you"]
+    assert seen == ["Task note from yokesh", "priya mentioned you"]       # an unknown task: a task note
+    # a known task finished: titled by the task, not by the person (juror T5)
+    task = M.Task(title="Back-check PO4 lot", owner="vikram", done_at=M.now_iso(), done_by="yokesh", id="t9")
+    facade._tasks._tasks["t9"] = task
+    bodies: list = []
+    facade.toastAction.connect(lambda *a: bodies.append((a[0], a[1])))
+    facade._on_mentioned("yokesh", "Yokesh finished Back-check PO4 lot", "projectopener://task/t9")
+    assert bodies[-1][0] == "Back-check PO4 lot done" and bodies[-1][1].startswith("by ")

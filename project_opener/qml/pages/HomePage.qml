@@ -103,7 +103,7 @@ Page {
     // ------------------------------------------------------------ title
     PageHeader {
         title: greeting() + ", " + app.displayName
-        subtitle: home.finding()
+        subtitle: home.today()           // every other fact has its own block below (juror T2)
         ActionButton {
             visible: app.capture.runningId === "" && home.n > 0
             text: "Start from what's open"
@@ -120,6 +120,7 @@ Page {
         var h = new Date().getHours()
         return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"
     }
+    function today() { return Qt.formatDate(new Date(), "dddd d MMMM") }
     function finding() {
         var parts = []
         if (home.resumeWaiting) parts.push("1 activity to resume")
@@ -163,8 +164,7 @@ Page {
                 var f = String(home.n) + (home.rev < 0 ? "" : "")
                 if (home.centreIndex < m.count()) {
                     var r = m.get(home.centreIndex)
-                    if (r.running) f += " · " + home.firstLower(r.name) + " running"
-                    else if (r.pausedText !== "") f += " · " + home.firstLower(r.name) + " " + r.pausedText
+                    if (r.pausedText !== "" && !r.running && !home.resumeWaiting) f += " · " + r.name + " " + r.pausedText
                 }
                 return f
             }
@@ -199,10 +199,19 @@ Page {
                 m: model
                 readonly property string slot: home.roleOf(index)
                 readonly property real sw: stage.width
-                readonly property int wingW: Math.round(sw * 0.28)
-                readonly property int centreW: home.n === 1 ? sw : home.n === 2 && home.wide ? Math.round(sw * 0.64) : Math.round(sw * 0.48)
+                // the centre takes min(60 %, 820 px) above 1180 px; each wing fills the space beside it, so the
+                // wings show their title and first lines in full instead of reading as clipped (juror D2)
+                readonly property int centreW: home.n === 1 ? sw : home.n === 2 && home.wide ? Math.round(sw * 0.64)
+                                              : Math.round(Math.min(sw * 0.6, 820))
+                readonly property int wingW: home.n === 2 ? Math.round(sw - centreW - 16) : Math.round((sw - centreW) / 2 - 16)
+                readonly property int targetW: docked || slot === "centre" && !home.wide ? sw
+                                             : slot === "centre" ? centreW
+                                             : home.wide ? wingW : (home.n === 2 ? sw : (sw - 16) / 2)
+                readonly property int wingH: Math.min(home.sceneH - 40, sc.wingHeight)
                 mode: slot === "centre" ? "centre" : (home.wide ? "wing" : "fold")
                 docked: slot === "centre" && home.docked
+                layoutWidth: targetW                 // content laid out once at the final width (juror U2)
+                growMs: Math.round(420 * app.ui.k)
                 primaryOpen: !home.resumeWaiting
                 visible: slot !== "hidden" && opacity > 0.01
                 z: slot === "centre" ? 2 : 1
@@ -212,11 +221,9 @@ Page {
                  : slot === "centre" ? (home.n === 2 ? 0 : (sw - centreW) / 2)
                  : home.wide ? (slot === "left" ? 0 : sw - wingW)
                  : (slot === "left" ? 0 : (home.n === 2 ? 0 : (sw + 16) / 2))
-                y: slot === "centre" ? 0 : home.wide ? 26 : home.sceneH + 16
-                width: docked || slot === "centre" && !home.wide ? sw
-                     : slot === "centre" ? centreW
-                     : home.wide ? wingW : (home.n === 2 ? sw : (sw - 16) / 2)
-                height: docked ? stage.dockH : slot === "centre" ? home.sceneH : home.wide ? home.sceneH - 52 : home.foldH
+                y: slot === "centre" ? 0 : home.wide ? Math.round((home.sceneH - wingH) / 2) : home.sceneH + 16
+                width: targetW
+                height: docked ? stage.dockH : slot === "centre" ? home.sceneH : home.wide ? wingH : home.foldH
                 opacity: slot === "hidden" ? 0 : home.docked && slot !== "centre" ? 0 : slot === "centre" ? 1 : home.wide ? 0.62 : 0.9
                 scale: home.docked && slot !== "centre" ? 0.84 : slot === "centre" || !home.wide ? 1 : 0.94
 

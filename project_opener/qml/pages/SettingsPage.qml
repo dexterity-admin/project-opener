@@ -2,10 +2,12 @@ import QtQuick
 import QtQuick.Controls.Basic as C
 import "../components"
 
-// Settings: every 3.2 setting plus Motion, Snapshot (capture and its surfaces: the pill, its rest style and
-// place, the four keys with their conflict status, the Explorer entries), Cliq (the office bot's token kept
-// with DPAPI, my link), and the watchers.  Labels above controls; a switch row says what it does.  Values are
-// read through app.settings.value(key) and written with setValue (side effects routed in Python).
+// Settings: every 3.2 setting plus Motion, Snapshot (capture), the pill and keys (its rest style and place,
+// the four keys with their conflict status, the Explorer entries), Cliq (the office bot's token kept with
+// DPAPI, my link), and the watchers.  One area at a time: real tabs, each showing one section only (app-screens
+// §8.2), the last tab remembered (app.settings.settingsTab); a route payload {section} opens that tab.  Labels
+// above controls; a switch row says what it does.  Values are read through app.settings.value(key) and
+// written with setValue (side effects routed in Python).
 Page {
     id: page
     minimumWidth: 860
@@ -35,42 +37,41 @@ Page {
 
     readonly property var sections: [
         { key: "profile", text: "Profile" }, { key: "appearance", text: "Appearance" },
-        { key: "launching", text: "Opening items" }, { key: "paths", text: "Paths and variables" },
+        { key: "launching", text: "Opening" }, { key: "paths", text: "Paths" },
         { key: "hub", text: "Team Hub" }, { key: "snapshot", text: "Snapshot" },
-        { key: "cliq", text: "Cliq and mail" }, { key: "watchers", text: "Watchers" },
-        { key: "updates", text: "Updates" }
+        { key: "pill", text: "Pill and keys" }, { key: "cliq", text: "Cliq and mail" },
+        { key: "watchers", text: "Watchers" }, { key: "updates", text: "Updates" }
     ]
-    function jump(key) {
-        var target = { profile: secProfile, appearance: secAppearance, launching: secLaunching, paths: secPaths,
-                       hub: secHub, snapshot: secSnapshot, cliq: secCliq, watchers: secWatchers, updates: secUpdates }[key]
-        if (target) page.scrollTo(target)
+    function tabFor(key) {
+        for (var i = 0; i < sections.length; i++) if (sections[i].key === key) return key
+        return "profile"
     }
-    Component.onCompleted: if (app.ui.routePayload.section) { var s = app.ui.routePayload.section; Qt.callLater(function () { page.jump(s) }) }
+    // the tab the page opens on: a route's {section}, else the last one used
+    property string tab: app.ui.routePayload.section ? tabFor(app.ui.routePayload.section) : app.settings.settingsTab
+    function pick(key) {
+        page.tab = page.tabFor(key)
+        app.settings.setSettingsTab(page.tab)
+        page.contentY = 0
+    }
+    Component.onCompleted: if (app.ui.routePayload.section) app.settings.setSettingsTab(page.tab)
 
     PageHeader {
         title: "Settings"
         subtitle: "Saved as you change them"
     }
 
-    Flow {
+    Tabs {
         width: page.contentW
-        spacing: 6
-        Repeater {
-            model: page.sections
-            delegate: Chip {
-                required property var modelData
-                interactive: true
-                text: modelData.text
-                onClicked: page.jump(modelData.key)
-            }
-        }
+        tabs: page.sections
+        current: page.tab
+        onPicked: (key) => page.pick(key)
     }
 
     // ------------------------------------------------------------ profile
     SettingsSection {
         id: secProfile
+        visible: page.tab === "profile"
         width: page.contentW
-        title: "Profile"
         line: "How colleagues see you on the Team Hub and in mentions."
         Row {
             spacing: 16
@@ -102,8 +103,8 @@ Page {
     // ------------------------------------------------------------ appearance
     SettingsSection {
         id: secAppearance
+        visible: page.tab === "appearance"
         width: page.contentW
-        title: "Appearance"
         Row {
             spacing: 24
             Column {
@@ -174,8 +175,8 @@ Page {
     // ------------------------------------------------------------ launching
     SettingsSection {
         id: secLaunching
+        visible: page.tab === "launching"
         width: page.contentW
-        title: "Opening items"
         Row {
             spacing: 16
             ChoiceField {
@@ -203,8 +204,8 @@ Page {
     // ------------------------------------------------------------ paths and variables
     SettingsSection {
         id: secPaths
+        visible: page.tab === "paths"
         width: page.contentW
-        title: "Paths and variables"
         line: "A variable stands for a folder that differs between PCs: {SERVER_ROOT} → \\\\nas01\\Project.  Items keep the variable; each PC fills it in."
         Column {
             width: parent.width
@@ -246,8 +247,8 @@ Page {
     // ------------------------------------------------------------ hub
     SettingsSection {
         id: secHub
+        visible: page.tab === "hub"
         width: page.contentW
-        title: "Team Hub"
         line: app.hub.configured ? app.hub.statusText : "Not connected. Every PC in the office points at the same shared folder."
         Row {
             spacing: 12
@@ -273,8 +274,8 @@ Page {
     // ------------------------------------------------------------ snapshot: capture and its surfaces
     SettingsSection {
         id: secSnapshot
+        visible: page.tab === "snapshot"
         width: page.contentW
-        title: "Snapshot"
         line: "While an activity runs, the watcher keeps a snapshot of what is open so it comes back after a restart."
         SwitchRow { label: "Capture while an activity runs"; help: "The switch on each activity's page turns it off for that activity only."; checked: page.v("capture_enabled") === true; onToggled: (on) => page.set("capture_enabled", on) }
         Row {
@@ -308,8 +309,13 @@ Page {
             }
             Txt { text: "Ignore on a window in Open now adds it here."; role: "small"; tone: "faint" }
         }
+    }
 
-        Rectangle { width: parent.width; height: 1; color: page.tk.border }
+    // ------------------------------------------------------------ the pill, the keys, the Explorer entries
+    SettingsSection {
+        id: secPill
+        visible: page.tab === "pill"
+        width: page.contentW
         Txt { text: "The pill"; role: "heading" }
         SwitchRow { label: "Show the pill while an activity runs"; help: "A small capsule on a screen edge: the activity, how many things are open, what needs you."; checked: page.v("pill_enabled") === true; onToggled: (on) => page.set("pill_enabled", on) }
         Row {
@@ -386,11 +392,13 @@ Page {
         }
 
         Rectangle { width: parent.width; height: 1; color: page.tk.border }
+        // the switch shows what is installed (the desktop's state), so its words and its position agree
         SwitchRow {
+            readonly property bool installed: app.desktop ? app.desktop.explorerVerbInstalled : page.v("explorer_verb") === true
             label: "Explorer entries"
             help: "“Add to running activity” on any file or folder, and Send to › Project Opener. "
-                  + (app.desktop ? (app.desktop.explorerVerbInstalled ? "Installed for you." : "Not installed.") : "")
-            checked: page.v("explorer_verb") === true
+                  + (app.desktop ? (installed ? "Installed for you." : "Not installed.") : "")
+            checked: installed
             onToggled: (on) => page.set("explorer_verb", on)
         }
     }
@@ -398,8 +406,8 @@ Page {
     // ------------------------------------------------------------ Cliq and mail
     SettingsSection {
         id: secCliq
+        visible: page.tab === "cliq"
         width: page.contentW
-        title: "Cliq and mail"
         line: "The office bot sends you mentions, tasks and watcher hits as Cliq messages with a link back here."
         property string testText: ""
         property bool testOk: false
@@ -465,8 +473,8 @@ Page {
     // ------------------------------------------------------------ watchers
     SettingsSection {
         id: secWatchers
+        visible: page.tab === "watchers"
         width: page.contentW
-        title: "Watchers"
         line: "Rules that tell you when a file lands, a server goes down, a colleague finishes, or a date comes."
         Column {
             width: parent.width
@@ -510,8 +518,8 @@ Page {
     // ------------------------------------------------------------ updates
     SettingsSection {
         id: secUpdates
+        visible: page.tab === "updates"
         width: page.contentW
-        title: "Updates"
         Column {
             spacing: 6
             Txt { text: "Offer"; strong: true }

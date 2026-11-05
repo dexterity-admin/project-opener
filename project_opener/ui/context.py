@@ -149,13 +149,26 @@ class AppContext(QObject):
         self.refresh_all_health()
 
     def shutdown(self) -> None:
+        """At quit: sign off on the hub (a share that may not answer: at most 2 s), stop presence, save the
+        settings, and give pool jobs still running (path health, hub refresh) at most 2 s."""
+        import threading
+        t = threading.Thread(target=self._sign_off_quietly, name="po-sign-off", daemon=True)
+        t.start()
+        t.join(2.0)
+        if self.beacon:
+            self.beacon.stop()
+        self.settings.save()
+        try:
+            self.pool.clear()
+            self.pool.waitForDone(2000)
+        except (AttributeError, RuntimeError):
+            pass
+
+    def _sign_off_quietly(self) -> None:
         try:
             self.hub.sign_off()
         except Exception:  # noqa: BLE001
             pass
-        if self.beacon:
-            self.beacon.stop()
-        self.settings.save()
 
     def start_beacon(self) -> None:
         if self.beacon:

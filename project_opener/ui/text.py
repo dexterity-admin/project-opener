@@ -238,10 +238,31 @@ def things_line(open_count: int, identified: int) -> str:
 
 
 def resume_text(name: str, count: int, taken_at: str, spine: str = "") -> tuple[str, str]:
-    """The Resume band: ("Resume lot 7 check", "11 items from 14:32 · P12513 · the PC shut down while it ran")."""
+    """The Resume band: ("Resume Lot 7 check", "11 things open at 14:32 · P12513 · the PC shut down while it
+    ran").  ``count`` is the snapshot's open count: the same number the checkpoint, the toast and the Resume
+    sheet's rows show (one snapshot, one count).  The name keeps its own case, as everywhere else."""
     when = clock(taken_at)
-    lead = f"{plural(count, 'item')} from {when}" if when else plural(count, "item")
-    return f"Resume {first_lower(name)}", join_facts(lead, spine, "the PC shut down while it ran")
+    lead = f"{plural(count, 'thing')} open at {when}" if when else plural(count, "item")
+    return f"Resume {name}", join_facts(lead, spine, "the PC shut down while it ran")
+
+
+# One word set for the capture state (juror U4), used by the card, the page header, the live list and the pill.
+CAPTURE_STATES = ("watching", "paused", "off", "idle")
+
+
+def capture_line(state: str, last_snapshot: str = "", open_count: int = 0, identified: int = 0) -> str:
+    """"Capture on · watching · 12 things open · 9 identified" (running, capture on); "Capture paused · last
+    snapshot 14:32"; "Capture off · last snapshot 14:32"; for an activity that is not running, "Capture on ·
+    last snapshot 14:32".  "nothing recorded yet" stands in for a missing snapshot."""
+    when = clock(last_snapshot)
+    last = f"last snapshot {when}" if when else "nothing recorded yet"
+    if state == "watching":
+        return join_facts("Capture on · watching", things_line(open_count, identified) if open_count > 0 else "")
+    if state == "paused":
+        return f"Capture paused · {last}"
+    if state == "off":
+        return f"Capture off · {last}"
+    return f"Capture on · {last}"
 
 
 def launch_footer(results: list[str], elapsed_s: float = 0.0) -> str:

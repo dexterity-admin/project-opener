@@ -127,8 +127,21 @@ class AppFacade(QObject):
         except Exception:  # noqa: BLE001
             pass
         from project_opener.ipc import parse_link
-        title = f"Task from {name}" if parse_link(link)[0] == "task" else f"{name} mentioned you"
-        self.toastAction.emit(title, text, "info", "Open" if link else "", "link" if link else "", {"link": link})
+        kind, key = parse_link(link)[:2] if link else ("", "")
+        title, body = f"{name} mentioned you", text
+        if kind == "task":
+            task = None
+            try:
+                task = self._tasks._tasks.get(str(key))
+            except Exception:  # noqa: BLE001
+                task = None
+            if task is not None and task.done:
+                title, body = f"{task.title} done", f"by {name}"          # "Back-check PO4 lot done" / "by Tester B"
+            elif task is not None:
+                title, body = f"New task: {task.title}", f"from {name}"
+            else:
+                title = f"Task note from {name}"
+        self.toastAction.emit(title, body, "info", "Open" if link else "", "link" if link else "", {"link": link})
 
     def _ctx_toast_action(self, title: str, body: str, level: str, button: str, nav: Any) -> None:
         """3.2's toast_action carries (route, object); the QML gets a route and a plain payload."""
@@ -166,10 +179,14 @@ class AppFacade(QObject):
             except Exception:  # noqa: BLE001
                 log.exception("shutdown failed: %s", type(api).__name__)
         try:
-            self.snapshots.close()                 # every pending snapshot/marker write reaches the disk
+            self.snapshots.close(2.0)              # pending snapshot/marker writes, at most 2 s
         except Exception:  # noqa: BLE001
             log.exception("snapshot store flush failed")
         self.ctx.shutdown()
+        try:
+            self.ctx.store.close_writer(2.0)       # pending workspace saves and history rows, at most 2 s
+        except Exception:  # noqa: BLE001
+            log.exception("workspace writer flush failed")
 
     # ------------------------------------------------- socket / CLI commands
     @Slot("QVariantMap")

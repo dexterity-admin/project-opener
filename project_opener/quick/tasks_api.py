@@ -366,7 +366,8 @@ class TasksApi(ApiBase):
         task = self._tasks.get(task_id)
         if task is None:
             return
-        draft = mail.task_draft(task, task_link(task.id), self.name_for(task.owner))
+        draft = mail.task_draft(task, task_link(task.id), self.name_for(task.owner),
+                                self.name_for(task.done_by) if task.done_by else "")
         client = self.ctx.settings.mail_client
 
         def done(ok: bool) -> None:
