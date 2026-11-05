@@ -7,6 +7,11 @@
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
+; Windows file version info must be numeric (a.b.c.d); a dev or pre-release
+; version such as 4.0.0.dev0 passes its numeric part as AppVersionNum.
+#ifndef AppVersionNum
+  #define AppVersionNum AppVersion
+#endif
 #define AppName "Project Opener"
 #define AppPublisher "Dexterity Design Services Pvt. Ltd."
 #define AppExeName "ProjectOpener.exe"
@@ -39,7 +44,7 @@ CloseApplications=yes
 CloseApplicationsFilter=*.exe
 RestartApplications=yes
 MinVersion=10.0
-VersionInfoVersion={#AppVersion}
+VersionInfoVersion={#AppVersionNum}
 VersionInfoCompany={#AppPublisher}
 VersionInfoDescription={#AppName} installer
 ShowLanguageDialog=no

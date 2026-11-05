@@ -52,7 +52,8 @@ if (-not $SkipInstaller) {
     $isccPath = if ($iscc) { $iscc.Source } else { $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1 }
     if (-not $isccPath) { throw "ISCC.exe (Inno Setup) not found" }
     Write-Host "-- Inno Setup ($isccPath)" -ForegroundColor Cyan
-    & $isccPath "installer\ProjectOpener.iss" "/DAppVersion=$version" /Qp
+    $versionNum = ([regex]::Match($version, "^\d+(\.\d+){0,3}")).Value   # file version info must be numeric
+    & $isccPath "installer\ProjectOpener.iss" "/DAppVersion=$version" "/DAppVersionNum=$versionNum" /Qp
     if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
     & $Python tools\make_manifest.py "dist\ProjectOpener-Setup-$version.exe"
 }
