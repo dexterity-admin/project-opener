@@ -2,7 +2,10 @@
 
 Responsibilities:
 
-* load ``workspace.json`` (schema 3), migrating from 1.x / 2.x on first run;
+* load ``workspace.json`` (schema 4), migrating from 1.x / 2.x on first run
+  and from schema 3 (3.x) on the first 4.0 start (``core.migrate``; a
+  ``pre-v4-workspace-*.json`` copy is kept and never rotated away);
+* projects, activities, launch profiles and watchers (schema 4 lists);
 * atomic saves with rotating timestamped backups;
 * a launch history log (``history.jsonl``) used by the dashboard;
 * simple observer hooks so the UI can refresh after any mutation.
@@ -19,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from project_opener import constants as C
+from project_opener.core import migrate
 from project_opener.core import models as M
 from project_opener.core.jsonio import append_jsonl, read_json, read_jsonl, write_json_atomic
 
@@ -34,6 +38,10 @@ class WorkspaceStore:
         self.path = self.root / C.WORKSPACE_FILE
         self.history_path = self.root / C.HISTORY_FILE
         self.projects: list[M.Project] = []
+        self.activities: list[M.Activity] = []
+        self.profiles: list[M.LaunchProfile] = []
+        self.watchers: list[M.Watcher] = []
+        self.migration: dict[str, Any] = {}
         self.migrated_from: str | None = None
         self._listeners: list[Listener] = []
         self.load()
@@ -53,7 +61,7 @@ class WorkspaceStore:
     def load(self) -> None:
         data = read_json(self.path)
         if isinstance(data, dict) and isinstance(data.get("projects"), list):
-            self.projects = [M.Project.from_dict(p) for p in data["projects"] if isinstance(p, dict)]
+            self._apply(data, from_file=True)
             return
         if self.path.exists():
             # Corrupt file: keep it for forensics, start from the newest backup.
@@ -69,12 +77,36 @@ class WorkspaceStore:
         self.projects = []
         self._migrate_legacy()
 
+    def _apply(self, data: dict[str, Any], from_file: bool = False) -> None:
+        """Take a raw workspace dict of any schema; migrate 3 -> 4 when needed."""
+        try:
+            schema = int(data.get("schema", 3) or 3)
+        except (TypeError, ValueError):
+            schema = 3
+        ws = migrate.migrate_workspace(data)
+        self.projects, self.activities = ws.projects, ws.activities
+        self.profiles, self.watchers, self.migration = ws.profiles, ws.watchers, ws.migration
+        if schema < migrate.TARGET_SCHEMA and from_file:
+            self._keep_pre_v4_copy()
+            self.migrated_from = f"Project Opener 3.x (schema {schema})"
+            self.save(backup=False)
+            log.info("Migrated workspace schema %s -> 4: %s", schema, ws.migration)
+
+    def _keep_pre_v4_copy(self) -> None:
+        bdir = self.root / C.BACKUP_DIR
+        bdir.mkdir(exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        try:
+            shutil.copy2(self.path, bdir / f"{C.PRE_V4_BACKUP_PREFIX}{stamp}.json")
+        except OSError as exc:
+            log.warning("pre-v4 copy failed: %s", exc)
+
     def _restore_latest_backup(self) -> Path | None:
         backups = sorted((self.root / C.BACKUP_DIR).glob("workspace-*.json"))
         for b in reversed(backups):
             data = read_json(b)
             if isinstance(data, dict) and isinstance(data.get("projects"), list):
-                self.projects = [M.Project.from_dict(p) for p in data["projects"] if isinstance(p, dict)]
+                self._apply(data)
                 return b
         return None
 
@@ -119,12 +151,9 @@ class WorkspaceStore:
 
     # ------------------------------------------------------------------ save
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "schema": C.SCHEMA_VERSION,
-            "app_version": C.VERSION,
-            "saved_at": M.now_iso(),
-            "projects": [p.to_dict() for p in self.projects],
-        }
+        ws = M.Workspace(projects=self.projects, activities=self.activities, profiles=self.profiles,
+                         watchers=self.watchers, migration=self.migration, schema=C.SCHEMA_VERSION)
+        return ws.to_dict(app_version=C.VERSION)
 
     def save(self, backup: bool = True) -> None:
         if backup and self.path.exists():
@@ -156,7 +185,7 @@ class WorkspaceStore:
         data = read_json(backup)
         if not (isinstance(data, dict) and isinstance(data.get("projects"), list)):
             return False
-        self.projects = [M.Project.from_dict(p) for p in data["projects"] if isinstance(p, dict)]
+        self._apply(data)
         self.save()
         self._emit("changed")
         return True
@@ -221,8 +250,32 @@ class WorkspaceStore:
                 break
         else:
             self.projects.append(project)
+        changed = self._sync_activity_items(project)
         self.save()
         self._emit("updated", project)
+        for act in changed:
+            self._emit("activity_updated", act)
+
+    def _sync_activity_items(self, project: M.Project) -> list[M.Activity]:
+        """Keep activity items drawn from ``project`` in step with its items (path, kind, label, args, profile)."""
+        by_id = {i.id: i for i in project.items}
+        changed: list[M.Activity] = []
+        for act in self.activities:
+            touched = False
+            for it in act.items:
+                if it.project_id != project.id or not it.source_item_id:
+                    continue
+                src = by_id.get(it.source_item_id)
+                if src is None:
+                    continue
+                for attr in ("path", "kind", "label", "args", "profile_id"):
+                    if getattr(it, attr) != getattr(src, attr):
+                        setattr(it, attr, getattr(src, attr))
+                        touched = True
+            if touched:
+                act.touch()
+                changed.append(act)
+        return changed
 
     def remove(self, project_id: str) -> M.Project | None:
         proj = self.get(project_id)
@@ -259,6 +312,98 @@ class WorkspaceStore:
         self.projects.sort(key=lambda p: index.get(p.id, len(index)))
         self.save()
         self._emit("changed")
+
+    # ------------------------------------------------------------ activities
+    # Events: "activity_added", "activity_updated", "activity_removed" (payload: Activity).
+    def activity(self, activity_id: str) -> M.Activity | None:
+        return next((a for a in self.activities if a.id == activity_id), None)
+
+    def activity_by_name(self, name: str) -> M.Activity | None:
+        low = name.strip().lower()
+        return next((a for a in self.activities if a.name.lower() == low), None)
+
+    def activities_for_project(self, project_id: str) -> list[M.Activity]:
+        return [a for a in self.activities if project_id in a.project_ids
+                or any(i.project_id == project_id for i in a.items)]
+
+    def sorted_activities(self) -> list[M.Activity]:
+        """Pinned first (by pin time), then most recently opened, then name."""
+        def recency(a: M.Activity) -> float:
+            dt = M.parse_iso(a.last_opened)
+            return dt.timestamp() if dt else 0.0
+
+        pinned = sorted([a for a in self.activities if a.pinned], key=lambda a: a.pinned_at or "")
+        rest = sorted([a for a in self.activities if not a.pinned], key=lambda a: (-recency(a), a.name.lower()))
+        return pinned + rest
+
+    def add_activity(self, activity: M.Activity) -> M.Activity:
+        activity.name = activity.name.strip() or "Untitled"
+        self.activities.append(activity)
+        self.save()
+        self._emit("activity_added", activity)
+        return activity
+
+    def update_activity(self, activity: M.Activity) -> None:
+        activity.touch()
+        for i, a in enumerate(self.activities):
+            if a.id == activity.id:
+                self.activities[i] = activity
+                break
+        else:
+            self.activities.append(activity)
+        self.save()
+        self._emit("activity_updated", activity)
+
+    def remove_activity(self, activity_id: str) -> M.Activity | None:
+        act = self.activity(activity_id)
+        if act:
+            self.activities = [a for a in self.activities if a.id != activity_id]
+            self.save()
+            self._emit("activity_removed", act)
+        return act
+
+    def record_activity_launch(self, activity: M.Activity, items: list[M.Item], ok: int = 0, missing: int = 0) -> None:
+        activity.mark_opened()
+        self.update_activity(activity)
+        append_jsonl(self.history_path, {
+            "ts": M.now_iso(), "activity_id": activity.id, "activity": activity.name,
+            "project_id": activity.primary_project_id, "project": "", "set": "",
+            "count": len(items), "ok": ok, "missing": missing,
+        })
+        self._emit("launched", activity)
+
+    # -------------------------------------------------------- profiles, watchers
+    def profile(self, profile_id: str) -> M.LaunchProfile | None:
+        return next((p for p in self.profiles if p.id == profile_id), None)
+
+    def save_profile(self, profile: M.LaunchProfile) -> None:
+        profile.updated_at = M.now_iso()
+        self.profiles = [p for p in self.profiles if p.id != profile.id] + [profile]
+        self.save()
+        self._emit("profiles_changed", profile)
+
+    def remove_profile(self, profile_id: str) -> None:
+        self.profiles = [p for p in self.profiles if p.id != profile_id]
+        self.save()
+        self._emit("profiles_changed", None)
+
+    def watcher(self, watcher_id: str) -> M.Watcher | None:
+        return next((w for w in self.watchers if w.id == watcher_id), None)
+
+    def save_watcher(self, watcher: M.Watcher) -> None:
+        for i, w in enumerate(self.watchers):
+            if w.id == watcher.id:
+                self.watchers[i] = watcher
+                break
+        else:
+            self.watchers.append(watcher)
+        self.save()
+        self._emit("watchers_changed", watcher)
+
+    def remove_watcher(self, watcher_id: str) -> None:
+        self.watchers = [w for w in self.watchers if w.id != watcher_id]
+        self.save()
+        self._emit("watchers_changed", None)
 
     # -------------------------------------------------------------- history
     def record_launch(self, project: M.Project, items: list[M.Item], launch_set: str = "",

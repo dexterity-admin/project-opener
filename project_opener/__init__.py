@@ -11,6 +11,6 @@ The package is split into four layers that never reach across each other:
 The CI workflow reads it to decide whether a push produces a new release.
 """
 
-__version__ = "3.2.0"
+__version__ = "4.0.0.dev0"
 __app_name__ = "Project Opener"
 __company__ = "Dexterity Design Services Pvt. Ltd."

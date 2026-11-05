@@ -397,6 +397,32 @@ class TeamHub:
         rows.sort(key=lambda r: str(r.get("ts", "")), reverse=True)
         return rows[:limit]
 
+    # ------------------------------------------------------------------- v4
+    # Owner: builder 1.  File formats: docs/V4-ARCHITECTURE.md section 3.3.  3.2 readers skip
+    # what they do not know (published files without "project", inbox files without "project").
+    V4_DIRS = ("tasks", "watch", "delivered", "profiles")
+
+    def sub(self, name: str) -> Path | None:
+        """``<hub>/<name>`` (tasks, watch, delivered, profiles, groups.json ...); None without a hub."""
+        return (self.root / name) if self.configured else None  # type: ignore[operator]
+
+    def publish_activity(self, activity: M.Activity, portable_fn=None, description: str = "",
+                         for_targets: list[str] | None = None) -> PublishedProject | None:
+        """``published/<id>.json`` with ``"type": "activity"``, ``"activity": {...}`` and ``"for"``;
+        each expanded target also gets an inbox entry (kind "activity")."""
+        raise NotImplementedError("TeamHub.publish_activity")
+
+    def published_activities(self) -> list[dict[str, Any]]:
+        raise NotImplementedError("TeamHub.published_activities")
+
+    def send_mention(self, to_users: list[str], text: str, link: str = "", kind: str = "mention") -> int:
+        """Inbox entries without a project (kind mention | task); returns how many were written."""
+        raise NotImplementedError("TeamHub.send_mention")
+
+    def mentions(self) -> list[dict[str, Any]]:
+        """My inbox entries of kind mention/task, newest first."""
+        raise NotImplementedError("TeamHub.mentions")
+
     # --------------------------------------------------------------- updates
     def updates_dir(self) -> Path | None:
         return (self.root / "updates") if self.configured else None  # type: ignore[operator]

@@ -1,2 +1,6 @@
 PySide6>=6.7,<7
 qtawesome>=1.3
+# v4: capture/restore, hotkeys, Office COM, Outlook mail (Windows only)
+pywin32>=306; sys_platform == "win32"
+comtypes>=1.4; sys_platform == "win32"
+psutil>=5.9

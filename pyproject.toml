@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "project-opener"
-version = "3.2.0"
+version = "4.0.0.dev0"
 description = "Dexterity Design Services workspace launcher: open every file, folder, link and tool a project needs in one click, and share it over the office LAN."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,6 +13,9 @@ authors = [{ name = "Dexterity Design Services Pvt. Ltd." }]
 dependencies = [
     "PySide6>=6.7,<7",
     "qtawesome>=1.3",
+    "pywin32>=306; sys_platform == 'win32'",
+    "comtypes>=1.4; sys_platform == 'win32'",
+    "psutil>=5.9",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +28,7 @@ project-opener = "project_opener.app:main"
 include = ["project_opener*"]
 
 [tool.setuptools.package-data]
-project_opener = ["resources/icon/*"]
+project_opener = ["resources/icon/*", "resources/fonts/*", "qml/**/*.qml", "qml/**/qmldir"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -34,6 +34,15 @@ def deep_link_key(text: str) -> str:
     return unquote(text[len(prefix):].strip("/"))
 
 
+def ui_v4_requested(args: argparse.Namespace) -> bool:
+    """The v4 shell also answers the v4-only commands (Explorer verb, Send to, --snapshot) and
+    ``PO_UI=quick``; everything else starts the 3.2 widgets UI."""
+    import os
+    if os.environ.get("PO_UI", "").lower() == "quick":
+        return True
+    return bool(args.add or args.sendto or args.snapshot or args.start_from_open)
+
+
 def _forward_to_running_instance(argv: list[str]) -> bool:
     sock = QLocalSocket()
     sock.connectToServer(C.SINGLE_INSTANCE_KEY)
@@ -68,11 +77,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--minimised", action="store_true", help="start hidden in the tray")
     parser.add_argument("--data-dir", help="use a different data folder (testing)")
     parser.add_argument("--version", action="version", version=f"{C.APP_NAME} {C.VERSION}")
-    parser.add_argument("target", nargs="?", help="projectopener://open/<project-id-or-name> deep link")
+    # v4 (docs/V4-ARCHITECTURE.md section 8).  The 3.2 widgets UI stays the default until integration.
+    parser.add_argument("--v4", action="store_true", help="start the Qt Quick (4.0) shell")
+    parser.add_argument("--add", nargs="+", metavar="PATH", help="add paths to the running activity (Explorer verb)")
+    parser.add_argument("--sendto", nargs="+", metavar="PATH", help="Send to > Project Opener")
+    parser.add_argument("--snapshot", action="store_true", help="checkpoint the running activity")
+    parser.add_argument("--start-from-open", action="store_true", help="start an activity from what is open")
+    parser.add_argument("--quit-after", type=int, default=0, metavar="MS", help=argparse.SUPPRESS)
+    parser.add_argument("target", nargs="?", help="projectopener://open|activity|task/<key> deep link")
     args = parser.parse_args(argv)
     if args.data_dir:
         import os
         os.environ["PO_DATA_DIR"] = args.data_dir
+    if args.v4 or ui_v4_requested(args):
+        from project_opener import app_v4
+        return app_v4.main(args)
 
     log_path = setup_logging()
     log.info("%s %s starting (frozen=%s)", C.APP_NAME, C.VERSION, C.is_frozen())
@@ -130,6 +149,8 @@ def main(argv: list[str] | None = None) -> int:
         proj = ctx.store.get(key) or ctx.store.by_name(key)
         if proj:
             QTimer.singleShot(600, lambda: ctx.launch(proj, parent=window))
+    if args.quit_after:
+        QTimer.singleShot(int(args.quit_after), app.quit)
     rc = app.exec()
     log.info("exit %s (log: %s)", rc, log_path)
     return rc

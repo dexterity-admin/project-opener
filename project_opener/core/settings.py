@@ -53,6 +53,41 @@ class Settings:
     first_run_done: bool = False
     last_seen_version: str = ""
 
+    # ------------------------------------------------------------------ v4
+    # Shell and motion (docs/V4-ARCHITECTURE.md section 6; spikes/quick/REPORT.md fallback rule)
+    shell: str = "widgets"              # widgets (3.2) | quick (4.0); ``--v4`` forces quick
+    motion: str = "auto"                # auto | rich | purposeful | off (the user's choice)
+    motion_reduced_to: str = ""         # set by the runtime guard ("purposeful" | "off"); auto never climbs back
+    render_backend: str = "auto"        # auto | gpu | software
+    gpu_probe: dict[str, str] = field(default_factory=dict)   # adapter name -> "ok" | "failed" | "basic"
+    # Capture (brief 3.1)
+    capture_enabled: bool = True        # the global switch; Activity.capture_enabled is the per-activity one
+    capture_interval_s: int = 3
+    capture_browser_urls: bool = True   # UI Automation on Chromium windows (active tab only)
+    capture_ignore: list[dict[str, str]] = field(default_factory=lambda: [
+        {"process": "claude.exe"}, {"process": "ms-teams.exe"}, {"process": "teams.exe"},
+        {"process": "cliq.exe"}, {"process": "zoho cliq.exe"},
+    ])                                  # rules: {"process": ..., "title": glob (optional)}
+    open_office_via_com: bool = True    # Office files through COM (no Protected View stall on the share)
+    # Snapshot surfaces (brief 3.8)
+    pill_enabled: bool = True
+    pill_rest_style: str = "pill"       # pill | edge
+    pill_pinned: bool = False           # show even when no activity runs (offers Start from what's open)
+    pill_positions: dict[str, dict[str, Any]] = field(default_factory=dict)  # monitor-layout key -> {edge, offset, monitor}
+    hotkeys_enabled: bool = True
+    hotkeys: dict[str, str] = field(default_factory=lambda: dict(C.HOTKEY_DEFAULTS))
+    explorer_verb: bool = True          # "Add to running activity" on files and folders
+    sendto_entry: bool = True           # Send to > Project Opener
+    hide_when_fullscreen: bool = True   # full screen, presentation, remote desktop, Do not disturb
+    # People and integrations (brief 3.2, 3.5, 3.6)
+    email: str = ""                     # used to look up the Cliq user id
+    cliq_user_id: str = ""
+    cliq_api_base: str = "https://cliq.zoho.in/api/v2"
+    cliq_bot: str = ""                  # bot unique name
+    cliq_token_enc: str = ""            # DPAPI blob of the office bot token (shared service account)
+    notify_cliq_default: bool = True    # DM me on mention / task / watcher hits when linked
+    mail_client: str = "outlook"        # outlook | mailto
+
     # ------------------------------------------------------------ persistence
     @classmethod
     def load(cls, root: Path | None = None) -> Settings:
@@ -66,6 +101,15 @@ class Settings:
                     setattr(s, k, v)
         if not isinstance(s.variables, dict):
             s.variables = {}
+        for name in ("gpu_probe", "pill_positions"):
+            if not isinstance(getattr(s, name), dict):
+                setattr(s, name, {})
+        if not isinstance(s.hotkeys, dict):
+            s.hotkeys = dict(C.HOTKEY_DEFAULTS)
+        else:
+            s.hotkeys = {**C.HOTKEY_DEFAULTS, **{str(k): str(v) for k, v in s.hotkeys.items()}}
+        if not isinstance(s.capture_ignore, list):
+            s.capture_ignore = cls().capture_ignore
         if s.accent in ("#4F7DFF", "#2F5BFF"):   # 3.0 default blue -> 3.1 default (docs/DESIGN.md)
             s.accent = cls.accent
         s._root = root  # type: ignore[attr-defined]
@@ -90,6 +134,20 @@ class Settings:
     def github_token(self, value: str) -> None:
         self.github_token_enc = winutil.protect(value) if value else ""
 
+    @property
+    def cliq_token(self) -> str:
+        if not self.cliq_token_enc:
+            return ""
+        try:
+            return winutil.unprotect(self.cliq_token_enc)
+        except Exception as exc:  # pragma: no cover
+            log.warning("could not decrypt Cliq token: %s", exc)
+            return ""
+
+    @cliq_token.setter
+    def cliq_token(self, value: str) -> None:
+        self.cliq_token_enc = winutil.protect(value) if value else ""
+
     # ------------------------------------------------------------------ alias
     @property
     def update_auto(self) -> bool:
@@ -103,4 +161,5 @@ class Settings:
     def to_public_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d.pop("github_token_enc", None)
+        d.pop("cliq_token_enc", None)
         return d

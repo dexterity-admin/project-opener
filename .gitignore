@@ -29,3 +29,6 @@ installer/Output/
 # Claude desktop preview config
 .claude/
 
+
+# local spikes: evidence lists this PC's processes and paths
+spikes/
