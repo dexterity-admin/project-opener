@@ -28,6 +28,35 @@ def test_backups_rotate(store):
     assert len(store.backups()) >= 2
 
 
+def test_backups_unique_within_one_clock_tick(store, isolated_data_dir, monkeypatch):
+    """CI (fast runner): several saves inside one clock tick each keep a backup, in save order; the
+    rotation keeps MAX_BACKUPS and never touches the pre-v4 backup."""
+    from datetime import datetime as real_datetime
+
+    from project_opener.core import store as store_mod
+
+    class Frozen(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2026, 11, 5, 10, 0, 0, 123456)
+
+    monkeypatch.setattr(store_mod, "datetime", Frozen)
+    bdir = isolated_data_dir / C.BACKUP_DIR
+    bdir.mkdir(exist_ok=True)
+    pre = bdir / f"{C.PRE_V4_BACKUP_PREFIX}20261101-090000.json"
+    pre.write_text("{}", encoding="utf-8")
+    for i in range(5):
+        store.add(M.Project(name=f"p{i}"))
+    names = [p.name for p in store.backups()]
+    assert len(names) == len(set(names)) >= 4
+    assert names == sorted(names, reverse=True)
+    assert names[0].endswith(f"-123456-{len(names) - 1:02d}.json")   # the newest save sorts first
+    for i in range(C.MAX_BACKUPS + 3):
+        store.add(M.Project(name=f"q{i}"))
+    assert len(store.backups()) == C.MAX_BACKUPS
+    assert pre.exists()
+
+
 def test_corrupt_workspace_restores_backup(store, isolated_data_dir):
     store.add(M.Project(name="keep"))
     store.add(M.Project(name="also"))

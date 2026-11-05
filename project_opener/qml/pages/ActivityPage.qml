@@ -98,7 +98,7 @@ Page {
             text: !page.running ? "Open activity" : page.newCount > 0 ? "Save " + page.newCount + " new as items" : "Snapshot now"
             onClicked: {
                 if (!page.running) app.activities.open(page.activityId)
-                else if (page.newCount > 0) Window.window.safe(function () { app.capture.saveNewAsItems() })
+                else if (page.newCount > 0) Window.window.saveNew()
                 else page.snapshot()
             }
         }

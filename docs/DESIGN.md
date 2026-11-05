@@ -313,6 +313,14 @@ Concept "Stage" (docs/V4-BRIEF.md section 4, the concept round's `concept-1-stag
   then the named confirming button; destructive = outlined negative with Cancel as the Enter default; at
   most 640 px tall, the body scrolls.  The @ picker and the "For" field float in the window's overlay so a
   sheet never clips them.
+- **Tick lists** (owner decisions, 5 November 2026: "everything open, I untick"; "a tick list, items
+  pre-ticked"): `components/TickList.qml` in `sheets/SaveNewSheet.qml` and `sheets/ResumeSheet.qml`. Rows sit
+  under small muted group headings, most likely first; a row that cannot be added or reopened keeps an empty
+  box at 45 % and says why ("No file path: cannot be reopened"); the confirming button counts the ticks
+  ("Save 2 as items", "Reopen 9").  Nothing is ticked that the evidence does not support.
+- **The pill's panel** is the main window's surface (`surface`, opaque, `border_strong` edge) with the same
+  text tokens; its opening animation always completes (a timer finishes it), so it never rests translucent.
+  Rows offer Ignore on hover; the note under the list offers "Always ignore <app>" and Undo.
 - **Every page fits 1040 × 660.** Each page declares `minimumWidth` (860, beside the 68 px rail);
   `tools/smoke_v4.py` fails when one exceeds the 972 px beside the rail, when any visible item runs past
   the page's right edge at the minimum window, or on any Qt or QML warning.

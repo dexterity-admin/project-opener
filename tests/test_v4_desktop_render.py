@@ -210,7 +210,13 @@ def test_panel_actions(rig):
         ctl.act(a)
     ctl.act("review")
     assert [c[0] for c in facade.capture.calls] == ["snapshotNow", "saveNewAsItems", "pause", "resume"]
-    assert facade.ui.routes == [("activity", {"activityId": "a1", "focus": "unidentified"})]
+    # "Save N new" opens the tick list in the main window, on the activity's page
+    assert facade.ui.routes == [("activity", {"activityId": "a1"}),
+                                ("activity", {"activityId": "a1", "focus": "unidentified"})]
+    assert ctl.ignore("win:acad|Drawing1", False) == "" and ctl.ignore("win:acad|Drawing1", True) == "AutoCAD"
+    ctl.unignore("win:acad|Drawing1", True)
+    assert [c[0] for c in facade.capture.calls][4:] == ["ignoreForActivity", "ignoreApp", "unignoreApp",
+                                                         "unignoreForActivity"]
     ctl.act("start_from_open")
     assert facade.commands == [{"cmd": "start-from-open"}]
 

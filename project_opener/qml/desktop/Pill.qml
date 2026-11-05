@@ -129,22 +129,37 @@ Window {
 
     // --------------------------------------------------------------- panel
     PillPanel {
+        objectName: "pillPanel"
         id: panel
         anchors.fill: parent
         readonly property bool shown: pill.panelOpen
-        visible: opacity > 0
-        opacity: shown ? 1 : 0
-        scale: (win.motion === "rich" && !shown) ? 0.6 : 1
+        // Opening: rich grows it from the pill, purposeful fades it in, off shows it.  The animation is
+        // started explicitly and a GUI-thread timer completes it, so the panel always ends opaque and full
+        // size: a render-driven Behavior once stalled part-way on a real desktop and left the panel at
+        // 75 % opacity, the desktop showing through (the "washed-out" panel).  Closing is a cut.
+        visible: shown
+        opacity: 1
+        scale: 1
         transformOrigin: pill.growFrom === "bottomright" ? Item.BottomRight
                        : pill.growFrom === "bottomleft" ? Item.BottomLeft
                        : pill.growFrom === "topright" ? Item.TopRight : Item.TopLeft
-        Behavior on opacity {
-            enabled: win.motion !== "off"
-            NumberAnimation { duration: Math.round(180 * app.ui.k); easing.type: Easing.OutCubic }
+        onShownChanged: {
+            if (!shown) { opening.stop(); opacity = 1; scale = 1; return }
+            if (win.motion === "off" || app.ui.k <= 0) { opacity = 1; scale = 1; return }
+            opening.restart()
+            settle.restart()
         }
-        Behavior on scale {
-            enabled: win.motion === "rich"
-            NumberAnimation { duration: Math.round(180 * app.ui.k); easing.type: Easing.OutCubic }
+        ParallelAnimation {
+            id: opening
+            NumberAnimation { target: panel; property: "opacity"; from: win.motion === "rich" ? 0.4 : 0; to: 1
+                              duration: Math.round(180 * app.ui.k); easing.type: Easing.OutCubic }
+            NumberAnimation { target: panel; property: "scale"; from: win.motion === "rich" ? 0.6 : 1; to: 1
+                              duration: Math.round(180 * app.ui.k); easing.type: Easing.OutCubic }
+        }
+        Timer {
+            id: settle
+            interval: 400
+            onTriggered: { opening.complete(); panel.opacity = 1; panel.scale = 1 }
         }
         onImplicitHeightChanged: pill.setPanelSize(implicitWidth, implicitHeight)
         onImplicitWidthChanged: pill.setPanelSize(implicitWidth, implicitHeight)

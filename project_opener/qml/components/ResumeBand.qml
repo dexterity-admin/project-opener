@@ -2,7 +2,7 @@ import QtQuick
 
 // The Resume band (brief 3.1, 6): after an unclean shutdown, the first thing on Home, on the one flat colour
 // field.  It is the same object as the paused scene in the centre of the stage.  Resume is the screen's
-// one filled control; Dismiss keeps the snapshot (restorable from the activity's checkpoints).  Never automatic.
+// one filled control and opens the Resume tick list (sheets/ResumeSheet.qml); Dismiss keeps the snapshot (restorable from the activity's checkpoints).  Never automatic.
 Rectangle {
     id: band
     readonly property var tk: app.ui.tokens
@@ -46,6 +46,12 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 8
         ActionButton { text: "Dismiss"; kind: "ghost"; onClicked: app.activities.dismissResume() }
-        ActionButton { text: "Resume"; icon: "play"; kind: "primary"; onClicked: app.activities.resumeNow() }
+        ActionButton {                       // a tick list first (owner decision): items and what was opened ticked
+            text: "Resume"; icon: "play"; kind: "primary"
+            onClicked: {
+                var ok = Window.window.safe(function () { app.capture.prepareResume(band.r.activityId) })
+                if (ok) Window.window.openSheet("ResumeSheet", {})
+            }
+        }
     }
 }

@@ -15,6 +15,7 @@ import ctypes
 import logging
 import os
 import sys
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -137,19 +138,62 @@ def is_quiet_time() -> bool:
 
 
 class QuietWatcher(QObject):
-    """Polls ``probe`` every ``interval_ms`` while started; emits ``changed(quiet)`` on a change only."""
+    """Polls ``probe`` every ``interval_ms`` while started; emits ``changed(quiet)`` on a change only.
+
+    With ``background=True`` (the app) each poll runs the probe on a short-lived worker thread and the
+    answer comes back to the GUI thread: the shell's notification state can take a few hundred
+    milliseconds to answer, and the first poll starts exactly when an activity is opened (the pill
+    appears), in the middle of the dock's animation.  ``check()`` stays synchronous."""
 
     changed = Signal(bool)
+    _probed = Signal(object)                 # worker thread -> GUI thread (queued)
 
     def __init__(self, probe: Callable[[], QuietFacts] | None = None, interval_ms: int = 1000,
-                 parent: QObject | None = None):
+                 parent: QObject | None = None, background: bool = False):
         super().__init__(parent)
         self._probe = probe or read_facts
+        self._background = background
+        self._busy = False
         self._timer = QTimer(self)
         self._timer.setInterval(interval_ms)
-        self._timer.timeout.connect(self.check)
+        self._timer.timeout.connect(self._poll)
+        self._probed.connect(self._apply_probe)
         self.quiet = False
         self.reason = ""
+
+    def _poll(self) -> None:
+        if not self._background:
+            self.check()
+            return
+        if self._busy:
+            return
+        self._busy = True
+
+        def work() -> None:
+            try:
+                facts = self._probe()
+            except Exception:  # noqa: BLE001
+                log.exception("quiet-time probe failed")
+                facts = None
+            try:
+                self._probed.emit(facts)
+            except RuntimeError:            # the watcher was deleted meanwhile (shutdown)
+                pass
+        threading.Thread(target=work, name="po-quiet-probe", daemon=True).start()
+
+    def _apply_probe(self, facts: QuietFacts | None) -> None:
+        self._busy = False
+        if not self._timer.isActive():
+            return                              # stopped while the probe ran
+        quiet, reason = decide(facts) if facts is not None else (False, "")
+        self._set(quiet, reason)
+
+    def _set(self, quiet: bool, reason: str) -> None:
+        self.reason = reason
+        if quiet != self.quiet:
+            self.quiet = quiet
+            log.debug("quiet time %s (%s)", "on" if quiet else "off", reason)
+            self.changed.emit(quiet)
 
     @property
     def running(self) -> bool:
@@ -161,17 +205,13 @@ class QuietWatcher(QObject):
         except Exception:  # noqa: BLE001
             log.exception("quiet-time probe failed")
             quiet, reason = False, ""
-        self.reason = reason
-        if quiet != self.quiet:
-            self.quiet = quiet
-            log.debug("quiet time %s (%s)", "on" if quiet else "off", reason)
-            self.changed.emit(quiet)
+        self._set(quiet, reason)
         return quiet
 
     def start(self) -> None:
         if not self._timer.isActive():
-            self.check()
             self._timer.start()
+            self._poll()
 
     def stop(self) -> None:
         """Stop polling; quiet time ends (nothing is hidden by it while the pill is off anyway)."""

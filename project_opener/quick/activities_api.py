@@ -615,10 +615,10 @@ class ActivitiesApi(ApiBase):
         run.item_finished.connect(finished)
         run.finished.connect(done)
 
-    def _launch_activity(self, act: M.Activity) -> None:
+    def _launch_activity(self, act: M.Activity, only: set[str] | None = None) -> None:
         store = self._store()
         projects = {p.id: p for p in store.projects}
-        items = [i for i in act.enabled_items if i.path.strip()]
+        items = [i for i in act.enabled_items if i.path.strip() and (only is None or i.id in only)]
         row = self.activity_row(act, projects)
         primary = projects.get(act.primary_project_id)
         line = T.join_facts(T.plural(len(items), "item"), primary.client if primary else "",
@@ -997,19 +997,26 @@ class ActivitiesApi(ApiBase):
         except Exception:  # noqa: BLE001
             snap = None
         act = self._store().activity(aid)
+        cap = self.app.capture
+        sheet = bool(getattr(cap, "resume_prepared", None) and cap.resume_prepared(aid))
         if (snap is None or not snap.entries) and act is not None:
-            self._launch_activity(act)          # nothing captured yet: open its items in launch order
+            # nothing captured yet: open its items in launch order (only those ticked in the sheet)
+            ticked = {k[len("item:"):] for k in cap.resume_ticked() if k.startswith("item:")} if sheet else None
+            self._launch_activity(act, only=ticked)
         else:
-            self._resume_restore(aid)
+            self._resume_restore(aid, sheet)
         self._resume_dismissed.add(aid)
         self._resume = {}
         self.resumeChanged.emit()
         self.refresh()
 
-    def _resume_restore(self, aid: str) -> None:
+    def _resume_restore(self, aid: str, ticked_only: bool = False) -> None:
         self._start_capture(aid)
         try:
-            self.app.capture.restoreLatest(aid)
+            if ticked_only:
+                self.app.capture.restoreTicked(aid)      # the Resume sheet: only what stayed ticked
+            else:
+                self.app.capture.restoreLatest(aid)
         except Exception:  # noqa: BLE001
             log.exception("restore failed")
             self.app.toast.emit("Could not resume", "See the log for details.", "error")

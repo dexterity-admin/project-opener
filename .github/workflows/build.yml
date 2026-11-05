@@ -70,8 +70,10 @@ jobs:
         run: ruff check project_opener tests tools
 
       - name: Tests
-        # pyproject sets a 180 s limit per test (pytest-timeout, thread method): a hung test fails, never stalls
-        run: python -m pytest tests -q --timeout 180 --durations=10
+        # pyproject sets a 180 s limit per test (pytest-timeout, thread method): a hung test fails, never stalls.
+        # pyproject's addopts already gives -q; a second -q (-qq) hides the "N passed in Xs" summary line, so
+        # none here.  -rfEs lists failures, errors and skips by name above that line.
+        run: python -m pytest tests --timeout 180 --durations=10 -rfEs
 
       - name: v4 smoke test (offscreen; every page, sheet, palette and dock in both themes)
         shell: pwsh

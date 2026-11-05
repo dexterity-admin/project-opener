@@ -84,6 +84,9 @@ Window {
         try { fn(); return true }
         catch (e) { toast("Could not do that", message || String(e), "warning"); return false }
     }
+    function saveNew() {                       // "Save N new as items": the tick list, never a silent add
+        if (safe(function () { app.capture.prepareSaveNew() })) openSheet("SaveNewSheet", {})
+    }
     function startFromOpen() {
         safe(function () { app.capture.prepareStartFromOpen() })
         openSheet("StartFromOpenSheet", {})
@@ -174,6 +177,10 @@ Window {
         target: app
         function onPaletteRequested() { cmdPalette.show("") }
         function onChooserRequested(paths) { root.openSheet("AddChooserSheet", { paths: paths }) }
+    }
+    Connections {
+        target: app.capture
+        function onSaveNewRequested() { root.openSheet("SaveNewSheet", {}) }
     }
     function loadPage() {
         pageLoader.source = ""

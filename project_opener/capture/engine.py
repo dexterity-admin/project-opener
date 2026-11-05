@@ -101,6 +101,7 @@ class CaptureEngine:
         self._last_write = float("-inf")
         self._last_touch = float("-inf")
         self._first_seen: dict[str, str] = {}
+        self._session_start = ""          # this run's first pass (Snapshot.session_start)
 
     # ------------------------------------------------------------ lifecycle (GUI thread)
     def start(self) -> None:
@@ -243,6 +244,7 @@ class CaptureEngine:
             self._last_touch = self._clock()          # the facade has just written the marker
             self._last_full = float("-inf")
             self._first_seen = {}
+            self._session_start = ""
             self._next_due = 0.0
             if self.identifier is not None:
                 self.identifier.items_changed()
@@ -287,6 +289,10 @@ class CaptureEngine:
         elif name == "enumerate":
             self._emit("on_candidates", self._enumerate_all())
         elif name == "restore":
+            if self._activity_id and not self._session_start and not self._paused:
+                # see what is open before reopening anything, so restored windows count as opened during
+                # the activity (the Save-new sheet ticks those) and windows already open do not
+                self._after_pass(self._build()[0])
             self._restore(req[1], req[2])
 
     # ------------------------------------------------------------ passes
@@ -315,11 +321,18 @@ class CaptureEngine:
         entries = self.identifier.identify(wins, self._item_paths, full=full)
         snap = M.Snapshot(activity_id=self._activity_id, full=full, monitors=mons, entries=entries)
         diff.match_items(snap, self._items, portable=self.config.portable, resolve=self.config.resolve)
+        first_pass = not self._session_start
+        if first_pass:
+            self._session_start = M.now_iso()
         seen: dict[str, str] = {}
         for e in snap.entries:
-            e.first_seen = self._first_seen.get(e.key) or seen.get(e.key) or e.first_seen
+            prior = self._first_seen.get(e.key) or seen.get(e.key)
+            # what the first pass finds was open when the activity started: stamped with the start itself
+            # (a cached identification may carry an older stamp, so a later newcomer is stamped now)
+            e.first_seen = prior or (self._session_start if first_pass else M.now_iso())
             seen.setdefault(e.key, e.first_seen)
         self._first_seen = seen
+        snap.session_start = self._session_start
         ms = (time.perf_counter() - t0) * 1000.0
         self.stats.append({"ms": round(ms, 2), "full": full, "windows": len(wins),
                            "queried": getattr(self.identifier, "last_queried", 0), "at": time.time()})

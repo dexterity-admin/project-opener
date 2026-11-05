@@ -96,7 +96,7 @@ def test_live_list_worst_first_counts_and_needs_state(rig):
     rows = rig.api.live.rows
     assert [r["status"] for r in rows] == ["unidentified", "unsaved", "window", "identified", "identified"]
     assert rig.api.openCount == 5 and rig.api.identifiedCount == 2
-    assert rig.api.needsPathCount == 1 and rig.api.newCount == 1
+    assert rig.api.needsPathCount == 1 and rig.api.newCount == 4     # every window not yet an item (owner, 5 Nov)
     assert rig.api.state == "needs"
     assert next(r for r in rows if r["path"].endswith("list.xlsx"))["isItem"]
     assert rows[0]["monitor"] == "monitor 1"       # the offscreen screen sits at the recorded corner (0, 0)
@@ -110,9 +110,19 @@ def test_snapshot_for_another_activity_is_ignored(rig):
 
 
 def test_save_new_as_items(rig):
+    """Owner decision: "Save N new" opens a tick list; only the ticked rows are added."""
     rig.api.startActivity(rig.act.id)
-    rig.api._on_snapshot(M.Snapshot(rig.act.id, entries=[ent(r"U:\Lot 7\new.pdf"), ent(r"U:\Lot 7\list.xlsx")]))
+    new = ent(r"U:\Lot 7\new.pdf")
+    new.first_seen = "2026-11-05T10:00:09+00:00"
+    s = M.Snapshot(rig.act.id, entries=[new, ent(r"U:\Lot 7\list.xlsx")], session_start="2026-11-05T10:00:00+00:00")
+    s.entries[1].first_seen = s.session_start
+    rig.api._on_snapshot(s)
+    asked = []
+    rig.api.saveNewRequested.connect(lambda: asked.append(1))
     rig.api.saveNewAsItems()
+    assert asked == [1]
+    assert [i.path for i in rig.store.activity(rig.act.id).items] == [r"U:\Lot 7\list.xlsx"]   # nothing added yet
+    assert rig.api.saveTicked() == 1
     act = rig.store.activity(rig.act.id)
     assert [i.path for i in act.items] == [r"U:\Lot 7\list.xlsx", r"U:\Lot 7\new.pdf"]
     assert rig.api.newCount == 0

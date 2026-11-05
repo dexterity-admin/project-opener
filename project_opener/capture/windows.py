@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 
-from project_opener.capture.diff import norm_path, norm_url
+from project_opener.capture.diff import norm_path, norm_url, order_for_restore
 from project_opener.core import models as M
 
 # Applications whose windows are not activity items by default (chat, mail): unticked in
@@ -134,3 +134,70 @@ def ignore_rule(entry: M.SnapshotEntry) -> dict[str, str]:
     """A ``Settings.capture_ignore`` rule for exactly this process and title (glob characters escaped)."""
     title = "".join(f"[{c}]" if c in "*?[" else c for c in entry.title)
     return {"process": entry.process.lower(), "title": title}
+
+
+def app_rule(entry: M.SnapshotEntry) -> dict[str, str]:
+    """A ``Settings.capture_ignore`` rule for every window of this entry's application ("Always ignore")."""
+    return {"process": entry.process.lower()}
+
+
+def is_page_or_file(entry: M.SnapshotEntry) -> bool:
+    """An identified file, folder or web page from an application that is not chat or mail."""
+    return default_ticked(entry)
+
+
+def _worst_first(entries: list[M.SnapshotEntry]) -> list[M.SnapshotEntry]:
+    return worst_first(entries, {e.key: display_status(e) for e in entries})
+
+
+# "Save N new as items" (owner decision, 5 November 2026: "Everything open, I untick").  Groups, in order:
+NEW_GROUPS = {
+    "since": "Opened since the activity started",
+    "before": "Already open when it started",
+    "other": "Not a file, or no path yet",
+}
+
+
+def new_rows(snapshot: M.Snapshot, entries: list[M.SnapshotEntry]) -> list[tuple[M.SnapshotEntry, str, bool]]:
+    """The new things as (entry, group, ticked), most likely first: files, folders and pages opened since the
+    activity started (ticked); those already open when it started (unticked); then app, chat and mail windows
+    and windows with no path, worst first (unticked).  Nothing is ticked that the evidence does not support."""
+    since = [e for e in entries if is_page_or_file(e) and snapshot.opened_since_start(e)]
+    before = [e for e in entries if is_page_or_file(e) and not snapshot.opened_since_start(e)]
+    other = _worst_first([e for e in entries if not is_page_or_file(e)])
+    return ([(e, "since", True) for e in since] + [(e, "before", False) for e in before]
+            + [(e, "other", False) for e in other])
+
+
+def new_action(entry: M.SnapshotEntry) -> str:
+    """What ticking the row adds ("" = it cannot be added from the sheet)."""
+    if entry.identified:
+        return entry.path
+    if entry.exe:
+        return f"Adds {entry.app or entry.process} itself as an application"
+    return ""
+
+
+# The Resume sheet (owner decision, 5 November 2026: "A tick list, items pre-ticked").
+RESUME_GROUPS = {
+    "items": "The activity's items",
+    "during": "Opened during the activity",
+    "other": "Everything else that was open",
+}
+
+
+def resume_rows(snapshot: M.Snapshot, items: list[M.Item]) -> list[tuple[M.SnapshotEntry, str, bool]]:
+    """What was open at the snapshot as (entry, group, ticked): the activity's items in launch order (ticked);
+    other files, folders and pages opened during the activity (ticked); everything else (unticked) - those
+    that can be reopened first, then those that cannot (no path, unsaved), worst first."""
+    entries = dedupe(snapshot.entries)
+    ordered = order_for_restore(snapshot, items)
+    item_keys = {e.key for e in entries if e.identified and e.item_id}
+    as_items = [e for e in ordered if e.key in item_keys]
+    during = [e for e in entries if e.key not in item_keys and is_page_or_file(e) and snapshot.opened_since_start(e)]
+    taken = item_keys | {e.key for e in during}
+    rest = [e for e in entries if e.key not in taken]
+    other = [e for e in rest if e.identified] + _worst_first([e for e in rest if not e.identified])
+    return ([(e, "items", True) for e in as_items] + [(e, "during", True) for e in during]
+            + [(e, "other", False) for e in other])
+

@@ -238,7 +238,7 @@ class DesktopIntegration(QObject):
         except Exception:  # noqa: BLE001
             log.exception("pill failed")
 
-        self.quiet = QuietWatcher(parent=self)
+        self.quiet = QuietWatcher(parent=self, background=True)
         self.quiet.changed.connect(self._on_quiet)
         self._update_quiet_watch()
 

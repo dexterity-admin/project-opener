@@ -81,6 +81,23 @@ class FakeCapture(QObject):
     def saveNewAsItems(self) -> None:  # noqa: N802
         self._record("saveNewAsItems")
 
+    @Slot(str)
+    def ignoreForActivity(self, key: str) -> None:  # noqa: N802
+        self._record("ignoreForActivity", key)
+
+    @Slot(str)
+    def unignoreForActivity(self, key: str) -> None:  # noqa: N802
+        self._record("unignoreForActivity", key)
+
+    @Slot(str, result=str)
+    def ignoreApp(self, key: str) -> str:  # noqa: N802
+        self._record("ignoreApp", key)
+        return "AutoCAD"
+
+    @Slot(str)
+    def unignoreApp(self, key: str) -> None:  # noqa: N802
+        self._record("unignoreApp", key)
+
     @Slot()
     def pause(self) -> None:
         self._record("pause")

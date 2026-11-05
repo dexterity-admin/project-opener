@@ -717,6 +717,10 @@ class Snapshot:
     full: bool = False                 # a full re-identification pass (vs. incremental)
     monitors: list[Monitor] = field(default_factory=list)
     entries: list[SnapshotEntry] = field(default_factory=list)
+    # When this run of the activity was first captured: entries whose ``first_seen`` is later were opened
+    # while the activity ran; the first pass stamps what was already open with exactly this time.
+    # "" = not recorded (snapshots written before 4.0's polish round).
+    session_start: str = ""
 
     @property
     def open_count(self) -> int:
@@ -738,12 +742,17 @@ class Snapshot:
     def restorable(self) -> list[SnapshotEntry]:
         return [e for e in self.entries if e.identified]
 
+    def opened_since_start(self, entry: SnapshotEntry) -> bool:
+        """Whether ``entry`` was first seen after this run's first pass (False when that is not recorded)."""
+        return bool(self.session_start) and entry.first_seen > self.session_start
+
     def entry(self, key: str) -> SnapshotEntry | None:
         return next((e for e in self.entries if e.key == key), None)
 
     def to_dict(self) -> dict[str, Any]:
         return {"activity_id": self.activity_id, "taken_at": self.taken_at, "full": self.full,
-                "monitors": [m.to_dict() for m in self.monitors], "entries": [e.to_dict() for e in self.entries]}
+                "monitors": [m.to_dict() for m in self.monitors], "entries": [e.to_dict() for e in self.entries],
+                "session_start": self.session_start}
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Snapshot:
@@ -752,6 +761,7 @@ class Snapshot:
             activity_id=_s(d, "activity_id"), taken_at=_s(d, "taken_at") or now_iso(), full=bool(d.get("full", False)),
             monitors=[Monitor.from_dict(m) for m in d.get("monitors", []) or [] if isinstance(m, dict)],
             entries=[SnapshotEntry.from_dict(e) for e in d.get("entries", []) or [] if isinstance(e, dict)],
+            session_start=_s(d, "session_start"),
         )
 
 

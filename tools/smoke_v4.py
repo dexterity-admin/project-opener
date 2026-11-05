@@ -210,6 +210,41 @@ def demo_fill(app: Any, ids: dict[str, str]) -> None:
                      "monitor": f"monitor {mon}", "isItem": is_item, "isNew": is_new, "note": note,
                      "candidates": [r"\\nas01\Project\P12513\ISO\Revision C\P12513-ISO-1050-C.pdf",
                                     _job(r"Superseded\P12513-ISO-1050-C.pdf")] if st == "ambiguous" else []})
+    # the two tick lists (owner decisions of 5 November 2026): "Save N new as items" and Resume
+    def tick_row(key, name, path, app_name, status, kind, group, label, ticked, tickable=True, **extra):
+        return {"entryKey": key, "ticked": ticked, "tickable": tickable, "name": name, "path": path,
+                "appName": app_name, "status": status, "note": extra.get("note", ""), "kind": kind, "group": group,
+                "groupLabel": label, "action": extra.get("action", path), "monitor": extra.get("monitor", "")}
+    from project_opener.capture.windows import NEW_GROUPS, RESUME_GROUPS
+    rev_c = r"\\nas01\Project\P12513\ISO\Revision C"
+    fill(cap.newCandidates, [
+        tick_row("n1", "P12513-ISO-1043-C.pdf", rev_c + r"\P12513-ISO-1043-C.pdf", "PDF-XChange", "identified", "file",
+                 "since", NEW_GROUPS["since"], True),
+        tick_row("n2", "FST portal · P12513", "https://portal.fst.example/P12513", "Edge", "identified", "url",
+                 "since", NEW_GROUPS["since"], True),
+        tick_row("n3", "Timesheet Nov.xlsx", r"D:\Users\checker\Documents\Timesheet Nov.xlsx", "Excel", "identified",
+                 "file", "before", NEW_GROUPS["before"], False),
+        tick_row("n4", "Drawing1 - AutoCAD", "", "AutoCAD", "unsaved", "", "other", NEW_GROUPS["other"], False,
+                 action="Adds AutoCAD itself as an application"),
+        tick_row("n5", "Inbox - Outlook", "", "Outlook", "window", "", "other", NEW_GROUPS["other"], False,
+                 action="Adds Outlook itself as an application"),
+        tick_row("n6", "Calculator", "", "Calculator", "window", "", "other", NEW_GROUPS["other"], False, False,
+                 action=""),
+    ])
+    fill(cap.resumeCandidates, [
+        tick_row("r1", "Iso checklist.pdf", _job("Iso checklist.pdf"), "PDF-XChange", "identified", "file", "items",
+                 RESUME_GROUPS["items"], True, monitor="monitor 1"),
+        tick_row("r2", "Line list.xlsx", _job("Line list.xlsx"), "Excel", "identified", "file", "items",
+                 RESUME_GROUPS["items"], True, monitor="monitor 1"),
+        tick_row("r3", "Comment register.xlsx", _job(r"Lot 7\Comment register.xlsx"), "Excel", "identified", "file",
+                 "items", RESUME_GROUPS["items"], True, monitor="monitor 2"),
+        tick_row("r4", "P12513-ISO-1043-C.pdf", rev_c + r"\P12513-ISO-1043-C.pdf", "PDF-XChange", "identified", "file",
+                 "during", RESUME_GROUPS["during"], True, monitor="monitor 2"),
+        tick_row("r5", "Timesheet Nov.xlsx", r"D:\Users\checker\Documents\Timesheet Nov.xlsx", "Excel", "identified",
+                 "file", "other", RESUME_GROUPS["other"], False, monitor="monitor 1"),
+        tick_row("r6", "Drawing1 - AutoCAD", "", "AutoCAD", "unsaved", "", "other", RESUME_GROUPS["other"], False,
+                 False, note="Unsaved: no file to reopen", monitor="monitor 1"),
+    ])
     DEMO["live"] = rows
     if fill(cap.live, rows):
         cap._running_id, cap._running_name, cap._running_label = lot7.id, lot7.name, lot7.label
@@ -647,6 +682,8 @@ def SHEETS(ids: dict[str, str]) -> list[tuple[str, dict[str, Any]]]:  # noqa: N8
         ("TaskSheet", {"attachKind": "activity", "attachId": ids["lot7"]}),
         ("WatcherSheet", {"activityId": ids["lot7"]}),
         ("StartFromOpenSheet", {}),
+        ("SaveNewSheet", {}),
+        ("ResumeSheet", {}),
         ("AddChooserSheet", {"paths": [_job(r"Lot 8\Comment register.xlsx")]}),
         ("AttachPathSheet", {"entryKey": "k7", "windowTitle": "Drawing1 - AutoCAD", "appName": "AutoCAD"}),
     ]

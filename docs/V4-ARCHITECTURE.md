@@ -159,7 +159,7 @@ created_by, created_at`. Events per kind: folder `new|changed|gone`; health `dow
 
 | File | Format | Writer |
 |---|---|---|
-| `snapshots/<activity_id>.json` | `{"schema": 1, "activity_id", "live": Snapshot or null, "checkpoints": [Checkpoint, newest first, max 10]}` | capture thread via `SnapshotStore` |
+| `snapshots/<activity_id>.json` | `{"schema": 1, "activity_id", "live": Snapshot or null, "checkpoints": [Checkpoint, newest first, max 10], "ignored": [entry key], "left_out": [entry key]}` (`ignored`: Ignore in the pill's list, this activity only; `left_out`: unticked in "Save N new as items") | `SnapshotStore` (in memory; one background writer thread in the app) |
 | `running.json` | `{"schema": 1, "markers": [RunningMarker]}` | `SnapshotStore.mark_running/touch_running/clear_running` |
 | `tasks/<id>.json` | Task (only when no hub is configured) | `TaskStore` |
 | `watch-state/<watcher_id>.json` | `{"files": {name: [size, mtime]}, "listed_at"}` | `WatcherEngine` |
@@ -169,7 +169,8 @@ created_by, created_at`. Events per kind: folder `new|changed|gone`; health `dow
 | `history.jsonl` | as 3.x, v4 rows add `activity_id`, `activity` | `WorkspaceStore.record_activity_launch` |
 
 `Snapshot`: `activity_id, taken_at, full, monitors[Monitor{device, rect, work, dpi, primary}],
-entries[SnapshotEntry]`.
+entries[SnapshotEntry], session_start` (the run's first pass; that pass stamps what was already open with
+exactly this time, so `first_seen > session_start` means "opened while the activity ran"; "" in older files).
 
 `SnapshotEntry`:
 
@@ -288,7 +289,8 @@ From the spike, adopted as design rules:
 | Watchers | a `QTimer` every `WATCH_TICK_S` (15 s) in `WatchersApi` schedules `WatcherEngine.tick` on the pool (one tick at a time) | events -> `Dispatcher` (pool) -> toast on the GUI thread |
 | Hotkeys | GUI thread: `WM_HOTKEY` arrives in the native event filter | direct calls |
 | Picker hover | GUI `QTimer` (30 ms) reads the cursor; identification asked of the capture thread, cached | `hoverIdentified` |
-| Quiet-time check | GUI `QTimer` (1 s) only while the pill would be visible | `quietChanged` |
+| Quiet-time check | GUI `QTimer` (1 s) only while the pill would be visible; each probe on a short-lived worker thread | `quietChanged` (queued back) |
+| Snapshot and running-marker writes | one `po-snapshot-writer` thread (`SnapshotStore(background=True)`); reads come from memory, the store's lock is never held across file I/O | - (`flush()`/`close()` at shutdown) |
 | UDP presence | 2 daemon threads (3.2) | `run_on_gui` |
 
 Rules: no COM object crosses threads; no Python slot on the render thread (`frameSwapped` handlers
@@ -355,6 +357,16 @@ projects, project, hub, updates, settings`.
   attachPath(entryKey, path), addAsApplication(entryKey), ignoreEntry(entryKey),
   selectActivity(id), restoreCheckpoint(id, checkpointId), restoreLatest(id),
   prepareStartFromOpen, setCandidateTicked(entryKey, on), startFromOpen(name, projectId) -> id`.
+- Owner decisions of 5 November 2026: "Save N new as items" never adds by itself - `saveNewAsItems` fills
+  `newCandidates` (entryKey, ticked, tickable, name, path, appName, status, note, kind, group, groupLabel,
+  action; files, folders and pages opened since the start ticked, everything else unticked) and emits
+  `saveNewRequested` (the main window opens `sheets/SaveNewSheet.qml`); `prepareSaveNew, setNewTicked(key, on),
+  saveTicked() -> added` (unticked rows are left out for the activity). `newCount` counts every window that
+  is not an item, ignored or left out. The pill's rows: `ignoreForActivity(key)`, `unignoreForActivity(key)`,
+  `ignoreApp(key) -> app name` ("Always ignore this app": `{"process": exe}` in `Settings.capture_ignore`),
+  `unignoreApp(key)`. Resume: `prepareResume(id)` fills `resumeCandidates` (as above plus monitor; groups
+  items / during / other), `setResumeTicked(key, on)`, `restoreTicked(id)`; `ActivitiesApi.resumeNow` restores
+  only the ticked rows when the sheet was prepared.
 - Signals: `stateChanged, liveChanged, checkpointsChanged, checkpointSaved(id, count, time),
   addResult(ok, message, needsPath, entryKey), hoverIdentified(hwnd, ok, label),
   restoreProgress(done, total, label), restoreFinished(report), startCandidatesReady`.

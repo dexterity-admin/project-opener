@@ -37,6 +37,12 @@ ENTRY_ROLES = (
 )
 CHECKPOINT_ROLES = ("checkpointId", "takenAt", "takenText", "kind", "label", "count", "identified", "isLatest")
 CANDIDATE_ROLES = ("entryKey", "ticked", "name", "path", "appName", "status", "note", "kind")
+# "Save N new as items" and the Resume sheet: tick lists grouped under headings (``group`` / ``groupLabel``);
+# ``action`` says what ticking adds; ``tickable`` is False for a row that cannot be added or reopened.
+NEW_ROLES = ("entryKey", "ticked", "tickable", "name", "path", "appName", "status", "note", "kind", "group",
+             "groupLabel", "action")
+RESUME_ROLES = ("entryKey", "ticked", "tickable", "name", "path", "appName", "status", "note", "kind", "group",
+                "groupLabel", "monitor")
 
 # state: idle (no activity running) | running | needs (a path is needed or a drive is down) | paused | saved
 STATES = ("idle", "running", "needs", "paused", "saved")
@@ -115,12 +121,17 @@ class CaptureApi(ApiBase):
     restoreProgress = Signal(int, int, str)          # done, total, current label
     restoreFinished = Signal("QVariantMap")          # {opened, placed, failed: [...], unrestorable: [...]}
     startCandidatesReady = Signal()
+    newCandidatesChanged = Signal()
+    resumeCandidatesChanged = Signal()
+    saveNewRequested = Signal()                      # open the "Save N new as items" sheet (main window)
 
     def __init__(self, app: Any):
         super().__init__(app)
         self._live = DictListModel(ENTRY_ROLES, key="entryKey", parent=self)
         self._checkpoints = DictListModel(CHECKPOINT_ROLES, key="checkpointId", parent=self)
         self._candidates = DictListModel(CANDIDATE_ROLES, key="entryKey", parent=self)
+        self._new_rows = DictListModel(NEW_ROLES, key="entryKey", parent=self)
+        self._resume_rows = DictListModel(RESUME_ROLES, key="entryKey", parent=self)
         self._running_id = ""
         self._running_name = ""
         self._running_label = ""
@@ -145,6 +156,13 @@ class CaptureApi(ApiBase):
         self._exclude_pids = {os.getpid()}
         self._watch_hooked = False
         self._before_start: tuple[str, M.Snapshot | None] = ("", None)
+        # the running activity's review state (SnapshotStore.review): ignored in the pill's list; left
+        # unticked in "Save N new as items".  Neither is offered as new again.
+        self._ignored: set[str] = set()
+        self._left_out: set[str] = set()
+        self._new_entries: dict[str, M.SnapshotEntry] = {}
+        self._process_started: float | None = None       # psutil's create time, read once (warm-up)
+        self._resume_prep: tuple[str, M.Snapshot | None] = ("", None)
 
     # ------------------------------------------------------------- models
     @Property(QObject, constant=True)
@@ -161,6 +179,18 @@ class CaptureApi(ApiBase):
     def startCandidates(self) -> DictListModel:
         """Start from what's open: every window, non-file ones unticked."""
         return self._candidates
+
+    @Property(QObject, constant=True)
+    def newCandidates(self) -> DictListModel:  # noqa: N802
+        """"Save N new as items": the new things, most likely first; files, folders and pages opened since
+        the activity started ticked, everything else unticked."""
+        return self._new_rows
+
+    @Property(QObject, constant=True)
+    def resumeCandidates(self) -> DictListModel:  # noqa: N802
+        """The Resume sheet: what was open at the last snapshot; the activity's items and what was opened
+        during the activity ticked, everything else unticked."""
+        return self._resume_rows
 
     # --------------------------------------------------------- properties
     runningId = ro(str, "_running_id", stateChanged)
@@ -320,23 +350,26 @@ class CaptureApi(ApiBase):
         snap = self._snapshot
         screens = screen_names()
         offline = self._offline_roots()
-        entries = W.dedupe(snap.entries) if snap else []
+        entries = [e for e in W.dedupe(snap.entries) if e.key not in self._ignored] if snap else []
+        app_items = {i.path.lower() for i in self._running_items() if i.kind == "app"}
         statuses = {e.key: W.display_status(e, bool(offline) and e.identified and self._root_of(e.path) in offline)
                     for e in entries}
         rows = []
         for e in W.worst_first(entries, statuses):
             self._known[e.key] = e
             mon, place = monitor_and_place(e.placement, screens)
+            is_item = self._is_item(e, app_items)
             rows.append({
                 "entryKey": e.key, "status": statuses[e.key], "kind": e.kind, "name": W.entry_name(e),
                 "path": e.path, "title": e.title, "process": e.process, "appName": e.app,
-                "identifiedBy": e.identified_by, "monitor": mon, "isItem": bool(e.item_id),
-                "isNew": e.is_new, "note": e.note, "candidates": list(e.candidates), **place})
+                "identifiedBy": e.identified_by, "monitor": mon, "isItem": is_item,
+                "isNew": not is_item and e.key not in self._left_out, "note": e.note,
+                "candidates": list(e.candidates), **place})
         self._live.sync(rows)
         self._open = len(entries)
         self._identified = sum(1 for e in entries if e.identified)
         self._needs_path = sum(1 for s in statuses.values() if W.needs_you(s))
-        self._new = len([e for e in entries if e.is_new])
+        self._new = len(self._new_list(entries, app_items))
         cps = self.app.snapshots.checkpoints(self._running_id) if self._running_id else []
         self._since_checkpoint = len(diff.new_since(cps[0].snapshot if cps else None, snap)) if snap else 0
         roots_used = {self._root_of(i.path) for i in self._running_items()} | {
@@ -344,6 +377,16 @@ class CaptureApi(ApiBase):
         self._drive_down = bool(offline & {r for r in roots_used if r})
         self.liveChanged.emit()
         self._update_state()
+
+    @staticmethod
+    def _is_item(e: M.SnapshotEntry, app_items: set[str]) -> bool:
+        """One of the activity's items: matched by path, or the window of an application item."""
+        return bool(e.item_id) or (not e.identified and bool(e.exe) and e.exe.lower() in app_items)
+
+    def _new_list(self, entries: list[M.SnapshotEntry], app_items: set[str]) -> list[M.SnapshotEntry]:
+        """Every window that is not an item yet, except those ignored or left out for this activity."""
+        return [e for e in entries if not self._is_item(e, app_items)
+                and e.key not in self._ignored and e.key not in self._left_out]
 
     def _running_items(self) -> list[M.ActivityItem]:
         act = self._store().activity(self._running_id) if self._running_id else None
@@ -475,6 +518,35 @@ class CaptureApi(ApiBase):
         self._ensure_engine()
         self._register_openers()
         self._hook_watchers()
+        self._warm_up()
+
+    def _warm_up(self) -> None:
+        """Off the GUI thread, before anything is opened: import psutil (PySide's import hook reads a module's
+        source on first import) and read this process's start time, every activity's snapshot file and the
+        running markers into the store's memory, so opening an activity never waits on an import or on the
+        data folder's share (the dock's frame times)."""
+        run_async = getattr(self.app, "run_async", None)
+        if run_async is None:
+            return
+        ids = [a.id for a in getattr(self._store(), "activities", [])]
+        snapshots = self.app.snapshots
+
+        def work() -> float:
+            for aid in ids:
+                snapshots.review(aid)
+            snapshots.markers()
+            try:
+                import psutil
+                return float(psutil.Process().create_time())
+            except Exception:  # noqa: BLE001
+                return 0.0
+
+        def done(started: float) -> None:
+            self._process_started = started
+        try:
+            run_async(work, done, lambda *_a: None)
+        except Exception:  # noqa: BLE001
+            log.exception("capture warm-up failed")
 
     def shutdown(self) -> None:
         """Stop the capture thread; write a final live snapshot; do NOT clear running markers
@@ -510,16 +582,19 @@ class CaptureApi(ApiBase):
         engine = self._ensure_engine()
         self._register_openers()
         self._hook_watchers()
-        try:
-            import psutil
-            started = psutil.Process().create_time()
-        except Exception:  # noqa: BLE001
-            started = 0.0
+        started = self._process_started
+        if started is None:
+            try:
+                import psutil
+                started = self._process_started = float(psutil.Process().create_time())
+            except Exception:  # noqa: BLE001
+                started = 0.0
         self.app.snapshots.mark_running(M.RunningMarker(activity_id=act.id, pid=os.getpid(), process_started=started))
         # what was saved before this start: the first pass will overwrite the live snapshot, and the
         # Resume band calls restoreLatest right after startActivity
         self._before_start = (act.id, self.app.snapshots.latest(act.id))
         self._set_running(act)
+        self._ignored, self._left_out = self.app.snapshots.review(act.id)
         self._user_paused = False
         self._snapshot = None
         self._selected_id = ""
@@ -540,6 +615,9 @@ class CaptureApi(ApiBase):
             self._engine.stop_activity()
         self.app.snapshots.clear_running(aid)
         self._set_running(None)
+        self._ignored, self._left_out = set(), set()
+        self._new_rows.reset([])
+        self._new_entries = {}
         self._snapshot = None
         self._user_paused = False
         self._saved_until = False
@@ -556,12 +634,126 @@ class CaptureApi(ApiBase):
 
     @Slot()
     def saveNewAsItems(self) -> None:
-        if not self._running_id or self._snapshot is None:
+        """"Save N new as items" never adds by itself: it fills ``newCandidates`` and asks for the tick list
+        (``saveNewRequested``; the main window opens the sheet)."""
+        if not self._running_id:
             return
-        new = self._snapshot.new_entries
-        act, added = self._add_items(self._running_id, W.items_from_entries(new))
+        self.prepareSaveNew()
+        self.saveNewRequested.emit()
+
+    @Slot()
+    def prepareSaveNew(self) -> None:  # noqa: N802
+        """Fill ``newCandidates`` from the live snapshot (owner decision: everything open is offered; files,
+        folders and pages opened since the activity started are ticked, app, chat and mail windows are not)."""
+        snap = self._snapshot
+        rows: list[dict[str, Any]] = []
+        self._new_entries = {}
+        if self._running_id and snap is not None:
+            app_items = {i.path.lower() for i in self._running_items() if i.kind == "app"}
+            entries = self._new_list([e for e in W.dedupe(snap.entries) if e.key not in self._ignored], app_items)
+            for e, group, ticked in W.new_rows(snap, entries):
+                self._known[e.key] = e
+                self._new_entries[e.key] = e
+                action = W.new_action(e)
+                rows.append({"entryKey": e.key, "ticked": ticked and bool(action), "tickable": bool(action),
+                             "name": W.entry_name(e), "path": e.path, "appName": e.app or e.process,
+                             "status": W.display_status(e), "note": e.note, "kind": e.kind, "group": group,
+                             "groupLabel": W.NEW_GROUPS[group], "action": action})
+        self._new_rows.reset(rows)
+        self.newCandidatesChanged.emit()
+
+    @Slot(str, bool)
+    def setNewTicked(self, entry_key: str, ticked: bool) -> None:  # noqa: N802
+        i = self._new_rows.indexOf(entry_key)
+        if i >= 0 and self._new_rows.rows[i].get("tickable"):
+            self._new_rows.update(i, ticked=bool(ticked))
+
+    @Slot(result=int)
+    def saveTicked(self) -> int:  # noqa: N802
+        """Add the ticked rows as items (an application window adds the application itself).  The unticked
+        rows are left out: they stay in the live list but are not offered as new again for this activity."""
+        aid = self._running_id
+        if not aid:
+            return 0
+        rows = self._new_rows.rows
+        ticked = [self._new_entries[r["entryKey"]] for r in rows
+                  if r.get("ticked") and r["entryKey"] in self._new_entries]
+        items: list[M.ActivityItem] = W.items_from_entries(ticked)
+        exes = {it.path.lower() for it in items}
+        for e in ticked:
+            if e.identified:
+                continue
+            app = W.app_item(e)
+            if app is not None and app.path.lower() not in exes:
+                exes.add(app.path.lower())
+                items.append(app)
+        unticked = {r["entryKey"] for r in rows if not r.get("ticked")}
+        if unticked:
+            self._left_out |= unticked
+            self.app.snapshots.set_review(aid, left_out=self._left_out)
+        act, added = self._add_items(aid, items)
+        self._new_rows.reset([])
+        self._new_entries = {}
+        self.newCandidatesChanged.emit()
+        self._refresh_live()
         if act is not None and added:
             self._toast("Saved as items", f"{added} added to {act.name}", "success")
+        return added
+
+    # ------------------------------------------------- ignore, for this activity or always
+    @Slot(str)
+    def ignoreForActivity(self, entry_key: str) -> None:  # noqa: N802
+        """The pill's list: leave this window out of the running activity's list and counts, kept in the
+        activity's snapshot file so it stays ignored the next time the activity runs."""
+        aid = self._running_id
+        if not aid or not entry_key:
+            return
+        self._ignored.add(entry_key)
+        self.app.snapshots.set_review(aid, ignored=self._ignored)
+        self._refresh_live()
+
+    @Slot(str)
+    def unignoreForActivity(self, entry_key: str) -> None:  # noqa: N802
+        aid = self._running_id
+        if not aid or entry_key not in self._ignored:
+            return
+        self._ignored.discard(entry_key)
+        self.app.snapshots.set_review(aid, ignored=self._ignored)
+        self._refresh_live()
+
+    @Slot(str, result=str)
+    def ignoreApp(self, entry_key: str) -> str:  # noqa: N802
+        """"Always ignore this app": a ``Settings.capture_ignore`` rule for every window of the entry's
+        process (every activity, from now on).  Returns the application's name ("" when unknown)."""
+        entry = self._known.get(entry_key)
+        if entry is None or not entry.process:
+            return ""
+        s = self._settings()
+        rule = W.app_rule(entry)
+        if rule not in s.capture_ignore:
+            s.capture_ignore.append(rule)
+            s.save()
+        if self._engine is not None:
+            self._engine.set_ignore_rules(list(s.capture_ignore))
+        if self._snapshot is not None:
+            proc = entry.process.lower()
+            self._snapshot.entries = [e for e in self._snapshot.entries if e.process.lower() != proc]
+        self._refresh_live()
+        return entry.app or entry.process
+
+    @Slot(str)
+    def unignoreApp(self, entry_key: str) -> None:  # noqa: N802
+        """Undo "Always ignore this app" (the window comes back with the next pass)."""
+        entry = self._known.get(entry_key)
+        if entry is None:
+            return
+        s = self._settings()
+        rule = W.app_rule(entry)
+        if rule in s.capture_ignore:
+            s.capture_ignore.remove(rule)
+            s.save()
+            if self._engine is not None:
+                self._engine.set_ignore_rules(list(s.capture_ignore))
 
     @Slot()
     def pause(self) -> None:
@@ -700,6 +892,68 @@ class CaptureApi(ApiBase):
     def restoreCheckpoint(self, activity_id: str, checkpoint_id: str) -> None:
         cp = self.app.snapshots.checkpoint(activity_id, checkpoint_id)
         self._restore(activity_id, cp.snapshot if cp else None)
+
+    # ---------------------------------------------------------------- resume
+    @Slot(str)
+    def prepareResume(self, activity_id: str) -> None:  # noqa: N802
+        """Fill ``resumeCandidates`` from the activity's latest snapshot (owner decision: a tick list, items
+        pre-ticked).  With nothing captured, the activity's items are listed, ticked."""
+        snap = self.app.snapshots.latest(activity_id) if activity_id else None
+        act = self._store().activity(activity_id) if activity_id else None
+        items = list(act.items) if act else []
+        self._resume_prep = (activity_id, snap)
+        rows: list[dict[str, Any]] = []
+        if snap is not None and snap.entries:
+            diff.match_items(snap, items, portable=self._portable, resolve=self._resolve)
+            screens = screen_names()
+            for e, group, ticked in W.resume_rows(snap, items):
+                mon, _place = monitor_and_place(e.placement, screens)
+                why = "" if e.identified else ("Unsaved: no file to reopen" if e.status == "unsaved"
+                                               else "No file path: cannot be reopened")
+                rows.append({"entryKey": e.key, "ticked": ticked, "tickable": e.identified,
+                             "name": W.entry_name(e), "path": e.path, "appName": e.app or e.process,
+                             "status": W.display_status(e), "note": why or e.note, "kind": e.kind,
+                             "group": group, "groupLabel": W.RESUME_GROUPS[group], "monitor": mon})
+        else:
+            for it in (act.enabled_items if act else []):
+                if it.path.strip():
+                    rows.append({"entryKey": "item:" + it.id, "ticked": True, "tickable": True,
+                                 "name": it.display_name, "path": it.path, "appName": "", "status": "identified",
+                                 "note": "", "kind": it.kind, "group": "items",
+                                 "groupLabel": W.RESUME_GROUPS["items"], "monitor": ""})
+        self._resume_rows.reset(rows)
+        self.resumeCandidatesChanged.emit()
+
+    @Slot(str, bool)
+    def setResumeTicked(self, entry_key: str, ticked: bool) -> None:  # noqa: N802
+        i = self._resume_rows.indexOf(entry_key)
+        if i >= 0 and self._resume_rows.rows[i].get("tickable"):
+            self._resume_rows.update(i, ticked=bool(ticked))
+
+    def resume_prepared(self, activity_id: str) -> bool:
+        """Whether the Resume sheet was filled for ``activity_id`` (``ActivitiesApi.resumeNow`` asks)."""
+        return bool(activity_id) and self._resume_prep[0] == activity_id
+
+    def resume_ticked(self) -> list[str]:
+        """Entry keys ticked in the Resume sheet (``item:<id>`` rows when nothing was captured)."""
+        return [r["entryKey"] for r in self._resume_rows.rows if r.get("ticked")]
+
+    @Slot(str)
+    def restoreTicked(self, activity_id: str) -> None:  # noqa: N802
+        """Reopen only the ticked rows of the prepared snapshot, each placed where it was."""
+        aid, snap = self._resume_prep
+        if aid != activity_id or snap is None:
+            self.restoreLatest(activity_id)
+            return
+        keys = set(self.resume_ticked())
+        chosen = M.Snapshot(activity_id=snap.activity_id, taken_at=snap.taken_at, full=snap.full,
+                            monitors=list(snap.monitors), session_start=snap.session_start,
+                            entries=[e for e in snap.entries if e.key in keys])
+        self._resume_prep = ("", None)
+        self._resume_rows.reset([])
+        if self._before_start[0] == activity_id:
+            self._before_start = ("", None)
+        self._restore(activity_id, chosen)
 
     @Slot(str)
     def restoreLatest(self, activity_id: str) -> None:

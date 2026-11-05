@@ -148,6 +148,7 @@ class PillFacts:
     enabled: bool = True             # Settings.pill_enabled
     quiet: bool = False              # desktop quiet time
     rest_style: str = "pill"         # pill | edge
+    docking: bool = False            # the main window is on screen showing the launch dock
 
 
 def things(n: int) -> str:
@@ -164,6 +165,10 @@ def pill_view(f: PillFacts) -> dict[str, Any]:
         return {**hidden, "reason": "turned off"}
     if f.quiet:
         return {**hidden, "reason": "quiet time"}
+    if f.docking:
+        # the dock in the main window already shows every item as it opens; the pill appears when it is
+        # done (a new window's first frames during the dock's animation cost it 0.3-1 s on a real desktop)
+        return {**hidden, "reason": "the dock is on screen"}
     edge = f.rest_style == "edge"
     label = f.label or "Activity"
     if f.state == "idle" or f.state not in ("running", "needs", "paused", "saved"):
@@ -260,6 +265,7 @@ class PillController(QObject):
         self._hover = False
         self._dragging = False
         self._shown = False
+        self._warming = False             # the start-up exposure (see _warm_expose)
         self._hover_timer = QTimer(self, singleShot=True, interval=HOVER_OPEN_MS)
         self._hover_timer.timeout.connect(self._hover_open)
         self._leave_timer = QTimer(self, singleShot=True, interval=LEAVE_CLOSE_MS)
@@ -275,6 +281,9 @@ class PillController(QObject):
                     getattr(cap, sig).connect(self.refresh)
             if hasattr(cap, "checkpointSaved"):
                 cap.checkpointSaved.connect(self._on_checkpoint_saved)
+        acts = getattr(facade, "activities", None)
+        if acts is not None and hasattr(acts, "launchChanged"):
+            acts.launchChanged.connect(self.refresh)
 
     # ------------------------------------------------------- QML properties
     @Property("QVariantMap", notify=viewChanged)
@@ -322,7 +331,24 @@ class PillController(QObject):
             needs_path=int(g("needsPathCount", 0)), drive_down=bool(g("driveDown", False)),
             saved_text=self._saved_text, saved_flash=self._saved_flash,
             pinned=bool(getattr(s, "pill_pinned", False)), enabled=bool(getattr(s, "pill_enabled", True)),
-            quiet=self._quiet, rest_style=str(getattr(s, "pill_rest_style", "pill") or "pill"))
+            quiet=self._quiet, rest_style=str(getattr(s, "pill_rest_style", "pill") or "pill"),
+            docking=self._docking())
+
+    def _docking(self) -> bool:
+        """The launch dock is running in a main window that is on screen (not hidden or minimised)."""
+        acts = getattr(self.facade, "activities", None)
+        try:
+            if acts is None or not bool(acts.property("launching")):
+                return False
+        except RuntimeError:
+            return False
+        win = getattr(getattr(self.facade, "ui", None), "_window", None)
+        try:
+            from PySide6.QtCore import Qt
+            return bool(win is not None and win.isVisible()
+                        and not (win.windowStates() & Qt.WindowState.WindowMinimized))
+        except (RuntimeError, AttributeError):
+            return False
 
     def would_show(self) -> bool:
         """Visible if it were not quiet time (the quiet-time watcher runs only while this is true)."""
@@ -347,12 +373,14 @@ class PillController(QObject):
             if self._panel_open:
                 self._set_panel(False)
         if self.window is not None:
+            if view["visible"] and self._warming:
+                self._end_warm()                         # it has something to say before the warm-up ended
             if view["visible"]:
                 self._apply_geometry()
                 if not self.window.isVisible():
                     self.window.show()
                     set_no_activate(int(self.window.winId()))
-            elif self.window.isVisible():
+            elif self.window.isVisible() and not self._warming:
                 self.window.hide()
         if was_visible != view["visible"]:
             self.visibilityChanged.emit(bool(view["visible"]))
@@ -393,6 +421,44 @@ class PillController(QObject):
         set_no_activate(int(win.winId()))
         win.screenChanged.connect(lambda *_: self._apply_geometry())
         self.refresh()
+        self._warm_expose()
+
+    def _warm_expose(self) -> None:
+        """Show the window once at start-up, fully transparent, and hide it after its first frame.
+
+        With Qt's threaded render loop the GUI thread waits for a window's first frame, which on a
+        real desktop includes creating its render thread and graphics device (0.3-0.6 s measured).
+        That used to happen when an activity was opened - in the middle of the dock's animation -
+        because that is when the pill first appears.  Paying it here, before anything is opened,
+        keeps the dock smooth; later shows reuse what was created."""
+        from PySide6.QtGui import QGuiApplication
+        win = self.window
+        if win is None or win.isVisible() or QGuiApplication.platformName() in ("offscreen", "minimal"):
+            return
+        from PySide6.QtCore import Qt
+        self._warming = True
+        self._apply_geometry()           # where and how big it will be: a later move to another monitor or a
+        win.setOpacity(0.0)              # new size would rebuild its swap chain again
+        win.frameSwapped.connect(self._end_warm, Qt.ConnectionType.QueuedConnection)
+        win.show()
+        set_no_activate(int(win.winId()))
+        QTimer.singleShot(3000, self._end_warm)          # backstop: no frame came
+
+    @Slot()
+    def _end_warm(self) -> None:
+        if not self._warming:
+            return
+        self._warming = False
+        win = self.window
+        if win is None:
+            return
+        try:
+            win.frameSwapped.disconnect(self._end_warm)
+        except (RuntimeError, TypeError):
+            pass
+        if not self._view.get("visible"):
+            win.hide()
+        win.setOpacity(1.0)
 
     @Slot()
     def show(self) -> None:
@@ -589,6 +655,30 @@ class PillController(QObject):
         else:
             self.openPanel()
 
+    @Slot(str, bool, result=str)
+    def ignore(self, entry_key: str, always: bool) -> str:
+        """The panel's Ignore on a row: for the running activity (kept with it), or with ``always`` for every
+        window of that application (Settings.capture_ignore).  Returns the application's name for the note."""
+        cap = getattr(self.facade, "capture", None)
+        try:
+            if always:
+                return str(cap.ignoreApp(entry_key) or "")
+            cap.ignoreForActivity(entry_key)
+        except Exception:  # noqa: BLE001
+            log.exception("pill: ignore failed")
+        return ""
+
+    @Slot(str, bool)
+    def unignore(self, entry_key: str, always: bool) -> None:
+        """Undo the panel's last Ignore."""
+        cap = getattr(self.facade, "capture", None)
+        try:
+            if always:
+                cap.unignoreApp(entry_key)
+            cap.unignoreForActivity(entry_key)
+        except Exception:  # noqa: BLE001
+            log.exception("pill: undo ignore failed")
+
     @Slot(str)
     def act(self, action: str) -> None:
         """The panel's buttons.  A failing capture call is logged, never raised into QML."""
@@ -597,7 +687,13 @@ class PillController(QObject):
             if action == "snapshot":
                 f.capture.snapshotNow()
             elif action == "save_new":
+                # the tick list lives in the main window (owner decision: never add without a choice)
+                self.closePanel()
+                rid = str(f.capture.property("runningId") or "")
+                if rid:
+                    f.ui.go("activity", {"activityId": rid})
                 f.capture.saveNewAsItems()
+                f.showWindowRequested.emit()
             elif action == "add_window":
                 self.closePanel()
                 if f.desktop is not None:

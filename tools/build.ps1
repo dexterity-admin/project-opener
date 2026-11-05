@@ -24,7 +24,7 @@ Write-Host "== Project Opener $version ==" -ForegroundColor Cyan
 
 if (-not $SkipTests) {
     Write-Host "-- tests" -ForegroundColor Cyan
-    & $Python -m pytest tests -q
+    & $Python -m pytest tests
     if ($LASTEXITCODE -ne 0) { throw "tests failed" }
 }
 

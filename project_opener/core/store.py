@@ -164,9 +164,13 @@ class WorkspaceStore:
     def _rotate_backup(self) -> None:
         bdir = self.root / C.BACKUP_DIR
         bdir.mkdir(exist_ok=True)
+        # Windows' clock advances in ~15.6 ms ticks, so two saves in one tick get the same microseconds: a
+        # counter makes every name unique and keeps names sorting in save order ("...-123456-00" < "-01").
+        # The rotation glob below never matches the pre-v4 backup (pre-v4-workspace-*), which is kept.
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-        target = bdir / f"workspace-{stamp}.json"
-        if not target.exists():
+        target = next((bdir / f"workspace-{stamp}-{n:02d}.json" for n in range(100)
+                       if not (bdir / f"workspace-{stamp}-{n:02d}.json").exists()), None)
+        if target is not None:
             try:
                 shutil.copy2(self.path, target)
             except OSError as exc:

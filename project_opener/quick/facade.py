@@ -52,7 +52,10 @@ class AppFacade(QObject):
     def __init__(self, data_dir: Path | None = None, parent: QObject | None = None):
         super().__init__(parent)
         self.ctx = AppContext(data_dir)
-        self.snapshots = SnapshotStore(data_dir or C.data_dir())
+        # background writes: the data folder is often a network share, and the GUI thread must never wait
+        # for a snapshot or running-marker write (it used to wait on the store's lock while the capture
+        # thread wrote to U:)
+        self.snapshots = SnapshotStore(data_dir or C.data_dir(), background=True)
         self._ui = UiState(self)
         self._activities = ActivitiesApi(self)
         self._settings = SettingsApi(self)
@@ -162,6 +165,10 @@ class AppFacade(QObject):
                 api.shutdown()
             except Exception:  # noqa: BLE001
                 log.exception("shutdown failed: %s", type(api).__name__)
+        try:
+            self.snapshots.close()                 # every pending snapshot/marker write reaches the disk
+        except Exception:  # noqa: BLE001
+            log.exception("snapshot store flush failed")
         self.ctx.shutdown()
 
     # ------------------------------------------------- socket / CLI commands

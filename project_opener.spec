@@ -64,6 +64,46 @@ a = Analysis(
     noarchive=False,
     optimize=1,
 )
+# Excluding a PySide6 Python module above does not stop PySide6's hooks from collecting every QML module
+# (qml/QtWebEngine, qml/Qt3D, ...) and, through them, their DLLs: Qt6WebEngineCore.dll alone is 195 MB and
+# the 4.0 build was 469 MB.  Nothing in the app imports them (QML: QtQuick, QtQuick.Window,
+# QtQuick.Controls.Basic; Python: QtCore, QtGui, QtWidgets, QtSvg, QtNetwork, QtQml, QtQuick), so drop
+# their binaries and data here.  Kept on purpose: Qt6OpenGL (Qt6Quick links it), Qt6ShaderTools,
+# opengl32sw.dll (the software OpenGL fallback) and the Basic Controls style.
+import re  # noqa: E402
+
+_UNUSED_QT = re.compile(
+    r"(^|[/\\])("
+    r"qt6(webengine\w*|3d\w*|quick3d\w*|multimedia\w*|spatialaudio|charts\w*|datavisualization\w*|graphs\w*"
+    r"|pdf\w*|positioning\w*|location|webchannel\w*|websockets|webview\w*|sensors\w*|texttospeech"
+    r"|remoteobjects\w*|scxml\w*|statemachine\w*|designer\w*|bluetooth|nfc|serialport|serialbus|httpserver"
+    r"|quicktest|test|virtualkeyboard\w*|labsstylekit\w*|quickcontrols2(material|universal|imagine|fluentwinui3"
+    r"|fusion|windowsstyle)\w*|quickdialogs2\w*|quicktimeline\w*|quickparticles|quickvectorimage\w*"
+    r"|core5compat|sql|help|uitools|printsupport|xml|dbus|concurrent)\.(dll|pyd)"
+    r"|(avcodec|avformat|avutil|swresample|swscale)-\d+\.dll"
+    r"|qtwebengineprocess\.exe"
+    r")$"
+    r"|[/\\]qml[/\\](qt3d|qtcharts|qtdatavisualization|qtgraphs|qtlocation|qtmultimedia|qtpositioning|qtquick3d"
+    r"|qtremoteobjects|qtscxml|qtsensors|qttest|qttexttospeech|qtwebchannel|qtwebengine|qtwebsockets|qtwebview"
+    r"|qt5compat)[/\\]"
+    r"|[/\\]qml[/\\]qtquick[/\\](controls[/\\](material|universal|imagine|fluentwinui3|fusion|windows)"
+    r"|scene2d|scene3d|pdf|virtualkeyboard|dialogs|timeline|particles|vectorimage|effects)[/\\]"
+    r"|[/\\]plugins[/\\](multimedia|position|geoservices|sensors|texttospeech|webview|sceneparsers|renderers"
+    r"|geometryloaders|renderplugins|sqldrivers|designer|qmltooling|canbus|assetimporters)[/\\]"
+    r"|[/\\]translations[/\\]qtwebengine"
+    r"|[/\\]resources[/\\]qtwebengine",
+    re.IGNORECASE)
+
+
+def _keep(entry):
+    return not _UNUSED_QT.search(entry[0]) and not _UNUSED_QT.search(str(entry[1]))
+
+
+_before = len(a.binaries) + len(a.datas)
+a.binaries = [b for b in a.binaries if _keep(b)]
+a.datas = [d for d in a.datas if _keep(d)]
+print(f"project_opener.spec: dropped {_before - len(a.binaries) - len(a.datas)} unused Qt files")
+
 # v4 packaging notes:
 # * comtypes' UIAutomationCore wrapper is generated above and shipped as hidden imports.
 # * The QML tree (qml/, including qml/desktop for the pill, its panel and the picker) ships as data.
