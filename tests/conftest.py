@@ -31,3 +31,13 @@ def hub_root(tmp_path):
     root = tmp_path / "hub"
     root.mkdir()
     return root
+
+def pytest_configure(config):
+    """Keep pytest's temp folders on the local disk.
+
+    On office PCs TEMP can point at a mapped network drive; a "missing" file there
+    is then a path on a share, and the launcher rightly reports its host instead
+    of the file.  The tests want the local-disk reading, so they use build/.
+    """
+    if config.option.basetemp is None:
+        config.option.basetemp = str(Path(__file__).resolve().parents[1] / "build" / "pytest-tmp")
