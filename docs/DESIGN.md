@@ -337,8 +337,32 @@ Concept "Stage" (docs/V4-BRIEF.md section 4, the concept round's `concept-1-stag
 | purposeful | software rendering, a screen at or below 1366 × 768, Windows animations off, battery | every transition at 0.6×, no loop |
 | off | remote desktop | nothing; every screen complete and still |
 
-The runtime guard measures each dock opening (`frameSwapped` stamps for 1.4 s): two in a row over 33 ms
-mean or 120 ms worst 1 % drop one level, saved in `Settings.motion_reduced_to`, said once, never climbing
-back by itself; a choice in Settings > Appearance clears it.  Feedback durations follow the craft table:
+The runtime guard measures each dock opening over its grow (`frameSwapped` stamps for 420 ms × k plus
+80 ms, `motion.dock_measure_ms`): two in a row over 33 ms mean or 120 ms worst 1 % drop one level, saved in
+`Settings.motion_reduced_to`, said once, never climbing back by itself; a choice in Settings > Appearance
+clears it.
+
+The guard judges the grow's frames after the first (`motion.guard_stats`, round 3). The first interval,
+from the click to the first frame, is the opening's response time, and the guard does not count it:
+
+- **What it carries.** That frame holds the opening's one-time work: the dock's rows and bindings, plus
+  the launcher starting Excel, Word and a PDF viewer beside the app. That contention is outside the app's
+  control, and it is the same at every level, Off included. A lower level cannot shorten it, so counting
+  it reduced motion for no gain and never gave it back.
+- **Six real launches (round 3).** Two .xlsx, a .docx, a PDF and two folders on an i7-6700 with a GT 710:
+  - the first interval was 158–243 ms, while every later frame of the grow was 34 ms or less;
+  - counting the first interval, the guard saw a worst 1 % of 156–314 ms and dropped Rich on a PC that
+    animates the grow at 60 Hz;
+  - without it, the worst 1 % is 19–33 ms.
+- **What the bench shows.** `--bench` (a dry run, nothing opened) measured worst 1 % of 47–72 ms. It also
+  reports the response time on its own (first frame median and max per level), so a slow opening stays
+  visible without changing the motion level.
+
+The window is cut where the grow ends (`motion.window_stamps`). Its timer fires late when the GUI thread is
+busy, and in round 3 one closed 2.2 s late and counted a 750 ms stall after the grow. A stall that starts
+inside the grow still counts, up to the window's end.
+
+The limits stay at 33 ms and 120 ms. With about 25 frames in a grow, the worst 1 % is the single longest
+animation frame, so 120 ms still catches one visible hitch in the grow itself.  Feedback durations follow the craft table:
 press 90 ms, hover 140 ms, state 180-240 ms, the dock's grow 420 ms; exits are faster than entrances; no
 bounce.

@@ -157,7 +157,7 @@ def test_publish_activity_for_group_accept_maps_job(office):
     assert vikram.ctx.store.activity(act.id).origin.published_id
     assert any(t[0] == "Published Lot 7 check" for t in vikram.toasts)
     assert vikram.hub.published.get(0)["type"] == "activity" and vikram.hub.published.get(0)["isMine"]
-    assert vikram.hub.register.get(0)["job"] == "P12513"
+    assert vikram.hub.register.get(0)["job"] == "P12513 · Lot 7 check"        # the activity's title (T2-3)
 
     # Yokesh holds the same job under another id: the link is kept by job number
     mine = yokesh.ctx.store.add(M.Project("P12513 local", job_number="P12513",

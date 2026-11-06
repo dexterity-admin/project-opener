@@ -11,16 +11,9 @@ Column {
     readonly property int count: rep.count
     signal toggled(string entryKey, bool ticked)
 
-    function statusOf(st) {
-        if (st === "identified") return "ok"
-        if (st === "offline") return "bad"
-        if (st === "ambiguous" || st === "unidentified") return "warn"
-        return "neutral"
-    }
-    function wordsOf(st) {
-        return ({ identified: "Identified", offline: "Server offline", ambiguous: "Ambiguous",
-                  unidentified: "Needs a path", unsaved: "Not a file", window: "Not a file" })[st] || st
-    }
+    // the one status table (app.capture.statusMeta, ui/text.py ENTRY_META; juror T2-1)
+    function statusOf(st) { var m = app.capture.statusMeta[st]; return m ? m.level : "neutral" }
+    function wordsOf(st) { var m = app.capture.statusMeta[st]; return m ? m.word : st }
     function glyphOf(kind, status) {
         if (kind === "folder") return "folder"
         if (kind === "url") return "link"

@@ -191,16 +191,13 @@ def pill_view(f: PillFacts) -> dict[str, Any]:
     return {**base, "kind": "running", "detail": str(f.open_count)}
 
 
-def panel_meta(open_count: int, identified: int, last_checkpoint: str, since: int) -> str:
-    """"12 open · 9 identified · last checkpoint 10:52, 2 new since"."""
+def panel_meta(open_count: int, identified: int, last_checkpoint: str, since: int = 0) -> str:
+    """"12 open · 9 identified · last checkpoint 10:52".  One new count per surface (juror U2-3): the panel's
+    is its foot line ("3 open, not yet in the activity · Save 2 new as items"), as on the activity page, so the
+    since-checkpoint count (``since``) is no longer said here."""
     parts = [f"{open_count} open", f"{identified} identified"]
     if last_checkpoint:
-        cp = f"last checkpoint {last_checkpoint}"
-        if since:
-            cp += f", {since} new since"
-        parts.append(cp)
-    elif since:
-        parts.append(f"{since} new since the start")
+        parts.append(f"last checkpoint {last_checkpoint}")
     return " · ".join(parts)
 
 

@@ -835,15 +835,23 @@ def main() -> int:
                 STEP[0] = f"{th} {w}x{h} dock"
                 cap.startActivity = lambda _aid: None          # type: ignore[method-assign]
                 before = facade.ctx.store.activity(ids["lot7"]).to_dict()
+                # the dry run takes 250 ms an item, as a real open does, so the shots show the rows queued (35 %),
+                # opening and settled: mid-grow, at 900 ms and settled (juror D2-2)
+                launcher = facade.ctx.launcher
+                real_open = launcher.open_item
+                launcher.open_item = lambda item, hosts=None, _o=real_open: (time.sleep(0.25), _o(item, hosts))[1]
                 try:
                     facade.activities.open(ids["lot7"])
-                    pump(app, 900)
+                    pump(app, 200)
+                    shot(f"{prefix}{th}-{w}x{h}-dock-growing")
+                    pump(app, 700)
                     shot(f"{prefix}{th}-{w}x{h}-dock-opening")
                     pump(app, 3500)
                     shot(f"{prefix}{th}-{w}x{h}-dock-settled")
                     facade.activities.closeDock()
                 finally:
                     del cap.startActivity
+                    del launcher.open_item
                     # the dock's open counted a launch; Lot 7 is still the one paused at 14:32
                     from project_opener.core import models as M
                     facade.ctx.store.update_activity(M.Activity.from_dict(before))

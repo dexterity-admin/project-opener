@@ -7,7 +7,8 @@ import QtQuick
 //
 // The grow (juror U2, D8): only the card's frame animates.  Its content is laid out once, at `layoutWidth` (the
 // size it grows to), so no frame re-lays the dock; the title row is the shared element and stays put; the
-// three columns fade out at once and the dock's rows arrive after the grow (`growMs`).
+// three columns fade out at once and the dock's rows (queued ones at 35 %) are there from the first frame of
+// the grow, clipped to the growing frame (juror D2-2).
 // Round 2 (juror C2, C3, C4, brief 3.3): the card's edge lights in the danger colour when a drive the activity
 // uses is down, with that fact as the health column's first line; the running activity's live pill sits in
 // the header; a folder watcher's new files are a figure with "Save N as items"; open tasks are listed.
@@ -71,11 +72,12 @@ Card {
                 wrapMode: scene.centre ? Text.NoWrap : Text.Wrap
                 maximumLineCount: scene.centre ? 1 : 2
             }
-            Txt {
-                visible: scene.centre || titleText.lineCount < 2
+            Txt {                                // a wing's line wraps too: its facts are never cut (juror D2-3)
                 width: parent.width
                 text: scene.docked ? app.activities.dockLine : scene.m ? scene.m.subtitle : ""
                 role: "small"; tone: "muted"; figures: true
+                wrapMode: scene.centre ? Text.NoWrap : Text.Wrap
+                maximumLineCount: scene.centre ? 1 : 2
             }
         }
         Item {
@@ -237,16 +239,32 @@ Card {
             }
             Repeater {                              // the open tasks on this activity (brief 3.3)
                 model: scene.openTasks.slice(0, scene.newCount > 0 ? 1 : 2)
-                delegate: Row {
+                // the due date in its own right-aligned column: the title elides, never the date (juror D2-3)
+                delegate: Item {
                     required property var modelData
-                    spacing: 8
                     width: cols.col3W
-                    Icon { name: "check-square"; size: 14; anchors.verticalCenter: parent.verticalCenter }
+                    height: Math.max(20, taskTitle.implicitHeight)
+                    Icon { id: taskGlyph; name: "check-square"; size: 14; anchors.verticalCenter: parent.verticalCenter }
                     Txt {
-                        width: cols.col3W - 22
-                        text: parent.modelData.title + (parent.modelData.dueText ? " · " + parent.modelData.dueText : "")
-                        tone: parent.modelData.overdue ? "warn" : "ink"
+                        id: taskDue
+                        objectName: "taskDue"
+                        anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
+                        text: parent.modelData.dueText || ""
+                        tone: parent.modelData.overdue ? "warn" : "muted"
+                        figures: true
+                        elide: Text.ElideNone
+                    }
+                    Txt {
+                        id: taskTitle
+                        objectName: "taskTitle"
+                        anchors.left: taskGlyph.right
+                        anchors.leftMargin: 8
+                        anchors.right: taskDue.left
+                        anchors.rightMargin: taskDue.text !== "" ? 10 : 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: parent.modelData.title
+                        tone: parent.modelData.overdue ? "warn" : "ink"
                     }
                 }
             }
@@ -336,21 +354,13 @@ Card {
         height: 28
         anchors.bottom: parent.bottom
         anchors.bottomMargin: scene.pad - 4
+        // Open only: the task line lives on the centre card and the Activities list, and the wing's own line
+        // already says how many items and when it was last opened (juror D2-3)
         ActionButton {
             id: wingOpen
             text: "Open activity"
             small: true
             onClicked: scene.openClicked()
-        }
-        Txt {
-            anchors.left: wingOpen.right
-            anchors.leftMargin: 10
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            text: scene.m ? (scene.m.taskLine !== "" ? scene.m.taskLine : scene.m.lastOpenedText) : ""
-            role: "small"
-            tone: "muted"
-            figures: true
         }
     }
     // a wing is as tall as what it shows (juror D1): heading, two lines, the Open button
@@ -361,7 +371,6 @@ Card {
         id: dockView
         visible: scene.docked
         embedded: true
-        holdMs: scene.growMs
         opacity: 0
         x: scene.pad
         anchors.top: head.bottom
@@ -370,15 +379,22 @@ Card {
         onCloseRequested: scene.closeDock()
         onShowActivity: scene.showActivity()
     }
-    // the rows fade in once the frame has grown, laid out at their final width (no per-frame layout)
+    // the rows are laid out at their final width (no per-frame layout) and come in as the columns' 120 ms
+    // fade-out ends (from 100 ms, over 140 ms), so the growing frame is never empty and the two never read on
+    // top of each other (round 3: a crossfade showed both layers of text mid-grow); the frame clips them until
+    // it has reached its size
+    property bool growing: false
+    clip: growing
     onDockedChanged: {
-        if (docked && app.ui.k > 0) { dockView.opacity = 0; dockIn.restart() }
-        else { dockIn.stop(); dockView.opacity = docked ? 1 : 0 }
+        if (docked && app.ui.k > 0) { dockView.opacity = 0; growing = true; dockIn.restart() }
+        else { dockIn.stop(); growing = false; dockView.opacity = docked ? 1 : 0 }
     }
     SequentialAnimation {
         id: dockIn
-        PauseAnimation { duration: Math.max(0, scene.growMs - 120) }
-        NumberAnimation { target: dockView; property: "opacity"; to: 1; duration: Math.round(180 * app.ui.k); easing.type: Easing.OutCubic }
+        PauseAnimation { duration: Math.round(100 * app.ui.k) }
+        NumberAnimation { target: dockView; property: "opacity"; to: 1; duration: Math.round(140 * app.ui.k); easing.type: Easing.OutCubic }
+        PauseAnimation { duration: Math.max(0, scene.growMs - Math.round(240 * app.ui.k)) }
+        ScriptAction { script: scene.growing = false }
     }
     Component.onCompleted: if (docked) dockView.opacity = 1
     readonly property int dockHeight: pad + head.height + 8 + dockView.implicitHeight + pad

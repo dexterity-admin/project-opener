@@ -28,12 +28,14 @@ Page {
         subtitle: app.activities.projectCount === 0 ? "" : app.activities.projectCount + (app.activities.projectCount === 1 ? " project" : " projects")
                   + (rep.count !== app.activities.projectCount ? " · " + rep.count + " shown" : "")
         Segmented {
+            visible: app.activities.projectCount > 0
             options: [{ value: "grid", text: "Grid" }, { value: "list", text: "List" }]
             value: page.mode
             label: "View"
             onPicked: (v) => { page.mode = v; app.settings.setValue("view_mode", v) }
         }
         ActionButton {
+            visible: app.activities.projectCount > 0      // empty: the empty block offers it (juror D2-4)
             text: "New project"
             icon: "plus"
             kind: "primary"
@@ -45,6 +47,7 @@ Page {
 
     // search and tag filters
     Item {
+        visible: app.activities.projectCount > 0
         width: page.contentW
         height: Math.max(34, chips.height)
         Field {
@@ -220,15 +223,23 @@ Page {
         }
     }
 
-    EmptyBlock {
+    // framed like the Home and Activities empty states (juror D2-4); one trade-word line and the action (T2-4)
+    Card {
         visible: rep.count === 0
         width: page.contentW
-        line: app.activities.projectCount === 0 ? "No projects yet. A project holds a job's files, folders and links."
-                                                : "Nothing matches ‘" + search.text + "’."
-        action: app.activities.projectCount === 0 ? "New project" : "Clear the filter"
-        onTriggered: {
-            if (app.activities.projectCount === 0) Window.window.openSheet("ProjectEditor", { projectId: "" })
-            else { search.text = ""; app.activities.setProjectFilter("", "") }
+        height: projectsEmpty.implicitHeight + 2 * pad
+        EmptyBlock {
+            id: projectsEmpty
+            x: parent.pad; y: parent.pad
+            width: parent.width - 2 * parent.pad
+            line: app.activities.projectCount === 0 ? "No projects yet." : "Nothing matches ‘" + search.text + "’."
+            action: app.activities.projectCount === 0 ? "New project" : "Clear the filter"
+            actionIcon: app.activities.projectCount === 0 ? "plus" : "x"
+            actionKind: app.activities.projectCount === 0 ? "primary" : "outline"
+            onTriggered: {
+                if (app.activities.projectCount === 0) Window.window.openSheet("ProjectEditor", { projectId: "" })
+                else { search.text = ""; app.activities.setProjectFilter("", "") }
+            }
         }
     }
 

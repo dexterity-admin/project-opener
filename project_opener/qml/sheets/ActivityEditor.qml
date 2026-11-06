@@ -91,10 +91,12 @@ Sheet {
             width: parent.width
             spacing: 6
             Txt { text: "Icon"; strong: true }
-            Flow {
+            // a fixed-column grid: 16 icons in one row of 16 or two rows of 8, never a lone icon wrapped (D2-4)
+            Grid {
                 id: iconPick
                 property string value: "stack"
                 width: parent.width
+                columns: width >= 16 * 40 - 6 ? 16 : 8
                 spacing: 6
                 Repeater {
                     model: ["stack", "checks", "compass", "ruler", "cube", "factory", "anchor", "buildings", "clipboard-text", "calendar", "magnifying-glass", "users-three", "wrench", "lightning", "flag", "star"]

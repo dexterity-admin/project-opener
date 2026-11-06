@@ -24,7 +24,10 @@ QML_DIR = Path(__file__).resolve().parents[1] / "project_opener" / "qml"
 BACKDROP = "#1C2B33"          # the board's desktop colour
 
 LIVE = [
-    {"entryKey": "win:acad|Drawing1", "status": "unidentified", "name": "Drawing1", "appName": "AutoCAD"},
+    # an unsaved drawing is "Not a file"; a document whose path was not found "Needs a path" (juror T2-1)
+    {"entryKey": "win:acad|Drawing1", "status": "unsaved", "name": "Drawing1", "appName": "AutoCAD"},
+    {"entryKey": "win:excel|Line list rev C.xlsx", "status": "unidentified", "name": "Line list rev C.xlsx",
+     "appName": "Excel"},
     {"entryKey": "path:z:\\p12513\\ise\\rev c", "status": "offline", "name": "Revision C", "appName": "Explorer"},
     {"entryKey": "path:z:\\p12513_model.nwd", "status": "identified", "name": "P12513_Model.nwd",
      "appName": "Navisworks"},
@@ -100,7 +103,7 @@ RUNNING = dict(running_id="a1", running_name="P12513 · Lot 7 check", running_la
 
 STATES = {
     "1-running": dict(RUNNING),
-    "2-needs-amber": {**RUNNING, "state": "needs", "needs_path": 3},
+    "2-needs-amber": {**RUNNING, "state": "needs", "needs_path": 1},
     "3-needs-red": {**RUNNING, "state": "needs", "needs_path": 0, "drive_down": True},
     "4-paused": {**RUNNING, "state": "paused"},
     "6-start-pinned": dict(running_id="", state="idle"),
@@ -167,7 +170,7 @@ def test_edge_tab_renders(rig, warnings, tmp_path):
 
 def test_panel_renders_and_opens_upward(rig, warnings, tmp_path):
     facade, ctl, app = rig
-    facade.capture.set(**{**RUNNING, "new": 2})
+    facade.capture.set(**{**RUNNING, "new": 3, "new_to_save": 2})      # 3 open, 2 ticked: "Save 2 new"
     facade.capture.live.reset(LIVE)
     ctl.create()
     _settle(app)
@@ -233,7 +236,7 @@ def test_picker_overlay_renders(qapp, isolated_data_dir, warnings, tmp_path):
     picker._create_overlays()
     assert picker._overlays
     ov = picker._overlays[0]
-    for name, ok, label in (("amber", False, "AutoCAD · Drawing1\nNo file path. You will be asked for it once."),
+    for name, ok, label in (("amber", False, "Excel · Line list rev C.xlsx\nNo file path found. You will be asked for it once."),
                             ("green", True, "Excel · Line list.xlsx\nZ:\\P12513\\Line list.xlsx")):
         picker._hwnd, picker._rect = 99, (120, 140, 560, 420)
         picker._labels[99] = (ok, label)

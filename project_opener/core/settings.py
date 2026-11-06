@@ -19,6 +19,14 @@ from project_opener.core.jsonio import read_json, write_json_atomic
 log = logging.getLogger(__name__)
 
 
+# "Never captured" by default: the office's chat apps only (juror T2-2).  4.0 betas also listed claude.exe; an
+# untouched old default is moved to this one on load.
+IGNORE_DEFAULT: tuple[dict[str, str], ...] = (
+    {"process": "ms-teams.exe"}, {"process": "teams.exe"}, {"process": "cliq.exe"}, {"process": "zoho cliq.exe"},
+)
+_IGNORE_DEFAULT_BETA = [{"process": "claude.exe"}, *IGNORE_DEFAULT]
+
+
 @dataclass
 class Settings:
     theme: str = "dark"                 # dark | light | system
@@ -64,10 +72,8 @@ class Settings:
     capture_enabled: bool = True        # the global switch; Activity.capture_enabled is the per-activity one
     capture_interval_s: int = 3
     capture_browser_urls: bool = True   # UI Automation on Chromium windows (active tab only)
-    capture_ignore: list[dict[str, str]] = field(default_factory=lambda: [
-        {"process": "claude.exe"}, {"process": "ms-teams.exe"}, {"process": "teams.exe"},
-        {"process": "cliq.exe"}, {"process": "zoho cliq.exe"},
-    ])                                  # rules: {"process": ..., "title": glob (optional)}
+    capture_ignore: list[dict[str, str]] = field(default_factory=lambda: [dict(r) for r in IGNORE_DEFAULT])
+    # rules: {"process": ..., "title": glob (optional)}; the office's chat apps (Teams, Cliq) by default
     open_office_via_com: bool = True    # Office files through COM (no Protected View stall on the share)
     # Snapshot surfaces (brief 3.8)
     pill_enabled: bool = True
@@ -109,7 +115,7 @@ class Settings:
             s.hotkeys = dict(C.HOTKEY_DEFAULTS)
         else:
             s.hotkeys = {**C.HOTKEY_DEFAULTS, **{str(k): str(v) for k, v in s.hotkeys.items()}}
-        if not isinstance(s.capture_ignore, list):
+        if not isinstance(s.capture_ignore, list) or s.capture_ignore == _IGNORE_DEFAULT_BETA:
             s.capture_ignore = cls().capture_ignore
         if s.accent in ("#4F7DFF", "#2F5BFF"):   # 3.0 default blue -> 3.1 default (docs/DESIGN.md)
             s.accent = cls.accent

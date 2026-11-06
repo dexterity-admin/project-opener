@@ -20,6 +20,7 @@ from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 from project_opener import constants as C
 from project_opener.core import mentions as MN
 from project_opener.core import models as M
+from project_opener.core.mentions import person_word
 from project_opener.core.tasks import when_text
 from project_opener.lan.groups import GroupBook, clean_name
 from project_opener.lan.hub import PublishedActivity, PublishedProject, TeamHub
@@ -33,7 +34,8 @@ PUBLISHED_ROLES = (
     "publishedId", "type", "title", "spine", "author", "authorName", "revision", "publishedAt", "publishedText",
     "forText", "forTip", "description", "isMine", "cloned", "itemCount",
 )
-INBOX_ROLES = ("messageId", "kind", "sender", "senderName", "sentAt", "sentText", "message", "title", "mentionsMe",
+INBOX_ROLES = ("messageId", "kind", "sender", "senderName", "sentAt", "sentText", "message", "messageText",
+               "mentionLogins", "title", "mentionsMe",
                "link")
 ANNOUNCEMENT_ROLES = ("announcementId", "title", "body", "level", "author", "authorName", "ts", "tsText", "mine")
 GROUP_ROLES = ("groupName", "members", "memberNames", "memberCount", "dotColor", "updatedBy")
@@ -67,6 +69,7 @@ class HubApi(ApiBase):
     peersChanged = Signal()
     inboxChanged = Signal()
     groupsChanged = Signal()
+    usersChanged = Signal()                  # display names known (or changed): name-bearing models rebuild
     mentioned = Signal(str, str, str)        # from login, text, link (toast + sidebar count)
 
     def __init__(self, app: Any):
@@ -175,9 +178,20 @@ class HubApi(ApiBase):
         if not login:
             return ""
         if login.lower() == self.me.lower():
-            return self.ctx.display_name()
+            return (self.ctx.settings.display_name or "").strip() or person_word(login)
         d = self._users.get(login.lower(), {})
-        return str(d.get("display_name") or "") or login
+        return str(d.get("display_name") or "") or person_word(login)
+
+    def display_text(self, text: str) -> tuple[str, list[str]]:
+        """A hub body with ``@login`` shown as ``@Display name`` for people the hub knows (juror T2-3), and the
+        logins replaced (the tooltip says them).  Groups and unknown words stay as typed."""
+        me = self.me.lower()
+
+        def known(login: str) -> str:
+            lg = login.lower()
+            return self.name_for(login) if (lg in self._users or lg == me) else ""
+
+        return MN.display_mentions(text, known, (g.name for g in self._group_list))
 
     def target_name(self, target: str) -> str:
         """A "for" target as shown: a group as "@name", a person by display name."""
@@ -213,7 +227,28 @@ class HubApi(ApiBase):
         self._timer.setInterval(C.HUB_TASKS_REFRESH_S * 1000)
         self._timer.timeout.connect(self.refresh)
         self._timer.start()
+        self._load_users()
         self.refresh()
+
+    def _load_users(self) -> None:
+        """The hub's ``users/*.json`` alone, ahead of the full refresh: the first task, pulse and inbox rows
+        then carry display names, not logins (juror U2-2).  ``usersChanged`` re-emits the models either way."""
+        hub = self.ctx.hub
+        if not hub.configured:
+            return
+
+        def done(users: dict[str, dict[str, Any]]) -> None:
+            if users and not self._users:
+                self._set_users(users)
+
+        self.app.run_async(lambda: hub.user_records() if hub.reachable() else {}, done,
+                           lambda e: log.debug("users load failed: %s", e))
+
+    def _set_users(self, users: dict[str, dict[str, Any]]) -> None:
+        if users == self._users:
+            return
+        self._users = users
+        self.usersChanged.emit()
 
     def shutdown(self) -> None:
         if self._timer:
@@ -268,6 +303,7 @@ class HubApi(ApiBase):
         if not res.get("reachable"):
             self._set_status(True, False, f"Hub folder not reachable: {self.ctx.hub.root}")
             return
+        users_changed = res["users"] != self._users
         self._users = res["users"]
         self._group_list = res["groups"]
         self._set_status(True, True, "Connected")
@@ -279,6 +315,8 @@ class HubApi(ApiBase):
         self._sync_pulse(res["pulse"])
         self.setMentionQuery(self._query)
         self._announce_fresh(res["fresh"])
+        if users_changed:
+            self.usersChanged.emit()
 
     # ---- models
     def _sync_peers(self) -> None:
@@ -322,10 +360,11 @@ class HubApi(ApiBase):
             self._pubs[pub.published_id] = pub
             proj = pub.project
             spine = proj.job_number or proj.title
+            job_title = f"{proj.job_number} · {proj.title}" if proj.job_number else proj.title
             rows.append(self._pub_row(pub.published_id, "project", proj.title, spine, pub.author, pub.revision,
                                       pub.published_at, fors.get(pub.published_id, []), pub.description,
                                       pub.published_id in cloned, len(proj.items)))
-            register.append(self._register_row(spine, pub.revision, pub.author, pub.published_at))
+            register.append(self._register_row(job_title, pub.revision, pub.author, pub.published_at))
             events.append({"published_id": pub.published_id, "type": "project", "title": proj.title,
                            "author": pub.author, "author_name": self.name_for(pub.author), "revision": pub.revision})
         for pa in activities:
@@ -336,7 +375,8 @@ class HubApi(ApiBase):
             rows.append(self._pub_row(pa.published_id, "activity", act.name, spine, pa.author, pa.revision,
                                       pa.published_at, pa.for_targets, pa.description, pa.published_id in cloned,
                                       len(act.items)))
-            register.append(self._register_row(spine or act.name, pa.revision, pa.author, pa.published_at))
+            # the register groups under the activity's own title, "P12513 · Lot 7 check" (juror T2-3)
+            register.append(self._register_row(title, pa.revision, pa.author, pa.published_at))
             events.append({"published_id": pa.published_id, "type": "activity", "title": title,
                            "author": pa.author, "author_name": self.name_for(pa.author), "revision": pa.revision})
         rows.sort(key=lambda r: r["publishedAt"], reverse=True)
@@ -390,10 +430,12 @@ class HubApi(ApiBase):
             link = link_for("task", str(e["task_id"]))
         mentions_me = kind in ("mention", "task") or self.me.lower() in MN.parse_mentions(message)
         sender = str(e.get("from", ""))
+        shown, logins = self.display_text(message)
         return {"messageId": e["id"], "kind": kind, "sender": sender,
                 "senderName": str(e.get("from_name") or "") or self.name_for(sender),
                 "sentAt": str(e.get("sent_at", "")), "sentText": when_text(str(e.get("sent_at", ""))),
-                "message": message, "title": title, "mentionsMe": mentions_me, "link": link}
+                "message": message, "messageText": shown, "mentionLogins": " ".join(f"@{lg}" for lg in logins),
+                "title": title, "mentionsMe": mentions_me, "link": link}
 
     def _sync_announcements(self, items: list[Any], extras: dict[str, dict[str, Any]]) -> None:
         rows = []

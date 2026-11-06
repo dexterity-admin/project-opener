@@ -143,6 +143,7 @@ def test_edge_rest_style():
 
 
 def test_panel_meta():
-    assert P.panel_meta(12, 9, "10:52", 2) == "12 open · 9 identified · last checkpoint 10:52, 2 new since"
+    assert P.panel_meta(12, 9, "10:52", 2) == "12 open · 9 identified · last checkpoint 10:52"   # one new count (U2-3)
+    assert P.panel_meta(4, 2, "", 2) == "4 open · 2 identified"
     assert P.panel_meta(3, 3, "", 0) == "3 open · 3 identified"
     assert P.panel_meta(3, 1, "09:00", 0) == "3 open · 1 identified · last checkpoint 09:00"

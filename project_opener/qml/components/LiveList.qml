@@ -26,7 +26,7 @@ Column {
         if (g === "needs") return "Needs a path · " + app.capture.needsPathCount
         if (g === "offline") return "Server offline · reopens when the server answers"
         if (g === "window") return "Not a file · nothing to reopen"
-        return "Identified · " + app.capture.identifiedCount + (app.capture.newCount > 0 ? " · " + app.capture.newCount + " new" : "")
+        return "Identified · " + app.capture.identifiedCount + (app.capture.newToSave > 0 ? " · " + app.capture.newToSave + " new" : "")
     }
 
     Txt {                                   // the one capture-state line, when it is not simply watching
@@ -145,10 +145,11 @@ Column {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 8
                     StatusPill {
-                        visible: !entry.needs && model.isNew
+                        // "New" only on what "Save N new as items" saves, so the page has one count (U2-3)
+                        visible: !entry.needs && model.toSave === true
                         anchors.verticalCenter: parent.verticalCenter
                         status: "info"
-                        label: model.isNew ? "New" : ""
+                        label: visible ? "New" : ""
                     }
                     StatusPill {
                         visible: !entry.needs && entry.health[1] !== ""

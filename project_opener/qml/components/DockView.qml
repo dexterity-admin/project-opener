@@ -2,19 +2,20 @@ import QtQuick
 import QtQuick.Controls.Basic as C
 
 // The launch dock (brief 4; DESIGN.md "Launch sheet"): the run's rows in launch order, each with the pill
-// the project page uses.  Rows arrive in launch order (60 ms apart, 8 px rise); a pill reads Opening… while
-// its item is tried, then settles.  A 3 px progress line under the heading.  Footer: "9 opened · 2 not
+// the project page uses.  Every row is laid out from the first frame, queued rows at 35 % (juror D2-2: the
+// card is never an empty frame); a row comes to full strength as its launch starts, its pill reads Opening…
+// while the item is tried, then settles.  A 3 px progress line under the heading.  Footer: "9 opened · 2 not
 // opened · 0 skipped · 3.4 s", "Open the 2 again" when something did not open, the task line on the right.
 // `record`: the same rows as the activity page's "Opened at 09:12" column (static, no arrival).
 // `embedded`: on Home the centre scene keeps its own title row through the grow (the shared element), so the
-// dock shows only its line, the progress and the rows.  `holdMs`: rows start arriving after the grow.
+// dock shows only its line, the progress and the rows.
 Item {
     id: dock
     readonly property var tk: app.ui.tokens
     property bool record: false
     property int maxRows: 8
     property bool embedded: false
-    property int holdMs: 0
+    property var rows: app.activities.dock      // the run's rows; Main.qml's idle pre-warm passes two of its own
     readonly property int rowH: tk.pad < 20 ? 40 : 46
     property int failed: 0
     signal closeRequested()
@@ -105,27 +106,22 @@ Item {
         clip: true
         interactive: count > dock.maxRows
         boundsBehavior: Flickable.StopAtBounds
-        model: app.activities.dock
+        // only a dock on screen builds rows: Home alone holds five DockViews (one per scene, the project
+        // dock, the kept activity page's record), and a reset built 6 rows in each of them on the GUI
+        // thread at the open, a 250-600 ms frame (juror U2-1, measured with the bench)
+        model: dock.visible ? dock.rows : null
         C.ScrollBar.vertical: C.ScrollBar { policy: list.count > dock.maxRows ? C.ScrollBar.AsNeeded : C.ScrollBar.AlwaysOff }
         delegate: Item {
             id: row
             width: list.width
             height: dock.rowH
-            opacity: dock.record || app.ui.k === 0 ? 1 : 0
-            property real rise: dock.record || app.ui.k === 0 ? 0 : 8
-            Component.onCompleted: if (!dock.record && app.ui.k > 0) arrive.start()
-            SequentialAnimation {
-                id: arrive
-                PauseAnimation { duration: dock.holdMs + Math.round(60 * Math.min(Math.max(0, index), 10) * app.ui.k) }
-                ParallelAnimation {
-                    NumberAnimation { target: row; property: "opacity"; to: 1; duration: Math.round(200 * app.ui.k); easing.type: Easing.OutCubic }
-                    NumberAnimation { target: row; property: "rise"; to: 0; duration: Math.round(240 * app.ui.k); easing.type: Easing.OutCubic }
-                }
-            }
+            // queued: laid out and legible at 35 %; full strength from the moment its launch starts
+            readonly property bool waiting: !dock.record && model.status === "queued"
+            opacity: waiting ? 0.35 : 1
+            Behavior on opacity { NumberAnimation { duration: Math.round(160 * app.ui.k); easing.type: Easing.OutCubic } }
             Item {
                 width: parent.width
                 height: parent.height
-                y: row.rise
                 Rectangle { width: parent.width; height: 1; color: dock.tk.border; visible: index > 0 }
                 Icon { id: glyph; x: 2; anchors.verticalCenter: parent.verticalCenter; name: model.glyph }
                 Column {
@@ -155,7 +151,10 @@ Item {
                     status: model.level
                     label: model.statusLabel
                 }
-                Tip { visible: rowHover.containsMouse && model.path !== ""; text: model.path }
+                Loader {               // the tooltip (a popup) is built on hover, not with every row
+                    active: rowHover.containsMouse && model.path !== ""
+                    sourceComponent: Tip { visible: true; text: model.path }
+                }
                 MouseArea { id: rowHover; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
             }
         }

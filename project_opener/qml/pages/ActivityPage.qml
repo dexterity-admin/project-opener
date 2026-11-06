@@ -21,6 +21,8 @@ Page {
     readonly property bool known: act.activityId !== undefined && act.activityId === activityId
     readonly property bool running: known && app.capture.runningId === activityId
     readonly property int newCount: running ? app.capture.newCount : 0
+    // one count on the page (juror U2-3): what "Save N new as items" saves as the sheet opens
+    readonly property int newToSave: running ? app.capture.newToSave : 0
     readonly property bool hasRecord: app.activities.dockId === activityId && app.activities.dock.count() > 0
                                      && app.activities.launchProgress >= 0
     readonly property bool stack: contentW < 1080
@@ -41,11 +43,8 @@ Page {
             var parts = [app.capture.openCount + (app.capture.openCount === 1 ? " thing open" : " things open"),
                          app.capture.identifiedCount + " identified"]
             if (app.capture.needsPathCount > 0) parts.push(app.capture.needsPathCount + " need a path")
-            // as the pill's panel words it: "checkpoint 10:52, 2 new since" / "11 new since the start"
-            var since = app.capture.sinceCheckpoint
-            if (app.capture.lastCheckpointText !== "")
-                parts.push("checkpoint " + app.capture.lastCheckpointText + (since > 0 ? ", " + since + " new since" : ""))
-            else if (since > 0) parts.push(since + " new since the start")
+            // the new things have one count, on the button and in the Identified heading (juror U2-3)
+            if (app.capture.lastCheckpointText !== "") parts.push("checkpoint " + app.capture.lastCheckpointText)
             return "Watching · " + parts.join(" · ")
         }
         return act.subtitle
@@ -111,7 +110,9 @@ Page {
             visible: page.known
             kind: "primary"
             icon: page.running ? (page.newCount > 0 ? "download-simple" : "camera") : "play"
-            text: !page.running ? "Open activity" : page.newCount > 0 ? "Save " + page.newCount + " new as items" : "Snapshot now"
+            text: !page.running ? "Open activity"
+                  : page.newCount > 0 ? (page.newToSave > 0 ? "Save " + page.newToSave + " new as items" : "Review " + page.newCount + " open")
+                  : "Snapshot now"
             onClicked: {
                 if (!page.running) app.activities.open(page.activityId)
                 else if (page.newCount > 0) Window.window.saveNew()
@@ -288,6 +289,7 @@ Page {
                 width: parent.width
                 height: implicitHeight
                 running: page.running && page.visible
+                activityId: page.activityId
             }
             CheckpointsPanel {
                 width: parent.width

@@ -9,7 +9,7 @@ Item {
     property string actionIcon: ""
     property string actionKind: "outline"
     signal triggered()
-    implicitHeight: col.implicitHeight + 32
+    implicitHeight: col.implicitHeight          // sized to its content: the card around it pads it (juror D2-4)
     implicitWidth: 300
     Column {
         id: col

@@ -12,6 +12,10 @@ bump one number.
 
 ## Publishing a release
 
+0. Install the candidate on the oldest office PC and run the benchmark there (about two minutes, harmless):
+   `Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\Programs\Project Opener\ProjectOpener.exe" "--bench"`.
+   Keep its `bench-<PC>-<date>.json`; its verdict should say the motion level the app picks holds on that PC
+   (docs/DEVELOPMENT.md, "Benchmark").
 1. Add a section to `CHANGELOG.md` for the new version (it becomes the release notes and the in-app
    update notes).
 2. Set `__version__` in `project_opener/__init__.py` **and** `version` in `pyproject.toml`.

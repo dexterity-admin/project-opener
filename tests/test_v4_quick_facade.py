@@ -396,7 +396,7 @@ def test_task_notes_are_not_titled_as_mentions(facade):
     facade.toastAction.connect(lambda *a: seen.append(a[0]))
     facade._on_mentioned("yokesh", "Yokesh finished Back-check lot 7", "projectopener://task/t1")
     facade._on_mentioned("priya", "@vikram Revision C is in", "")
-    assert seen == ["Task note from yokesh", "priya mentioned you"]       # an unknown task: a task note
+    assert seen == ["Task note from Yokesh", "Priya mentioned you"]       # an unknown task: a task note
     # a known task finished: titled by the task, not by the person (juror T5)
     task = M.Task(title="Back-check PO4 lot", owner="vikram", done_at=M.now_iso(), done_by="yokesh", id="t9")
     facade._tasks._tasks["t9"] = task

@@ -48,6 +48,7 @@ class AppFacade(QObject):
     paletteRequested = Signal()                            # Ctrl+Alt+K
     chooserRequested = Signal("QStringList")               # paths to add when no activity runs (Explorer/Send to)
     desktopChanged = Signal()
+    namesChanged = Signal()
 
     def __init__(self, data_dir: Path | None = None, parent: QObject | None = None):
         super().__init__(parent)
@@ -67,6 +68,7 @@ class AppFacade(QObject):
         self.ctx.toast.connect(lambda t, b, lvl: self.toast.emit(t, b, lvl))
         self.ctx.toast_action.connect(self._ctx_toast_action)
         self._hub.mentioned.connect(self._on_mentioned)
+        self._settings.changed.connect(lambda key: self.namesChanged.emit() if key == "display_name" else None)
 
     # ------------------------------------------------------- sub-objects
     @Property(QObject, constant=True)
@@ -116,6 +118,12 @@ class AppFacade(QObject):
     @Property(str, constant=True)
     def displayName(self) -> str:  # noqa: N802
         return self.ctx.display_name()
+
+    @Property(str, notify=namesChanged)
+    def greetName(self) -> str:  # noqa: N802
+        """The name Home greets: the display name set in Settings, else "" ("Good morning", never the
+        login; juror U2-2)."""
+        return (self.ctx.settings.display_name or "").strip()
 
     # ----------------------------------------------------------- toasts
     def _on_mentioned(self, sender: str, text: str, link: str) -> None:

@@ -99,6 +99,41 @@ def _choose_backend(facade: Any, app: Any) -> None:
              facts.screen_w, facts.screen_h)
 
 
+PIPELINE_CACHE = "rhi-pipelines.bin"
+
+
+def pipeline_cache_file(data_dir: Path) -> Path:
+    """Where the window's RHI pipeline cache lives: ``rhi-pipelines.bin`` in the data folder's ``cache``."""
+    return Path(data_dir) / "cache" / PIPELINE_CACHE
+
+
+def configure_pipeline_cache(window: Any, data_dir: Path, backend: str) -> Path | None:
+    """Load and save the window's compiled graphics pipelines (juror U2-1).  Must run before the window is
+    first shown; Qt writes the file as the window's QRhi goes away at quit and ignores one written by another
+    driver or device.  Nothing for the software backend.
+
+    Measured on this PC (round 3, ``QT_LOGGING_RULES=qt.rhi.general=true``): on Direct3D 11, the backend the
+    app uses, Qt Quick's shaders ship compiled, pipeline creation over a session with a dock opening totals
+    0 ms, the cache stays empty and Qt writes no file, so it neither costs nor saves anything there.  On OpenGL
+    (``QSG_RHI_BACKEND=opengl``) the first start spent 707 ms linking programs, wrote 85 KB here, and the next
+    start seeded 8 programs from it and spent 6 ms.  It is kept for that case, not for the dock."""
+    if backend == "software":
+        return None
+    try:
+        from PySide6.QtQuick import QQuickGraphicsConfiguration  # noqa: F401  (Qt 6.5+)
+        path = pipeline_cache_file(data_dir)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        cfg = window.graphicsConfiguration()
+        cfg.setPipelineCacheSaveFile(str(path))
+        if path.is_file() and path.stat().st_size > 0:
+            cfg.setPipelineCacheLoadFile(str(path))
+        window.setGraphicsConfiguration(cfg)
+        return path
+    except Exception:  # noqa: BLE001 - a cache is an optimisation, never a reason not to start
+        log.exception("pipeline cache not configured")
+        return None
+
+
 def main(args: Any) -> int:
     from project_opener.core.logging_setup import setup_logging
 
@@ -157,6 +192,7 @@ def main(args: Any) -> int:
         log.error("Main.qml failed to load (see the [qt] lines above)")
         return 2
     window = engine.rootObjects()[0]
+    configure_pipeline_cache(window, C.data_dir(), facade.ui.backend)
     facade.ui.attach_window(window)
     try:
         from project_opener.core import winutil as _w

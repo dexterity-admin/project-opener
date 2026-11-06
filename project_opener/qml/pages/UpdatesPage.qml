@@ -58,7 +58,7 @@ Page {
                         : page.offered ? "Version " + page.info.version + " is available"
                         : page.st === "checking" ? "Checking GitHub and the Team Hub mirror…"
                         : page.st === "none" ? "You are on the latest version"
-                        : "Updates are checked every few hours"
+                        : app.settings.checkLine
                 }
             }
             Txt {

@@ -88,8 +88,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--snapshot", action="store_true", help="checkpoint the running activity")
     parser.add_argument("--start-from-open", action="store_true", help="start an activity from what is open")
     parser.add_argument("--quit-after", type=int, default=0, metavar="MS", help=argparse.SUPPRESS)
+    parser.add_argument("--bench", action="store_true",
+                        help="measure this PC (start, idle, the dock at each motion level) in a throwaway "
+                             "data folder, print a summary, write a JSON file and exit")
+    parser.add_argument("--out", metavar="PATH", help="with --bench: the JSON file or folder to write to "
+                                                      "(default: next to the exe, else %%TEMP%%)")
+    parser.add_argument("--bench-runs", type=int, default=0, help=argparse.SUPPRESS)   # tests: fewer openings
     parser.add_argument("target", nargs="?", help="projectopener://open|activity|task/<key> deep link")
     args = parser.parse_args(argv)
+    if args.bench:
+        # before anything picks a data folder or claims the single instance: the bench runs beside a
+        # running Project Opener in a folder of its own and touches nothing of the user's
+        from project_opener import bench
+        return bench.main(args)
     if args.data_dir:
         import os
         os.environ["PO_DATA_DIR"] = args.data_dir

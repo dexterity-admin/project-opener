@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 
 ENTRY_ROLES = (
     "entryKey", "status", "kind", "name", "path", "title", "process", "appName", "identifiedBy", "monitor",
-    "isItem", "isNew", "note", "candidates",
+    "isItem", "isNew", "toSave", "note", "candidates",
     "placeX", "placeY", "placeW", "placeH",      # the window on its monitor, 0..1 (builder 4's Monitors panel)
 )
 CHECKPOINT_ROLES = ("checkpointId", "takenAt", "takenText", "kind", "label", "count", "identified", "isLatest")
@@ -141,6 +141,7 @@ class CaptureApi(ApiBase):
         self._identified = 0
         self._needs_path = 0
         self._new = 0
+        self._new_to_save = 0
         self._last_checkpoint_text = ""
         self._since_checkpoint = 0
         self._drive_down = False
@@ -201,9 +202,18 @@ class CaptureApi(ApiBase):
     openCount = ro(int, "_open", liveChanged)
     identifiedCount = ro(int, "_identified", liveChanged)
     needsPathCount = ro(int, "_needs_path", liveChanged)
-    newCount = ro(int, "_new", liveChanged)                     # identified, not items yet
+    newCount = ro(int, "_new", liveChanged)                     # open, not items yet (the sheet's rows)
+    newToSave = ro(int, "_new_to_save", liveChanged)            # of those, ticked when the sheet opens
     lastCheckpointText = ro(str, "_last_checkpoint_text", checkpointsChanged)
     sinceCheckpoint = ro(int, "_since_checkpoint", liveChanged)  # "2 new since"
+
+    @Property("QVariantMap", constant=True)
+    def statusMeta(self) -> dict[str, Any]:  # noqa: N802
+        """Entry status -> {level, word}: the one table every list of open things reads (the live list, the
+        tick lists, the pill's panel; juror T2-1).  "Needs a path" is a document with no path found;
+        an unsaved document and a plain window are "Not a file"."""
+        from project_opener.ui import text as T
+        return {k: {"level": lvl, "word": word} for k, (lvl, word) in T.ENTRY_META.items()}
     driveDown = ro(bool, "_drive_down", stateChanged)            # a root the activity uses is offline (red ring)
 
     @Property(str, notify=stateChanged)
@@ -381,6 +391,10 @@ class CaptureApi(ApiBase):
         app_items = {i.path.lower() for i in self._running_items() if i.kind == "app"}
         statuses = {e.key: W.display_status(e, bool(offline) and e.identified and self._root_of(e.path) in offline)
                     for e in entries}
+        new_list = self._new_list(entries, app_items)
+        # what "Save N new as items" saves as it opens: the sheet's default ticks (juror U2-3, one count);
+        # only these rows carry the "New" badge
+        to_save = {e.key for e, _g, ticked in W.new_rows(snap, new_list) if ticked and W.new_action(e)} if snap else set()
         rows = []
         for e in W.worst_first(entries, statuses):
             self._known[e.key] = e
@@ -390,13 +404,14 @@ class CaptureApi(ApiBase):
                 "entryKey": e.key, "status": statuses[e.key], "kind": e.kind, "name": W.entry_name(e),
                 "path": e.path, "title": e.title, "process": e.process, "appName": e.app,
                 "identifiedBy": e.identified_by, "monitor": mon, "isItem": is_item,
-                "isNew": not is_item and e.key not in self._left_out, "note": e.note,
+                "isNew": not is_item and e.key not in self._left_out, "toSave": e.key in to_save, "note": e.note,
                 "candidates": list(e.candidates), **place})
         self._live.sync(rows)
         self._open = len(entries)
         self._identified = sum(1 for e in entries if e.identified)
         self._needs_path = sum(1 for s in statuses.values() if W.needs_you(s))
-        self._new = len(self._new_list(entries, app_items))
+        self._new = len(new_list)
+        self._new_to_save = len(to_save)
         cps = self.app.snapshots.checkpoints(self._running_id) if self._running_id else []
         self._since_checkpoint = len(diff.new_since(cps[0].snapshot if cps else None, snap)) if snap else 0
         roots_used = {self._root_of(i.path) for i in self._running_items()} | {
@@ -1032,3 +1047,18 @@ class CaptureApi(ApiBase):
         self._candidate_entries = {}
         self.startActivity(act.id)
         return act.id
+
+    @Slot(str, result="QVariantMap")
+    def lastWindows(self, activity_id: str) -> dict[str, Any]:  # noqa: N802
+        """The Monitors panel of an activity that is not running (juror D2-1, C2-1): the windows of its last
+        snapshot (``SnapshotStore.latest``) on their monitors, as {"takenText", "rows"}; each row has
+        ``monitor``, ``status``, ``name`` and ``placeX/Y/W/H``.  Empty rows when nothing was recorded."""
+        snap = self.app.snapshots.latest(activity_id) if activity_id else None
+        if snap is None:
+            return {"takenText": "", "rows": []}
+        screens = screen_names()
+        rows = []
+        for e in W.dedupe(snap.entries):
+            mon, place = monitor_and_place(e.placement, screens)
+            rows.append({"monitor": mon, "status": W.display_status(e), "name": W.entry_name(e), **place})
+        return {"takenText": time_text(snap.taken_at), "rows": rows}

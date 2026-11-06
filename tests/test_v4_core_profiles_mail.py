@@ -108,6 +108,28 @@ def test_openers_registry_and_fallback(tmp_path):
     assert ".docx" not in L.OPENERS
 
 
+def test_an_opener_that_never_answers_does_not_block_the_run(tmp_path):
+    """Excel waiting on a message of its own (here: no disk space on C:) never returned from Workbooks.Open, and
+    every later item stayed queued; the opener now gets ``opener_timeout_s`` and the run goes on."""
+    import threading
+    doc = tmp_path / "sheet.xlsx"
+    doc.write_text("x", encoding="utf-8")
+    txt = tmp_path / "notes.txt"
+    txt.write_text("x", encoding="utf-8")
+    release = threading.Event()
+    lch = L.Launcher(PathResolver({}, drive_map={}), delay_ms=0, openers={".xlsx": lambda p: release.wait(10)})
+    lch.opener_timeout_s = 0.3
+    opened = []
+    lch._shell_open = lambda item, target: opened.append(target) or L.LaunchResult(item, target, "opened")
+    try:
+        report = lch.launch([M.Item(str(doc), kind="file"), M.Item(str(txt), kind="file")])
+    finally:
+        release.set()
+    first, second = report.results
+    assert first.status == "failed" and "did not answer in 0 s" in first.message
+    assert second.status == "opened" and opened == [os.path.normpath(str(txt))]      # no second try of the sheet
+
+
 def test_bundle_draft_portable_paths():
     resolver = PathResolver({"{SERVER_ROOT}": "\\\\nas01\\Project"}, drive_map={"Z:": "\\\\nas01\\Project"})
     act = M.Activity("Lot 7 check", items=[

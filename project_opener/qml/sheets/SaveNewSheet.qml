@@ -15,6 +15,8 @@ Sheet {
                           + " open · tick what belongs" : app.capture.runningName
     confirmText: ticked > 0 ? "Save " + ticked + " as " + (ticked === 1 ? "item" : "items")
                             : total > 0 ? "Leave all out" : "Done"
+    // the rule lives on the button, not in a sentence over the list (juror T2-4)
+    confirmTooltip: total > 0 ? "Unticked things stay open and are not offered again for this activity" : ""
     sheetWidth: 640
 
     function recount() {
@@ -33,14 +35,6 @@ Sheet {
         if (ok) s.close()
     }
 
-    Txt {
-        width: parent.width
-        visible: s.total > 0
-        text: "Unticked things stay open and in the list; they are not offered again for this activity."
-        tone: "muted"
-        wrapMode: Text.Wrap
-        elide: Text.ElideNone
-    }
     TickList {
         id: list
         width: parent.width

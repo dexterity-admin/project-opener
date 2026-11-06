@@ -12,7 +12,14 @@ The rule, in short:
    screen at or below 1366x768, "Show animations" off or on battery; rich otherwise.
    Never above a level the runtime guard reduced it to.
 3. Runtime guard: two dock openings in a row over 33 ms mean or 120 ms worst 1 %
-   drop one level, saved, said once, never climbing back by itself.
+   drop one level, saved, said once, never climbing back by itself.  An opening is measured over the
+   grow only (``dock_measure_ms``: 420 ms x k plus 80 ms), when something animates on every frame; after
+   it the dock idles between rows and Qt rightly draws nothing, and counting those gaps as dropped frames
+   is what reduced motion on fast PCs (juror U2-1, measured with ``--bench``).  The first interval, from
+   the click to the first frame, is not counted (``guard_stats``): it carries the opening's one-time work
+   (the dock's rows, the launcher starting Excel or Word beside it) at every level, off included, so a
+   lower level cannot shorten it; the guard judges whether the grow itself keeps up (docs/DESIGN.md,
+   "Runtime guard").
 4. Ambient loops only in rich and only while the window is active (QML gates the second).
 """
 from __future__ import annotations
@@ -29,6 +36,8 @@ SETTINGS = ("auto",) + LEVELS
 K = {"rich": 1.0, "purposeful": 0.6, "off": 0.0}     # one number scales every duration in QML
 SLOW_MEAN_MS = 33.0
 SLOW_WORST1_MS = 120.0
+GROW_MS = 420                  # the scene-to-dock grow at k = 1 (HomePage.qml growMs)
+MEASURE_TAIL_MS = 80           # a frame or two after the grow
 REDUCED_MESSAGE = "Motion was reduced on this PC because frames were being dropped. Change it in Settings."
 BASIC_ADAPTERS = ("microsoft basic render driver", "microsoft basic display adapter")
 
@@ -74,6 +83,12 @@ def resolve_motion(setting: str, reduced_to: str, facts: MachineFacts, backend: 
     return level
 
 
+def dock_measure_ms(level: str) -> int:
+    """How long the guard measures one dock opening: the grow at this level plus a frame or two; 0 in off."""
+    k = K.get(level, 0.6)
+    return round(GROW_MS * k) + MEASURE_TAIL_MS if k > 0 else 0
+
+
 def next_lower(level: str) -> str:
     i = LEVELS.index(level) if level in LEVELS else 0
     return LEVELS[min(i + 1, len(LEVELS) - 1)]
@@ -92,6 +107,34 @@ def frame_stats(stamps: list[float]) -> tuple[float, float]:
         return 0.0, 0.0
     worst = sorted(gaps)[-max(1, len(gaps) // 100):]
     return round(statistics.fmean(gaps), 2), round(statistics.fmean(worst), 2)
+
+
+def guard_stats(stamps: list[float]) -> tuple[float, float]:
+    """What the runtime guard judges for one dock opening: ``frame_stats`` of the frames after the first.
+    ``stamps[0]`` is the measure's start (the click), ``stamps[1]`` the first frame; that first interval is the
+    opening's response time, the same at every level (round 3: 158-243 ms with Excel, Word and a PDF viewer
+    starting, every later frame of the grow 34 ms or less), so it is left out.  (0, 0) with fewer than two
+    frames after the first."""
+    return frame_stats(stamps[1:]) if len(stamps) >= 4 else (0.0, 0.0)
+
+
+def window_stamps(stamps: list[float], window_ms: float) -> list[float]:
+    """``stamps`` cut to the measure's window (``stamps[0]`` + ``window_ms``).  The timer that ends a measure
+    fires late when the GUI thread is busy, and the frames after the grow are not the grow's (round 3: a guard
+    window that closed 2.2 s late counted a 750 ms stall after the grow).  When frames ran past the window, its
+    end is the last stamp, so a stall inside the grow still counts up to the window's end."""
+    if not stamps or window_ms <= 0:
+        return list(stamps)
+    end = stamps[0] + window_ms / 1000.0
+    inside = [s for s in stamps if s <= end]
+    if len(inside) < len(stamps):
+        inside.append(end)
+    return inside
+
+
+def first_frame_ms(stamps: list[float]) -> float:
+    """The opening's response time: from the measure's start to the first frame (0 with no frame)."""
+    return round((stamps[1] - stamps[0]) * 1000.0, 1) if len(stamps) >= 2 else 0.0
 
 
 @dataclass

@@ -208,6 +208,11 @@ class UiState(ApiBase):
         """Duration scale: QML writes ``duration: app.ui.k * 220``."""
         return MO.K.get(self._motion, 0.6)
 
+    @Property(int, notify=motionChanged)
+    def dockMeasureMs(self) -> int:  # noqa: N802
+        """The guard's window for one dock opening: the grow and a frame or two (``motion.dock_measure_ms``)."""
+        return MO.dock_measure_ms(self._motion)
+
     @Property(bool, notify=motionChanged)
     def ambient(self) -> bool:
         """Ambient loops allowed (rich only; QML also gates on the window being active)."""
@@ -325,9 +330,12 @@ class UiState(ApiBase):
     @Slot()
     def endDockMeasure(self) -> None:  # noqa: N802
         stamps, self._stamps = self._stamps, None
-        if not stamps or len(stamps) < 3 or self._motion == "off":
+        if not stamps or self._motion == "off":
             return
-        mean, worst = MO.frame_stats(stamps)
+        stamps = MO.window_stamps(stamps, MO.dock_measure_ms(self._motion))   # the timer may fire late
+        if len(stamps) < 4:
+            return
+        mean, worst = MO.guard_stats(stamps)     # the grow's frames, not the click-to-first-frame time
         self.reportDockFrames(mean, worst)
 
     @Slot(str)

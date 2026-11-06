@@ -14,7 +14,7 @@ Page {
         subtitle: rep.count === 0 ? "" : rep.count + (rep.count === 1 ? " activity" : " activities")
                   + (app.capture.runningId !== "" ? " · " + app.capture.runningName + " running" : "")
         ActionButton {
-            visible: app.capture.runningId === ""
+            visible: app.capture.runningId === "" && rep.count > 0     // empty: the empty block offers it (D2-4)
             text: "Start from what's open"
             icon: "browsers"
             onClicked: Window.window.startFromOpen()
@@ -122,7 +122,7 @@ Page {
             EmptyBlock {
                 visible: rep.count === 0
                 width: list.width
-                line: "No activities yet. Open what a task needs, then start one from what's open."
+                line: "No activities yet."
                 action: "Start from what's open"
                 actionIcon: "browsers"
                 onTriggered: Window.window.startFromOpen()

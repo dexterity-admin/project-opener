@@ -57,7 +57,6 @@ Page {
 
     PageHeader {
         title: "Settings"
-        subtitle: "Saved as you change them"
     }
 
     Tabs {
@@ -276,7 +275,7 @@ Page {
         id: secSnapshot
         visible: page.tab === "snapshot"
         width: page.contentW
-        line: "While an activity runs, the watcher keeps a snapshot of what is open so it comes back after a restart."
+        line: "10 checkpoints kept per activity, in this PC's data folder."      // a fact, not a description (T2-4)
         SwitchRow { label: "Capture while an activity runs"; help: "The switch on each activity's page turns it off for that activity only."; checked: page.v("capture_enabled") === true; onToggled: (on) => page.set("capture_enabled", on) }
         Row {
             spacing: 16

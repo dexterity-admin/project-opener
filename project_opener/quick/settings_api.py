@@ -121,6 +121,8 @@ class SettingsApi(ApiBase):
         setattr(s, key, new)
         self._side_effects(key, new)
         self.changed.emit(key)
+        if key == "update_check":
+            self.updatesChanged.emit()
 
     def _side_effects(self, key: str, value: Any) -> None:
         s = self.app.ctx.settings
@@ -338,6 +340,16 @@ class SettingsApi(ApiBase):
         s = self.app.ctx.settings
         checked = f"last checked {T.relative_time(s.update_last_check).lower()}" if s.update_last_check else ""
         return T.join_facts(f"{C.APP_NAME} {C.VERSION}", checked)
+
+    @Property(str, notify=updatesChanged)
+    def checkLine(self) -> str:  # noqa: N802
+        """The Updates heading when nothing is pending: what the app does by itself, as Settings has it
+        (juror U2-4).  "Updates are checked every few hours" only while the automatic check is on."""
+        s = self.app.ctx.settings
+        if s.update_check:
+            return "Updates are checked every few hours"
+        last = T.relative_time(s.update_last_check).lower() if s.update_last_check else "never"
+        return f"Automatic checks are off · last checked {last}"
 
     @Slot()
     def checkUpdates(self) -> None:  # noqa: N802

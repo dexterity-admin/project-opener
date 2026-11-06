@@ -30,6 +30,7 @@ import re
 import shlex
 import subprocess
 import sys
+import threading
 import time
 import webbrowser
 from collections.abc import Callable
@@ -50,6 +51,7 @@ UNC_HOST_RE = re.compile(r"^\\\\([^\\]+)\\")
 CODES = ("opened", "missing", "offline", "variable", "skipped", "failed")
 
 Opener = Callable[[str], bool]
+OPENER_TIMEOUT_S = 30.0          # a cold Excel on an old PC takes 10-20 s; past this it is waiting on a message
 ProfileLookup = Callable[[str], "M.LaunchProfile | None"]
 
 # Shared registries (see the module docstring).
@@ -127,6 +129,9 @@ class Launcher:
         self._profiles = profiles
         self.openers: dict[str, Opener] = OPENERS if openers is None else openers
         self.started: list[Command] = []      # dry-run record of profile launches (tests)
+        # An opener (Excel/Word through COM) that does not return blocks every item after it: Office waiting on
+        # a message of its own (no disk space, a file in use, a sign-in) never answers.  It gets this long.
+        self.opener_timeout_s = OPENER_TIMEOUT_S
 
     def profile_for(self, item: M.Item) -> M.LaunchProfile | None:
         if not item.profile_id:
@@ -210,11 +215,27 @@ class Launcher:
             return None
         if self.dry_run:
             return LaunchResult(item, target, "opened", "opened through its application")
-        try:
-            if fn(target):
-                return LaunchResult(item, target, "opened", "opened through its application")
-        except Exception as exc:  # noqa: BLE001
-            log.warning("opener failed for %s (%s); using the file association", target, exc)
+        box: dict[str, object] = {}
+
+        def call() -> None:
+            try:
+                box["ok"] = bool(fn(target))
+            except Exception as exc:  # noqa: BLE001
+                box["error"] = exc
+
+        worker = threading.Thread(target=call, name="opener", daemon=True)
+        worker.start()
+        worker.join(self.opener_timeout_s)
+        if worker.is_alive():
+            # never a second open through the association: the application may still open it after its message
+            log.warning("opener for %s did not return in %.0f s", target, self.opener_timeout_s)
+            return LaunchResult(item, target, "failed",
+                                f"its application did not answer in {self.opener_timeout_s:.0f} s; "
+                                "it may be showing a message")
+        if box.get("ok"):
+            return LaunchResult(item, target, "opened", "opened through its application")
+        if "error" in box:
+            log.warning("opener failed for %s (%s); using the file association", target, box["error"])
         return None
 
     def _run_profile(self, item: M.Item, profile: M.LaunchProfile, host_cache: dict[str, bool]) -> LaunchResult:

@@ -16,14 +16,8 @@ Sheet {
     // The shared words for a window (the panel, the pill, Save new and Resume use the same): an app or chat
     // window and an unsaved document are "Not a file" (neutral: nothing is wrong); a document whose file is
     // not known "Needs a path" (warn); several files of that name "Ambiguous" (warn).
-    function pillLevel(st) {
-        return st === "identified" ? "ok" : st === "offline" ? "bad"
-             : st === "ambiguous" || st === "unidentified" ? "warn" : "neutral"
-    }
-    function pillWord(st) {
-        return st === "identified" ? "Identified" : st === "offline" ? "Server offline" : st === "ambiguous" ? "Ambiguous"
-             : st === "unidentified" ? "Needs a path" : "Not a file"
-    }
+    function pillLevel(st) { var m = app.capture.statusMeta[st]; return m ? m.level : "neutral" }
+    function pillWord(st) { var m = app.capture.statusMeta[st]; return m ? m.word : "Not a file" }
 
     function recount() {
         var m = app.capture.startCandidates, n = 0

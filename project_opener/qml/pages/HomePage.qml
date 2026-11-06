@@ -60,11 +60,12 @@ Page {
     }
     Component.onCompleted: relocate()
 
-    // the dock opening is the one long animation: measure its frames for the runtime guard
+    // the dock opening is the one long animation: measure its frames for the runtime guard, over the grow
+    // only (after it the dock idles between rows and no frame is due; juror U2-1)
     onDockedChanged: {
         if (docked && app.ui.k > 0) { app.ui.beginDockMeasure(); measure.restart() }
     }
-    Timer { id: measure; interval: 1400; onTriggered: app.ui.endDockMeasure() }
+    Timer { id: measure; interval: Math.max(1, app.ui.dockMeasureMs); onTriggered: app.ui.endDockMeasure() }
     // all opened: the scene becomes the activity page (board D frame 6); otherwise the dock stays
     Timer {
         id: settle
@@ -102,7 +103,7 @@ Page {
 
     // ------------------------------------------------------------ title
     PageHeader {
-        title: greeting() + ", " + app.displayName
+        title: greeting() + (app.greetName !== "" ? ", " + app.greetName : "")
         subtitle: home.today()           // every other fact has its own block below (juror T2)
         ActionButton {
             visible: app.capture.runningId === "" && home.n > 0
@@ -111,6 +112,7 @@ Page {
             onClicked: Window.window.startFromOpen()
         }
         ActionButton {
+            visible: home.n > 0              // with no activities the empty block offers it (juror D2-4)
             text: "New activity"
             icon: "plus"
             onClicked: Window.window.openSheet("ActivityEditor", { activityId: "" })
@@ -245,22 +247,18 @@ Page {
         }
     }
 
+    // one trade-word line and its actions, sized to its content (juror D2-4, T2-4)
     Card {
+        id: emptyStage
         visible: home.n === 0
         width: home.contentW
-        height: 200
+        height: emptyCol.implicitHeight + 2 * pad
         Column {
+            id: emptyCol
             x: parent.pad; y: parent.pad
             width: parent.width - 2 * parent.pad
             spacing: 12
-            Txt { text: "No activities yet"; role: "heading" }
-            Txt {
-                width: Math.min(520, parent.width)
-                text: "Open what a task needs the usual way, then turn the open windows into an activity in one step."
-                tone: "muted"
-                wrapMode: Text.Wrap
-                elide: Text.ElideNone
-            }
+            Txt { text: "No activities yet."; role: "heading" }
             Row {
                 spacing: 8
                 ActionButton { text: "Start from what's open"; icon: "browsers"; kind: "primary"; onClicked: Window.window.startFromOpen() }

@@ -223,7 +223,13 @@ Page {
                             }
                             Txt { text: model.sentText; tone: "faint"; figures: true; anchors.verticalCenter: parent.verticalCenter }
                         }
-                        Txt { width: parent.width; text: model.message; tone: "muted" }
+                        Txt {                // "@Vikram Revision C has…": people by name, the login in the tooltip (T2-3)
+                            width: parent.width
+                            text: model.messageText
+                            tone: "muted"
+                            HoverHandler { id: msgHover }
+                            Tip { visible: msgHover.hovered && model.mentionLogins !== ""; text: model.mentionLogins }
+                        }
                         Txt { width: parent.width; visible: model.kind === "mention" || model.kind === "task"; text: model.title; role: "small"; tone: "faint" }
                     }
                     Row {

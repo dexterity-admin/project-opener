@@ -88,6 +88,20 @@ def test_frame_stats():
     assert MO.frame_stats([1.0]) == (0.0, 0.0)
 
 
+def test_guard_leaves_out_the_click_to_first_frame():
+    """The first interval is the opening's response time, the same at every level (round 3); the guard
+    judges the grow's frames after it."""
+    t0 = 10.0
+    stamps = [t0, t0 + 0.2] + [t0 + 0.2 + i * 0.016 for i in range(1, 19)]
+    assert MO.frame_stats(stamps)[1] == 200.0
+    mean, worst = MO.guard_stats(stamps)
+    assert worst < 17 and mean < 17 and not MO.dock_frames_too_slow(mean, worst)
+    assert MO.first_frame_ms(stamps) == 200.0
+    hitch = [t0, t0 + 0.016, t0 + 0.032, t0 + 0.232, t0 + 0.248]
+    assert MO.guard_stats(hitch)[1] == 200.0                 # a hitch inside the grow still counts
+    assert MO.guard_stats([t0, t0 + 0.3, t0 + 0.316]) == (0.0, 0.0)
+
+
 def test_probe_uses_the_cache_per_adapter(monkeypatch):
     monkeypatch.setattr(MO, "primary_adapter", lambda: "NVIDIA GeForce GT 710")
     monkeypatch.setattr(MO, "_remote_session", lambda: False)
@@ -110,3 +124,17 @@ def test_probe_basic_render_driver_is_no_gpu(monkeypatch):
     facts = MO.probe_machine({}, (1366, 768))
     assert facts.gpu_ok is False
     assert MO.resolve_motion("auto", "", facts, MO.resolve_backend("auto", facts)) == "purposeful"
+
+
+def test_guard_window_is_cut_where_the_grow_ends():
+    """endDockMeasure's timer fires late when the GUI thread is busy; frames after the window are not the grow's."""
+    t0 = 5.0
+    grow = [t0] + [t0 + i * 0.016 for i in range(1, 31)]            # 480 ms of smooth frames
+    late = grow + [t0 + 1.3]                                          # an 820 ms stall after the grow
+    cut = MO.window_stamps(late, 500)
+    assert cut[-1] == t0 + 0.5 and len(cut) == len(grow) + 1
+    assert MO.guard_stats(cut)[1] < 25
+    stall = [t0, t0 + 0.016, t0 + 0.032, t0 + 0.9]                    # a stall that starts inside the grow
+    cut = MO.window_stamps(stall, 500)
+    assert cut == [t0, t0 + 0.016, t0 + 0.032, t0 + 0.5] and MO.guard_stats(cut)[1] > 400
+    assert MO.window_stamps(grow, 0) == grow

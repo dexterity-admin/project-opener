@@ -15,6 +15,7 @@ FocusScope {
     property string title: ""
     property string subtitle: ""
     property string confirmText: "Save"
+    property string confirmTooltip: ""         // a rule the sheet would otherwise say in a sentence (juror T2-4)
     property bool destructive: false
     property bool confirmEnabled: true
     property bool showCancel: true
@@ -226,6 +227,7 @@ FocusScope {
                         id: okBtn
                         text: sheet.confirmText
                         kind: sheet.destructive ? "danger" : "primary"
+                        tooltip: sheet.confirmTooltip
                         available: sheet.confirmEnabled && !sheet.busy
                         onClicked: sheet.accept()
                     }

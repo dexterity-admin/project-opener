@@ -18,7 +18,7 @@ from project_opener.quick.base import ro
 from project_opener.quick.listmodel import DictListModel
 
 ENTRY_ROLES = ("entryKey", "status", "kind", "name", "path", "title", "process", "appName", "identifiedBy",
-               "monitor", "isItem", "isNew", "note", "candidates")
+               "monitor", "isItem", "isNew", "toSave", "note", "candidates")
 
 
 class FakeCapture(QObject):
@@ -41,6 +41,7 @@ class FakeCapture(QObject):
         self._identified = 0
         self._needs_path = 0
         self._new = 0
+        self._new_to_save = 0
         self._last_checkpoint_text = ""
         self._since_checkpoint = 0
         self._drive_down = False
@@ -59,6 +60,12 @@ class FakeCapture(QObject):
     identifiedCount = ro(int, "_identified", liveChanged)
     needsPathCount = ro(int, "_needs_path", liveChanged)
     newCount = ro(int, "_new", liveChanged)
+    newToSave = ro(int, "_new_to_save", liveChanged)
+
+    @Property("QVariantMap", constant=True)
+    def statusMeta(self) -> dict[str, Any]:  # noqa: N802
+        from project_opener.ui import text as T
+        return {k: {"level": lvl, "word": word} for k, (lvl, word) in T.ENTRY_META.items()}
     lastCheckpointText = ro(str, "_last_checkpoint_text", checkpointsChanged)
     sinceCheckpoint = ro(int, "_since_checkpoint", liveChanged)
     driveDown = ro(bool, "_drive_down", stateChanged)

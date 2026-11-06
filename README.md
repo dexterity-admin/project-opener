@@ -143,7 +143,14 @@ python -m pytest              # test
 .\tools\build.ps1             # installer + portable zip into dist\
 ```
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) and [docs/RELEASING.md](docs/RELEASING.md).
+Before a release, run the built-in benchmark on the oldest office PC (about two minutes, harmless: a throwaway
+data folder, nothing opened or captured). It prints a summary and writes `bench-<PC>-<date>.json` next to the exe:
+
+```powershell
+Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\Programs\Project Opener\ProjectOpener.exe" "--bench"
+```
+
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) (the benchmark's details) and [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Releasing
 

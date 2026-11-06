@@ -116,7 +116,14 @@ class TasksApi(ApiBase):
         self._timer.timeout.connect(self.refresh)
         self._timer.start()
         self.ctx.hub_changed.connect(lambda _s: self.refresh())
+        users = getattr(getattr(self.app, "hub", None), "usersChanged", None)
+        if users is not None:
+            users.connect(self._on_users)            # rows read "from Yokesh", never "from yokesh" (juror U2-2)
         self.refresh()
+
+    def _on_users(self) -> None:
+        if self._tasks:
+            self._rebuild()
 
     def shutdown(self) -> None:
         if self._timer:

@@ -165,6 +165,38 @@ Window {
         onLoaded: item.forceActiveFocus()
     }
     Palette { id: cmdPalette; anchors.fill: parent; z: 30 }
+
+    // Pre-warm (juror U2-1): the first dock of a session paid for the glyph atlas and the DockView/StatusPill
+    // component compile in its first frames (not for shaders: on D3D11 Qt Quick's ship compiled; app_v4
+    // configure_pipeline_cache).  At idle, 1.5 s after the window is first on screen, one dock with a queued row
+    // (35 %) and an opening row is built left of the window (rendered, never seen), kept for a few frames, then
+    // dropped.
+    property bool dockWarmed: false
+    ListModel {
+        id: warmRows
+        ListElement { order: 1; name: "Comment register.xlsx"; path: "P12513 / Lot 7"; group: "Checking"; status: "opening"; statusLabel: "Opening…"; message: ""; level: "opening"; glyph: "file-xls" }
+        ListElement { order: 2; name: "Iso checklist.pdf"; path: "P12513"; group: "Checking"; status: "queued"; statusLabel: ""; message: ""; level: "neutral"; glyph: "file-pdf" }
+        ListElement { order: 3; name: "Revision C"; path: "nas01 / Project"; group: "Folders"; status: "opened"; statusLabel: "Opened"; message: ""; level: "ok"; glyph: "folder" }
+    }
+    Loader {
+        id: warmDock
+        objectName: "warmDock"
+        active: false
+        x: -width - 400
+        y: 40
+        width: 760
+        sourceComponent: Component { DockView { rows: warmRows; embedded: true; width: 760 } }
+    }
+    Timer {
+        interval: 1500
+        running: root.visible && !root.dockWarmed && !warmDock.active
+        onTriggered: { warmDock.active = true; warmDone.start() }
+    }
+    Timer {
+        id: warmDone
+        interval: 600
+        onTriggered: { warmDock.active = false; root.dockWarmed = true }
+    }
     Toasts { id: toasts; anchors.fill: parent; z: 40 }
 
     Connections {

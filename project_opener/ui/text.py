@@ -35,11 +35,15 @@ LAUNCH_META: dict[str, tuple[str, str]] = {
     "failed": ("bad", "Failed"),
 }
 # capture entry status -> (pill level, word)
+# (windows.display_status); two words for "no file" (T3, T2-1): "Needs a path" for a document whose path was
+# not found, "Not a file" for an unsaved document ("Drawing1") or a window with no document.
 ENTRY_META: dict[str, tuple[str, str]] = {
     "identified": ("ok", "Identified"),
+    "offline": ("bad", "Server offline"),
     "ambiguous": ("warn", "Ambiguous"),
     "unidentified": ("warn", "Needs a path"),
-    "unsaved": ("neutral", "Unsaved"),
+    "unsaved": ("neutral", "Not a file"),
+    "window": ("neutral", "Not a file"),
 }
 HEALTH_RANK = {"offline": 3, "variable": 2, "missing": 1, "ok": 0, "": -1}
 KIND_WORDS = {"file": "file", "folder": "folder", "url": "link", "app": "application", "command": "command"}

@@ -2,7 +2,7 @@ import QtQuick
 import "../components"
 
 // The pill's panel (board "snapshot-surfaces" C).  Owner: builder 3.
-// Title; "12 open · 9 identified · last checkpoint 10:52, 2 new since"; the watcher's list worst
+// Title; "12 open · 9 identified · last checkpoint 10:52"; the watcher's list worst
 // first (app.capture.live is sorted that way); one filled button (Snapshot now), Add a window,
 // Review; pause and open in Project Opener in the header.  Actions go through pill.act(...).
 // Each row offers Ignore on hover (owner decision, 5 November 2026): the window leaves this activity's list
@@ -39,16 +39,9 @@ Rectangle {
         const s = keys[name]
         return (s && s.ok) ? s.keys : ""
     }
-    function statusOf(st) {
-        if (st === "identified") return "ok"
-        if (st === "offline") return "bad"
-        if (st === "ambiguous" || st === "unidentified") return "warn"
-        return "neutral"
-    }
-    function wordsOf(st) {
-        return ({ identified: "Identified", offline: "Server offline", ambiguous: "Ambiguous",
-                  unidentified: "Needs a path", unsaved: "Not a file", window: "Not a file" })[st] || st
-    }
+    // the one status table (app.capture.statusMeta, ui/text.py ENTRY_META; juror T2-1)
+    function statusOf(st) { var m = app.capture.statusMeta[st]; return m ? m.level : "neutral" }
+    function wordsOf(st) { var m = app.capture.statusMeta[st]; return m ? m.word : st }
 
     implicitWidth: Math.max(400, buttons.implicitWidth + 32)
     implicitHeight: content.implicitHeight + 30
@@ -262,7 +255,7 @@ Rectangle {
             height: visible ? 30 : 0
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: cap.newCount + " new, not yet in the activity"
+                text: cap.newCount + " open, not yet in the activity"
                 font.family: "Onest"; font.pixelSize: 13
                 font.features: ({ "tnum": 1 })
                 color: tk.text_muted
@@ -271,7 +264,8 @@ Rectangle {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 kind: "ghost"
-                text: "Save " + cap.newCount + " new as items"
+                // the count the tick list saves as it opens, as the activity page's button (juror U2-3)
+                text: cap.newToSave > 0 ? "Save " + cap.newToSave + " new as items" : "Review " + cap.newCount
                 onActivated: pill.act("save_new")
             }
         }

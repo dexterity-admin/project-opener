@@ -8,7 +8,7 @@ follow whitespace or an opening bracket, so ``name@company.com`` is not one.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from project_opener.core import models as M
 
@@ -83,3 +83,31 @@ def insert_mention(text: str, cursor: int, login: str) -> tuple[str, int]:
     ins = f"@{login} "
     tail = text[cursor:]
     return text[:start] + ins + tail.lstrip(" ") if tail.startswith(" ") else text[:start] + ins + tail, start + len(ins)
+
+
+def person_word(login: str) -> str:
+    """A login shown as a name when no display name is known: "yokesh" -> "Yokesh" (juror U2-2)."""
+    login = (login or "").strip()
+    return login[:1].upper() + login[1:]
+
+
+def display_mentions(text: str, name_for: Callable[[str], str], groups: Iterable[str] = ()) -> tuple[str, list[str]]:
+    """``text`` with each ``@login`` of a person shown as ``@Display name`` (juror T2-3), and the logins it
+    replaced, in order (for the tooltip).  Group mentions (``@checkers``) and unknown words stay as typed."""
+    group_set = {g.lower() for g in groups}
+    replaced: list[str] = []
+
+    def sub(m: re.Match[str]) -> str:
+        raw = m.group(1)
+        login = raw.rstrip(".-_")
+        tail = raw[len(login):]
+        if not login or login.lower() in group_set:
+            return m.group(0)
+        name = name_for(login)
+        if not name or name == login:
+            return m.group(0)
+        if login.lower() not in replaced:
+            replaced.append(login.lower())
+        return m.group(0)[: m.start(1) - m.start(0)] + name + tail
+
+    return MENTION_RE.sub(sub, text or ""), replaced

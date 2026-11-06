@@ -85,6 +85,7 @@ class ActivitiesApi(ApiBase):
     currentChanged = Signal()
     resumeChanged = Signal()
     launchChanged = Signal()
+    progressChanged = Signal()                # launchProgress alone: a row settling re-binds the bar, not the dock
     launchStarted = Signal(str)               # activity id
     launchFinished = Signal(str, str)         # activity id, summary ("4 opened · 2 not opened")
     confirmNeeded = Signal(str, str, int)     # request id, activity id, item count (open more than N)
@@ -172,7 +173,7 @@ class ActivitiesApi(ApiBase):
     current = ro("QVariantMap", "_current", currentChanged)        # same keys as ACTIVITY_ROLES
     resume = ro("QVariantMap", "_resume", resumeChanged)           # {} or {activityId, title, count, takenAt, text}
     launching = ro(bool, "_launching", launchChanged)
-    launchProgress = ro(float, "_launch_progress", launchChanged)  # 0..1
+    launchProgress = ro(float, "_launch_progress", progressChanged)  # 0..1
     launchSummary = ro(str, "_launch_summary", launchChanged)
     dockOpen = ro(bool, "_dock_open", launchChanged)
     dockId = ro(str, "_dock_id", launchChanged)
@@ -653,6 +654,7 @@ class ActivitiesApi(ApiBase):
         self._dock_started_at = time.strftime("%H:%M")
         self._launching, self._launch_progress, self._launch_summary = True, 0.0, ""
         self.launchChanged.emit()
+        self.progressChanged.emit()
 
     def _attach_run(self, run: Any, key: str) -> None:
         self._run = run
@@ -675,7 +677,9 @@ class ActivitiesApi(ApiBase):
             self._dock.update(i, status=code, statusLabel=word, level=level, message=result.message or "",
                               path=result.resolved or self._dock.rows[i]["path"])
             self._launch_progress = (i + 1) / n
-            self.launchChanged.emit()
+            # only the progress bar: every dock binding on Home hangs off launchChanged, and re-running them
+            # for each row cost up to 175 ms of GUI time per settled row (juror U2-1, the bench's heartbeat)
+            self.progressChanged.emit()
 
         def done(report: Any) -> None:
             if self._run is not run:
@@ -684,6 +688,7 @@ class ActivitiesApi(ApiBase):
             self._launch_progress = 1.0
             self._launch_summary = T.launch_footer(codes, run.elapsed)
             self.launchChanged.emit()
+            self.progressChanged.emit()
             self.launchFinished.emit(key, self._launch_summary)
             self.recheck()
 
