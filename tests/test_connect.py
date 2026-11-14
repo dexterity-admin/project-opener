@@ -39,3 +39,20 @@ def test_ids_and_text_are_encoded_safely():
 def test_share_does_nothing_without_connect(monkeypatch):
     monkeypatch.setattr(connect, "connect_installed", lambda: False)
     assert connect.share(project()) is False
+
+
+def test_share_reports_failure_when_windows_cannot_start_connect(monkeypatch):
+    def broken(_url: str) -> None:
+        raise OSError("The system cannot find the file specified")
+
+    monkeypatch.setattr(connect, "connect_installed", lambda: True)
+    monkeypatch.setattr(connect.os, "startfile", broken, raising=False)
+    assert connect.share(project()) is False
+
+
+def test_share_hands_the_link_to_windows(monkeypatch):
+    opened: list[str] = []
+    monkeypatch.setattr(connect, "connect_installed", lambda: True)
+    monkeypatch.setattr(connect.os, "startfile", opened.append, raising=False)
+    assert connect.share(project(), to="space:piping p-12513") is True
+    assert len(opened) == 1 and opened[0].startswith("dexconnect://share?") and "to=space%3Apiping%20p-12513" in opened[0]

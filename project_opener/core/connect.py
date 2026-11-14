@@ -66,5 +66,8 @@ def share(project: M.Project, to: str | None = None) -> bool:
     """Open the share dialog in Dexterity Connect. False when Connect is not installed."""
     if not connect_installed():
         return False
-    os.startfile(share_url(project, to))  # type: ignore[attr-defined]  # noqa: S606
+    try:
+        os.startfile(share_url(project, to))  # type: ignore[attr-defined]  # noqa: S606
+    except OSError:  # registered, but Windows could not start it (moved or half-uninstalled)
+        return False
     return True
