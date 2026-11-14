@@ -8,6 +8,7 @@ from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QMenu, QStackedWidget, QSystemTrayIcon, QWidget
 
 from project_opener import constants as C
+from project_opener.core import connect
 from project_opener.core import models as M
 from project_opener.core import winutil
 from project_opener.ui import icons, theme
@@ -210,6 +211,7 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction(icons.icon("fa5s.cloud-upload-alt"), "Publish to Team Hub…", lambda: self.publish(project))
         m.addAction(icons.icon("fa5s.paper-plane"), "Send to colleague…", lambda: self.send_to(project))
+        m.addAction(icons.icon("fa5s.comments"), "Share to Dexterity Connect…", lambda: self.share_to_connect(project))
         m.addAction(icons.icon("fa5s.file-export"), "Export as JSON…", lambda: self.export_one(project))
         m.addSeparator()
         m.addAction(icons.icon("fa5s.trash", t.danger), "Delete project", lambda: self.delete_project(project))
@@ -273,6 +275,11 @@ class MainWindow(QMainWindow):
             proj = self.ctx.store.by_name(choice)
             if proj:
                 self.publish(proj)
+
+    def share_to_connect(self, project: M.Project) -> None:
+        """Hand the project to Dexterity Connect, which asks who to share it with."""
+        if not connect.share(project):
+            self._toast("Dexterity Connect is not installed", "Install the office messenger to share projects in a conversation.", "warning")
 
     def send_to(self, project: M.Project) -> None:
         if not self._require_hub():
