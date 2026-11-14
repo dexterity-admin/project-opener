@@ -8,9 +8,8 @@ from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QMenu, QStackedWidget, QSystemTrayIcon, QWidget
 
 from project_opener import constants as C
-from project_opener.core import connect
+from project_opener.core import connect, winutil
 from project_opener.core import models as M
-from project_opener.core import winutil
 from project_opener.ui import icons, theme
 from project_opener.ui.context import AppContext
 from project_opener.ui.views.detail import ProjectPage
