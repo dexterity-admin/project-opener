@@ -3,6 +3,19 @@
 All notable changes to Project Opener. The version in `project_opener/__init__.py`
 is the single source of truth; CI publishes a release when a new version lands on `main`.
 
+## Unreleased
+
+### Added
+- **Share to Dexterity Connect** (project right-click menu): opens the office messenger's share
+  dialog with the project's title, client, description and a `projectopener://open/<id>` link
+  filled in. The person picks who it is for and confirms in Dexterity Connect, where the link
+  shows as an "Open in Project Opener" chip. If Dexterity Connect is not installed, a notice says
+  so and nothing is sent (`core/connect.py`).
+
+### Fixed
+- Saving twice within a few milliseconds (which Windows' clock reports as the same moment) no longer
+  skips the second backup: backups on the same tick are numbered.
+
 ## 3.2.0 - 2026-11-01
 
 ### Added
