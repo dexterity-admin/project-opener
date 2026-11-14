@@ -136,12 +136,17 @@ class WorkspaceStore:
         bdir = self.root / C.BACKUP_DIR
         bdir.mkdir(exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-        target = bdir / f"workspace-{stamp}.json"
-        if not target.exists():
-            try:
-                shutil.copy2(self.path, target)
-            except OSError as exc:
-                log.warning("backup failed: %s", exc)
+        # Windows' clock can return the same time for saves a few milliseconds apart:
+        # number them so a quick second save still gets its own backup.
+        n = 0
+        target = bdir / f"workspace-{stamp}-{n:02d}.json"
+        while target.exists() and n < 99:
+            n += 1
+            target = bdir / f"workspace-{stamp}-{n:02d}.json"
+        try:
+            shutil.copy2(self.path, target)
+        except OSError as exc:
+            log.warning("backup failed: %s", exc)
         backups = sorted(bdir.glob("workspace-*.json"))
         for old in backups[:-C.MAX_BACKUPS]:
             try:

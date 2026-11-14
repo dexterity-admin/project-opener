@@ -12,6 +12,10 @@ is the single source of truth; CI publishes a release when a new version lands o
   shows as an "Open in Project Opener" chip. If Dexterity Connect is not installed, a notice says
   so and nothing is sent (`core/connect.py`).
 
+### Fixed
+- Saving twice within a few milliseconds (which Windows' clock reports as the same moment) no longer
+  skips the second backup: backups on the same tick are numbered.
+
 ## 3.2.0 - 2026-11-01
 
 ### Added
