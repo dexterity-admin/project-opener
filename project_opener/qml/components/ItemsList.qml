@@ -63,13 +63,14 @@ Column {
             }
             Row {
                 id: actions
-                width: 72
+                width: 104
                 layoutDirection: Qt.RightToLeft
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
                 ActionButton { icon: "pencil-simple"; kind: "ghost"; small: true; tooltip: "Edit"; onClicked: list.editItem(model.itemId) }
                 ActionButton { icon: "arrow-square-out"; kind: "ghost"; small: true; tooltip: "Open " + model.name; onClicked: list.openItem(model.itemId) }
+                ActionButton { visible: app.diff.supported(model.resolved); icon: "git-diff"; kind: "ghost"; small: true; tooltip: "Compare with another revision…"; onClicked: app.diff.compareWith(model.resolved) }
             }
             Tip { visible: hov.containsMouse && model.resolved !== "" && model.resolved !== model.path; text: "On this PC: " + model.resolved }
             MouseArea { id: hov; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton; z: -1 }

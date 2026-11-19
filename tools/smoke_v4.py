@@ -69,6 +69,7 @@ ROUTES = ("home", "activity", "activity-running", "activities", "projects", "pro
 ROUTES += ("timetravel",)
 TALL_ROUTES = ("settings", "home", "activity", "activity-running", "updates", *(f"hub-{t}" for t in HUB_TABS))
 FIRST_RUN_ROUTES = ("home", "activity", "activities", "projects", "project", "hub", "updates", "settings")
+ROUTES += ("diff", "diff-pdf", "diff-xlsx", "diff-docx")   # revision diff: empty, then a generated pair of each kind
 MESSAGES: list[str] = []
 STEP = ["start"]                       # what the run was doing when a warning came (printed with it)
 # Messages that are not about our QML (the offscreen platform's own notes).
@@ -676,6 +677,11 @@ def route_target(route: str, ids: dict[str, str]) -> tuple[str, dict[str, Any]]:
     if route.startswith("settings-"):
         key = route[len("settings-"):]
         return "settings", {"tab": key, "section": key}
+    if route.startswith("diff-"):                 # a generated revision pair in the demo job's Revisions folder
+        from tools import revdiff_samples as RS
+        make = {"pdf": RS.make_pdf_pair, "xlsx": RS.make_xlsx_pair, "docx": RS.make_docx_pair}[route[5:]]
+        a, b = make(Path(DEMO["job"]) / "Revisions")
+        return "diff", {"a": str(a), "b": str(b)}
     return route, {}
 
 
@@ -825,8 +831,14 @@ def main() -> int:
     def visit(route: str, tag: str, w: int, h: int, overflow_check: bool, take: bool = True) -> Any:
         real, payload = route_target(route, ids)
         STEP[0] = tag
+        if route == "diff":
+            facade.diff.clear()                    # the empty page, whatever an earlier visit compared
         facade.ui.go(real, payload)
         flush_deletes()
+        if real == "diff" and payload:
+            wait_for(app, "revision diff", lambda: facade.diff.state in ("done", "error"), 120)
+            pump(app, 100)
+            wait_for(app, "diff overlay", lambda: bool((win.property("pageItem") or win).property("overlayReady")), 30)
         # Today's arrival: the blocks rise 60 ms apart, the numerals count up after, the streak squares pop
         pump(app, 2600 if real == "home" else 700)
         page = win.property("pageItem")
@@ -842,6 +854,12 @@ def main() -> int:
                 notes.append(f"{tag}: page is {ch:.0f} px tall, the window {h} px (the shot shows the top)")
         if take:
             shot(tag)
+        if route == "diff-pdf" and page is not None:    # the first region picked: the viewer zooms onto it
+            QMetaObject.invokeMethod(page, "pickRegion", Q_ARG("QVariant", 0))
+            pump(app, 600)
+            check_layout(f"{tag}-region", w, h, overflow_check)
+            if take:
+                shot(f"{tag}-region")
         trace(tag)
         return page
 

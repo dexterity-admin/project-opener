@@ -3,3 +3,6 @@ pytest>=8
 pytest-timeout>=2.3
 pyinstaller>=6.6
 ruff>=0.5
+# draws the revision-diff test PDFs (tools/revdiff_samples.py); the app reads PDFs with QtPdf and never
+# imports it (AGPL; excluded from the bundle in project_opener.spec)
+pymupdf>=1.24

@@ -34,7 +34,8 @@ Window {
         "spacemap": "pages/SpaceMapPage.qml",
         "updates": "pages/UpdatesPage.qml",
         "timetravel": "pages/TimeTravelPage.qml",
-        "settings": "pages/SettingsPage.qml"
+        "settings": "pages/SettingsPage.qml",
+        "diff": "pages/DiffPage.qml"
     })
 
     // ---------------------------------------------------------------- shell API (for pages and sheets)
@@ -78,6 +79,7 @@ Window {
         case "goHub": go("hub"); break
         case "goUpdates": go("updates"); break
         case "goSettings": go("settings"); break
+        case "goDiff": go("diff"); break
         case "toggleTheme": app.ui.setTheme(app.ui.dark ? "light" : "dark"); break
         }
     }

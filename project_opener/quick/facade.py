@@ -106,6 +106,8 @@ class AppFacade(QObject):
     def today(self) -> TodayApi:
         return self._today
 
+    from project_opener.quick.diff_api import diff  # app.diff: the revision diff (route "diff")
+
     @Property(QObject, notify=desktopChanged)
     def desktop(self) -> QObject | None:
         return self._desktop

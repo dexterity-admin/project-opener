@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-timeout>=2.3", "pyinstaller>=6.6", "ruff>=0.5"]
+dev = ["pytest>=8", "pytest-timeout>=2.3", "pyinstaller>=6.6", "ruff>=0.5", "pymupdf>=1.24"]
 
 [project.scripts]
 project-opener = "project_opener.app:main"
