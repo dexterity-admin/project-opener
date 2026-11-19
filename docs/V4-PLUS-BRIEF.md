@@ -97,12 +97,12 @@ Drafted Glass; brand fonts bundled as TTF (`resources/fonts/`, OFL notice `OFL-b
 **Today v1 - data map (no invented numbers):**
 | Block | Source |
 |---|---|
-| Hero: "Pick up where you parked" | `app.activities.resume` (until Park exists: the resume after a shutdown, else the last-run activity); restore-plan chips = that snapshot's restorable entries (`snapshots.latest`, `restorable`), +N |
+| Hero: "Pick up where you parked" | `app.capture.latestPark` (built 19 Nov 2026; empty map = nothing parked), else `app.activities.resume` ( the resume after a shutdown, else the last-run activity); restore-plan chips = that snapshot's restorable entries (`snapshots.latest`, `restorable`), +N |
 | Tasks due today | `app.tasks` (mine, due today, of N open) |
 | Changed overnight | watcher `WatchEvent`s since the last session end / 18:00 yesterday |
 | Day streak | distinct days with a launch, from `store.history()` |
-| Windows reopened (week) | **needs the restore log** - until then hide the card or show the 4th real stat (open tasks this week) |
-| Time travel lanes | checkpoints across activities this week (`snapshots.checkpoints`), click = restore that checkpoint |
+| Windows reopened (week) | `app.capture.weekReopened` / `weekRestores` (the restore log, since Monday 00:00; built 19 Nov 2026) |
+| Time travel lanes | `app.capture.timeline` + `timelineInfo` (last 7 days, every activity), click = `restoreCheckpoint` (page `timetravel` built 19 Nov 2026) |
 | Office pulse | the existing `OfficePanel` data (hub peers) |
 | 3rd panel | Drives on this PC (existing `DrivesPanel`) until Space map / Wrapped exist |
 

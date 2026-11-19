@@ -32,6 +32,7 @@ Window {
         "project": "pages/ProjectPage.qml",
         "hub": "pages/HubPage.qml",
         "updates": "pages/UpdatesPage.qml",
+        "timetravel": "pages/TimeTravelPage.qml",
         "settings": "pages/SettingsPage.qml"
     })
 
@@ -225,6 +226,7 @@ Window {
     Connections {
         target: app.capture
         function onSaveNewRequested() { root.openSheet("SaveNewSheet", {}) }
+        function onParkRequested() { root.openSheet("ParkSheet", {}) }
     }
     function entered(item) {
         if (app.ui.k > 0) enter.restart()

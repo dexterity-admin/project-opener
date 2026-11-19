@@ -1,8 +1,8 @@
 import QtQuick
 
-// Checkpoints (brief 3.8): the activity's last ten snapshots, newest first, each restorable.  Snapshot now
-// adds one; the watcher keeps one automatically; ending the activity keeps one.  Data: app.capture.checkpoints
-// (builder 2), selected for this activity by ActivitiesApi.select.
+// Checkpoints (brief 3.8): the activity's newest ten snapshots, each restorable.  Snapshot now and Park add
+// one; starting, every 15 minutes while windows change, and ending keep one by themselves (kept 14 days, then
+// one a day for 60; Time travel shows the week).  Data: app.capture.checkpoints, selected by ActivitiesApi.select.
 Card {
     id: panel
     property string activityId: ""
@@ -14,7 +14,7 @@ Card {
         x: panel.pad; y: panel.pad
         width: panel.width - 2 * panel.pad
         title: "Checkpoints"
-        facts: rep.count > 0 ? rep.count + " · the last ten are kept" : ""
+        facts: rep.count > 0 ? "newest " + rep.count + " · all on Time travel" : ""
     }
     Column {
         id: list
@@ -32,7 +32,8 @@ Card {
                 Icon {
                     id: ic
                     anchors.verticalCenter: parent.verticalCenter
-                    name: model.kind === "manual" ? "camera" : model.kind === "close" ? "stop-circle" : "clock-counter-clockwise"
+                    name: model.kind === "manual" ? "camera" : model.kind === "close" ? "stop-circle"
+                        : model.kind === "park" ? "moon" : model.kind === "start" ? "play-circle" : "clock-counter-clockwise"
                 }
                 Column {
                     anchors.left: ic.right
@@ -43,7 +44,9 @@ Card {
                     Txt {
                         width: parent.width
                         text: model.label !== "" ? model.label
-                             : (model.kind === "manual" ? "Snapshot" : model.kind === "close" ? "When it ended" : "Kept by the watcher")
+                             : (model.kind === "manual" ? "Snapshot" : model.kind === "close" ? "When it ended"
+                                : model.kind === "start" ? "When it started" : model.kind === "park" ? "Parked"
+                                : "Kept while you worked")
                                + (model.isLatest ? " · latest" : "")
                         figures: true
                         strong: model.isLatest
@@ -73,7 +76,7 @@ Card {
         EmptyBlock {
             visible: rep.count === 0
             width: list.width
-            line: "No checkpoints yet. Snapshot now keeps one; the last ten stay."
+            line: "No checkpoints yet. Snapshot now keeps one."
         }
         ActionButton {
             visible: rep.count > panel.maxRows

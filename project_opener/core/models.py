@@ -389,7 +389,7 @@ def dedupe_name(name: str, existing: Iterable[str]) -> str:
 # ``from_dict`` never raises on bad input (hub files come from other PCs).
 
 SNAPSHOT_STATUSES: tuple[str, ...] = ("identified", "ambiguous", "unidentified", "unsaved")
-CHECKPOINT_KINDS: tuple[str, ...] = ("manual", "auto", "close")
+CHECKPOINT_KINDS: tuple[str, ...] = ("manual", "auto", "close", "start", "park")
 WATCHER_KINDS: tuple[str, ...] = ("folder", "health", "hub", "time")
 WATCHER_EVENTS: dict[str, tuple[str, ...]] = {
     "folder": ("new", "changed", "gone"),
@@ -772,7 +772,9 @@ class Checkpoint:
     snapshot: Snapshot
     id: str = field(default_factory=new_id)
     taken_at: str = field(default_factory=now_iso)
-    kind: str = "manual"               # manual (Snapshot now) | auto (watcher) | close (activity ended)
+    # manual (Snapshot now) | auto (every 15 min while windows changed) | close (activity ended)
+    # | start (the activity started) | park (Park, with the "where I left off" note as the label)
+    kind: str = "manual"
     label: str = ""
 
     def to_dict(self) -> dict[str, Any]:

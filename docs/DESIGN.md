@@ -104,7 +104,7 @@ Settings > Appearance keeps Theme and Density only.
 - **Sidebar** *(built 19 Nov 2026, `components/Sidebar.qml`)*: 236 px on the page ground, with a hairline on its right edge. The brand mark
   and "Project Opener" at the top. Mono uppercase group labels: WORKSPACE (Today, Activities, Projects,
   Tasks, Time travel) and OFFICE (Office pulse, Space map, Wrapped, Handover); a route appears only once its
-  page exists (built: Today, Activities, Projects, Tasks = the hub's Tasks tab, Team Hub; Updates and Settings sit
+  page exists (built: Today, Activities, Projects, Tasks = the hub's Tasks tab, Time travel, Team Hub; Updates and Settings sit
   at the foot over the person). The active item is a
   `surface_2` fill with a 2 px `accent` bar on its left; counts are mono, faint, right-aligned, and only
   on queues. Below a 1100 px window the sidebar folds to the

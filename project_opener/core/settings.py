@@ -114,7 +114,11 @@ class Settings:
         if not isinstance(s.hotkeys, dict):
             s.hotkeys = dict(C.HOTKEY_DEFAULTS)
         else:
-            s.hotkeys = {**C.HOTKEY_DEFAULTS, **{str(k): str(v) for k, v in s.hotkeys.items()}}
+            stored = {str(k): str(v) for k, v in s.hotkeys.items()}
+            # 4.0: Park took Ctrl+Alt+P; a pill-panel key still on that old default moves to the new one
+            if "park" not in stored and stored.get("panel", "").replace(" ", "").lower() == "ctrl+alt+p":
+                stored["panel"] = C.HOTKEY_DEFAULTS["panel"]
+            s.hotkeys = {**C.HOTKEY_DEFAULTS, **stored}
         if not isinstance(s.capture_ignore, list) or s.capture_ignore == _IGNORE_DEFAULT_BETA:
             s.capture_ignore = cls().capture_ignore
         s.accent = cls.accent                    # 4.0: brand colours, no picker (docs/DESIGN.md "Colour")

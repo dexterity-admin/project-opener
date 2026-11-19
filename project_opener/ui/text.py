@@ -287,9 +287,14 @@ def launch_footer(results: list[str], elapsed_s: float = 0.0) -> str:
     return " · ".join(parts)
 
 
+# checkpoint kind -> its word (the checkpoints panel, Time travel, the tray)
+CHECKPOINT_WORDS: dict[str, str] = {"manual": "Snapshot", "auto": "Kept while you worked", "close": "When it ended",
+                                    "start": "When it started", "park": "Parked"}
+
+
 def checkpoint_label(kind: str, taken_at: str, count: int) -> str:
     """"Snapshot · 14:32 · 12 things"."""
-    word = {"manual": "Snapshot", "auto": "Kept by the watcher", "close": "When it ended"}.get(kind, "Snapshot")
+    word = CHECKPOINT_WORDS.get(kind, "Snapshot")
     return join_facts(word, clock(taken_at), plural(count, "thing"))
 
 

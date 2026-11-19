@@ -690,6 +690,12 @@ class ActivitiesApi(ApiBase):
             self.launchChanged.emit()
             self.progressChanged.emit()
             self.launchFinished.emit(key, self._launch_summary)
+            # the restore log: what this launch actually opened (a dry run, the smoke or --bench, opened nothing)
+            if self._store().activity(key) is not None and not getattr(self.app.ctx.launcher, "dry_run", False):
+                try:
+                    self.app.capture.note_reopened(key, "launch", codes.count("opened"))
+                except Exception:  # noqa: BLE001 - the log never fails a launch
+                    log.exception("restore log: launch not recorded")
             self.recheck()
 
         run.item_started.connect(started)

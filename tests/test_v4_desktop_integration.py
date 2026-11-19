@@ -110,7 +110,7 @@ def test_hotkey_status_reaches_app_desktop(facade):
 
     from project_opener.desktop.hotkeys import HotkeyManager
     integ = DesktopIntegration(facade, None)
-    integ.hotkeys = HotkeyManager(FakeBackend(owned_elsewhere=["Ctrl+Alt+P"]), install_filter=False)
+    integ.hotkeys = HotkeyManager(FakeBackend(owned_elsewhere=["Ctrl+Alt+O"]), install_filter=False)
     integ.hotkeys.statusChanged.connect(integ.api._set_hotkeys)
     integ.apply_hotkeys()
     status = integ.api.property("hotkeyStatus")
@@ -120,16 +120,19 @@ def test_hotkey_status_reaches_app_desktop(facade):
 
 
 def test_tray_menu_order_and_state():
-    keys = {"snapshot": "Ctrl+Alt+S", "add_window": "Ctrl+Alt+A", "panel": "Ctrl+Alt+P", "palette": "Ctrl+Alt+K"}
+    keys = {"snapshot": "Ctrl+Alt+S", "add_window": "Ctrl+Alt+A", "panel": "Ctrl+Alt+O", "palette": "Ctrl+Alt+K",
+            "park": "Ctrl+Alt+P"}
     rows = menu_spec(True, title_line("Lot 7 check", 12, "running"), False, keys)
     texts = [r[1] for r in rows if r[0] != "-"]
-    assert texts == ["Lot 7 check · 12 open · capture on", "Snapshot now", "Add a window…", "Pause capture",
+    assert texts == ["Lot 7 check · 12 open · capture on", "Snapshot now", "Park…", "Add a window…",
+                     "Pause capture",
                      "End activity…", "Start an activity from what's open…", "Open an activity", "Show the pill",
                      "Search…", "Show Project Opener", "Quit"]
     assert rows[0][2] is False                                   # the title line is not clickable
     assert dict((r[0], r[3]) for r in rows)["snapshot"] == "Ctrl+Alt+S"
+    assert dict((r[0], r[3]) for r in rows)["park"] == "Ctrl+Alt+P"
     idle = {r[0]: r[2] for r in menu_spec(False, "", False, {})}
-    assert not idle["snapshot"] and not idle["pause"] and not idle["end"] and idle["start_from_open"]
+    assert not idle["snapshot"] and not idle["park"] and not idle["pause"] and not idle["end"] and idle["start_from_open"]
     paused = {r[0]: r[1] for r in menu_spec(True, "x", True, {})}
     assert paused["pause"] == "Resume capture"
     assert title_line("L", 3, "paused") == "L · 3 open · capture paused"
@@ -146,4 +149,5 @@ def test_tray_actions_call_the_facade(facade):
 
 
 def test_hotkey_ids_are_the_contracts():
-    assert C.HOTKEY_IDS == {"snapshot": 0xB001, "add_window": 0xB002, "panel": 0xB003, "palette": 0xB004}
+    assert C.HOTKEY_IDS == {"snapshot": 0xB001, "add_window": 0xB002, "panel": 0xB003, "palette": 0xB004,
+                            "park": 0xB005}

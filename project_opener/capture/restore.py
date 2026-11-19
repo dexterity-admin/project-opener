@@ -44,6 +44,7 @@ class RestoreResult:
     open_s: float = 0.0              # how long the open call took
     placed_at_s: float = 0.0         # seconds from the start of the restore to the window being placed
     hwnd: int = 0
+    already_open: bool = False       # counted as opened, but nothing was reopened (left where it is)
 
     def to_dict(self) -> dict[str, Any]:
         return {"key": self.key, "label": self.label, "opened": self.opened, "placed": self.placed,
@@ -58,7 +59,10 @@ class RestoreReport:
     seconds: float = 0.0
 
     def to_dict(self) -> dict:
+        # "reopened": windows this restore actually opened (the restore log); "opened" also counts those
+        # that were already open and were left where they are
         return {"opened": sum(r.opened for r in self.results), "placed": sum(r.placed for r in self.results),
+                "reopened": sum(1 for r in self.results if r.opened and not r.already_open),
                 "failed": [r.label for r in self.results if not r.opened],
                 "unrestorable": [e.title for e in self.unrestorable], "seconds": round(self.seconds, 1),
                 "results": [r.to_dict() for r in self.results]}
@@ -302,7 +306,7 @@ class Restorer:
             results[e.key] = r
             report.results.append(r)
             if any(diff.same_target(o.path, e.path, self.portable) for o in open_now):
-                r.opened, r.message = True, "already open; left where it is"
+                r.opened, r.already_open, r.message = True, True, "already open; left where it is"
                 tell(i + 1, label)
                 continue
             t_open = p.now()

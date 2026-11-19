@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
@@ -43,6 +43,11 @@ NEW_ROLES = ("entryKey", "ticked", "tickable", "name", "path", "appName", "statu
              "groupLabel", "action")
 RESUME_ROLES = ("entryKey", "ticked", "tickable", "name", "path", "appName", "status", "note", "kind", "group",
                 "groupLabel", "monitor")
+# Time travel: one row per checkpoint of the last ``TIMELINE_DAYS`` days, every activity.  ``day`` 0 is today;
+# ``pos`` is the time of day as a fraction of the lanes' hour span (``timelineInfo``'s startHour..endHour).
+TIMELINE_ROLES = ("checkpointId", "activityId", "activityName", "dotColor", "takenAt", "timeText", "day", "pos", "kind",
+                  "kindWord", "note", "count", "restorable")
+TIMELINE_DAYS = 7
 
 # state: idle (no activity running) | running | needs (a path is needed or a drive is down) | paused | saved
 STATES = ("idle", "running", "needs", "paused", "saved")
@@ -112,6 +117,37 @@ def monitor_and_place(pl: M.WindowPlacement | None, screens: list[Any]) -> tuple
 
 
 
+def week_start(now: datetime | None = None) -> datetime:
+    """Monday 00:00 of this week, local time (aware): where "this week" begins for Today and Wrapped."""
+    local = (now or datetime.now().astimezone()).astimezone()
+    return (local - timedelta(days=local.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def day_start(now: datetime | None = None, days_back: int = 0) -> datetime:
+    """Local midnight ``days_back`` days before today (aware)."""
+    local = (now or datetime.now().astimezone()).astimezone()
+    return (local - timedelta(days=days_back)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def lane_hours(hours: list[float]) -> tuple[int, int]:
+    """The hour span the time-travel lanes draw: 08-18 at least, widened to whole hours around every
+    checkpoint (so a tick at 21:40 widens it to 22)."""
+    lo, hi = 8, 18
+    for h in hours:
+        lo = min(lo, int(h))
+        hi = max(hi, min(24, int(h) + 1))
+    return lo, hi
+
+
+def day_label(day: datetime, days_back: int) -> str:
+    """"Today", "Yesterday", else "Mon 16 Nov"."""
+    if days_back == 0:
+        return "Today"
+    if days_back == 1:
+        return "Yesterday"
+    return f"{day.strftime('%a')} {day.day} {day.strftime('%b')}"
+
+
 def snapshot_glyph(kind: str, path: str) -> str:
     """The glyph on a checkpoint frame in the Monitors panel (juror C3-1): the item glyph for a path, an app
     window for a window without one."""
@@ -164,6 +200,8 @@ class CaptureApi(ApiBase):
     newCandidatesChanged = Signal()
     resumeCandidatesChanged = Signal()
     saveNewRequested = Signal()                      # open the "Save N new as items" sheet (main window)
+    parkRequested = Signal()                         # open the Park sheet (Ctrl+Alt+P, the pill, the tray)
+    memoryChanged = Signal()                         # the restore log, the latest park or the timeline changed
 
     def __init__(self, app: Any):
         super().__init__(app)
@@ -206,6 +244,12 @@ class CaptureApi(ApiBase):
         self._new_entries: dict[str, M.SnapshotEntry] = {}
         self._process_started: float | None = None       # psutil's create time, read once (warm-up)
         self._resume_prep: tuple[str, M.Snapshot | None] = ("", None)
+        # workspace memory: the restore log, the latest park, the week of checkpoints (refreshMemory)
+        self._timeline = DictListModel(TIMELINE_ROLES, key="checkpointId", parent=self)
+        self._timeline_info: dict[str, Any] = {"startHour": 8, "endHour": 18, "total": 0, "days": []}
+        self._week_reopened = 0
+        self._week_restores = 0
+        self._latest_park: dict[str, Any] = {}
 
     # ------------------------------------------------------------- models
     @Property(QObject, constant=True)
@@ -234,6 +278,23 @@ class CaptureApi(ApiBase):
         """The Resume sheet: what was open at the last snapshot; the activity's items and what was opened
         during the activity ticked, everything else unticked."""
         return self._resume_rows
+
+    @Property(QObject, constant=True)
+    def timeline(self) -> DictListModel:
+        """Time travel: every checkpoint of the last seven days across all activities, newest first
+        (``TIMELINE_ROLES``); filled by ``refreshMemory``."""
+        return self._timeline
+
+    # --------------------------------------------------------- workspace memory
+    # windows the restore log says were actually reopened since Monday 00:00 (restores and launches; windows
+    # already open are not counted), and how many restores that was
+    weekReopened = ro(int, "_week_reopened", memoryChanged)
+    weekRestores = ro(int, "_week_restores", memoryChanged)
+    # the newest Park across activities: {activityId, activityName, dotColor, checkpointId, takenAt, takenText, note,
+    # windows, restorable}; {} when nothing was parked
+    latestPark = ro("QVariantMap", "_latest_park", memoryChanged)
+    # the lanes: {startHour, endHour, total, days: [{day, label, count}]} (day 0 = today, newest first)
+    timelineInfo = ro("QVariantMap", "_timeline_info", memoryChanged)
 
     # --------------------------------------------------------- properties
     runningId = ro(str, "_running_id", stateChanged)
@@ -485,7 +546,8 @@ class CaptureApi(ApiBase):
 
     def _refresh_checkpoints(self) -> None:
         aid = self._selected_id or self._running_id
-        cps = self.app.snapshots.checkpoints(aid) if aid else []
+        # the activity page lists the newest ten; the rest of the 14/60-day history is on Time travel
+        cps = self.app.snapshots.checkpoints(aid)[:M.CHECKPOINTS_KEPT] if aid else []
         self._checkpoints.reset([{
             "checkpointId": c.id, "takenAt": c.taken_at, "takenText": time_text(c.taken_at), "kind": c.kind,
             "label": c.label, "count": c.snapshot.open_count, "identified": c.snapshot.identified_count,
@@ -525,12 +587,18 @@ class CaptureApi(ApiBase):
             self._refresh_checkpoints()
         if cp.activity_id == self._running_id:
             self._refresh_live()
-            if cp.kind != "close":
+            # what the person asked for says "saved"; the automatic ones (start, every 15 min, close) stay quiet
+            if cp.kind in ("manual", "park"):
                 t = time_text(cp.taken_at)
                 self.checkpointSaved.emit(cp.id, cp.snapshot.open_count, t)
                 self._saved_until = True
                 self._update_state()
                 QTimer.singleShot(SAVED_MS, self._end_saved)
+            if cp.kind == "park":
+                n = len(cp.snapshot.restorable)
+                self._toast("Parked", f"{self._running_name} · {n} {'window' if n == 1 else 'windows'} to reopen",
+                            "success")
+        self.refreshMemory()
 
     def _end_saved(self) -> None:
         self._saved_until = False
@@ -589,6 +657,9 @@ class CaptureApi(ApiBase):
 
     def _on_restore_done(self, report: dict[str, Any]) -> None:
         self._restoring = False
+        aid = str(report.get("activityId") or "")
+        if "reopened" in report:                 # a restore that ran (not the "nothing saved" answer)
+            self.note_reopened(aid, "restore", int(report.get("reopened") or 0))
         self.restoreFinished.emit(report)
         failed = report.get("failed") or []
         unrest = report.get("unrestorable") or []
@@ -619,6 +690,7 @@ class CaptureApi(ApiBase):
         data folder's share (the dock's frame times)."""
         run_async = getattr(self.app, "run_async", None)
         if run_async is None:
+            self.refreshMemory()
             return
         ids = [a.id for a in getattr(self._store(), "activities", [])]
         snapshots = self.app.snapshots
@@ -627,6 +699,7 @@ class CaptureApi(ApiBase):
             for aid in ids:
                 snapshots.review(aid)
             snapshots.markers()
+            snapshots.restore_events()
             try:
                 import psutil
                 return float(psutil.Process().create_time())
@@ -635,6 +708,7 @@ class CaptureApi(ApiBase):
 
         def done(started: float) -> None:
             self._process_started = started
+            self.refreshMemory()                # every file is in memory now: no share read on the GUI thread
         try:
             run_async(work, done, lambda *_a: None)
         except Exception:  # noqa: BLE001
@@ -723,6 +797,102 @@ class CaptureApi(ApiBase):
             self._toast("Snapshot", "No activity is running", "info")
             return
         self._ensure_engine().request_snapshot("manual", "")
+
+    # ------------------------------------------------------------------ park
+    @Slot()
+    def requestPark(self) -> None:  # noqa: N802
+        """Ctrl+Alt+P, the pill and the tray: ask for the "where I left off" note (``parkRequested``; the main
+        window opens the Park sheet).  With no activity running there is nothing to park."""
+        if not self._running_id:
+            self._toast("Park", "No activity is running: nothing to park", "info")
+            return
+        try:
+            self.app.showWindowRequested.emit()
+        except (AttributeError, RuntimeError):
+            pass
+        self.parkRequested.emit()
+
+    @Slot(str, result=bool)
+    def park(self, note: str) -> bool:
+        """Capture the running workspace as a checkpoint of kind "park", with ``note`` as its label (the
+        latest park is ``latestPark``).  The activity keeps running.  False when none runs."""
+        if not self._running_id:
+            self._toast("Park", "No activity is running: nothing to park", "info")
+            return False
+        self._ensure_engine().request_snapshot("park", " ".join((note or "").split())[:280])
+        return True
+
+    # ------------------------------------------------------------- workspace memory
+    def note_reopened(self, activity_id: str, source: str, reopened: int) -> None:
+        """Log one restore or launch in the restore log (``SnapshotStore.log_reopened``) and refresh the week's
+        counts.  ``ActivitiesApi`` calls it when a launch finishes; restores log themselves."""
+        try:
+            self.app.snapshots.log_reopened(activity_id, source, reopened)
+        except OSError:
+            log.warning("restore log: write failed")
+        self.refreshMemory()
+
+    def _activity_color(self, act: M.Activity) -> str:
+        color = act.color
+        if not color and act.project_ids:
+            proj = self._store().get(act.project_ids[0])
+            color = getattr(proj, "color", "") if proj else ""
+        return color or M.DEFAULT_COLOR
+
+    @Slot()
+    def refreshMemory(self) -> None:  # noqa: N802
+        """Recompute ``weekReopened``/``weekRestores`` (since Monday 00:00), ``latestPark`` and the time-travel
+        lanes (``timeline``, ``timelineInfo``: the last seven days) from the snapshot store's memory.  Called at
+        start-up, after every checkpoint, restore and launch, and by a page that shows them (the day may have
+        turned)."""
+        from project_opener.ui import text as T
+        snapshots = getattr(self.app, "snapshots", None)
+        if snapshots is None:
+            return
+        acts = {a.id: a for a in getattr(self._store(), "activities", [])}
+        now = datetime.now().astimezone()
+        self._week_reopened, self._week_restores = snapshots.reopened_since(week_start(now))
+
+        park = snapshots.latest_of_kind(acts, "park")
+        if park is not None and park.activity_id in acts:
+            act = acts[park.activity_id]
+            self._latest_park = {
+                "activityId": act.id, "activityName": act.name, "dotColor": self._activity_color(act),
+                "checkpointId": park.id, "takenAt": park.taken_at, "takenText": time_text(park.taken_at),
+                "note": park.label, "windows": park.snapshot.open_count, "restorable": len(park.snapshot.restorable)}
+        else:
+            self._latest_park = {}
+
+        first = day_start(now, TIMELINE_DAYS - 1)
+        cps = snapshots.checkpoints_since(acts, first)
+        hours: list[float] = []
+        placed: list[tuple[M.Checkpoint, int, float]] = []
+        for c in cps:
+            local = M.parse_iso(c.taken_at).astimezone()           # checkpoints_since kept only readable times
+            back = (now.date() - local.date()).days
+            if not 0 <= back < TIMELINE_DAYS:
+                continue
+            h = local.hour + local.minute / 60.0 + local.second / 3600.0
+            hours.append(h)
+            placed.append((c, back, h))
+        lo, hi = lane_hours(hours)
+        rows = []
+        counts = [0] * TIMELINE_DAYS
+        for c, back, h in placed:
+            act = acts[c.activity_id]
+            counts[back] += 1
+            rows.append({
+                "checkpointId": c.id, "activityId": act.id, "activityName": act.name,
+                "dotColor": self._activity_color(act), "takenAt": c.taken_at, "timeText": time_text(c.taken_at),
+                "day": back, "pos": max(0.0, min(1.0, (h - lo) / float(hi - lo))), "kind": c.kind,
+                "kindWord": T.CHECKPOINT_WORDS.get(c.kind, "Snapshot"), "note": c.label,
+                "count": c.snapshot.open_count, "restorable": len(c.snapshot.restorable)})
+        self._timeline.reset(rows)
+        self._timeline_info = {
+            "startHour": lo, "endHour": hi, "total": len(rows),
+            "days": [{"day": d, "label": day_label(day_start(now, d), d), "count": counts[d]}
+                     for d in range(TIMELINE_DAYS)]}
+        self.memoryChanged.emit()
 
     @Slot()
     def saveNewAsItems(self) -> None:

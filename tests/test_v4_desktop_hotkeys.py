@@ -72,7 +72,7 @@ def test_register_all_defaults_and_conflict():
     assert status["snapshot"] == {"keys": "Ctrl+Alt+S", "ok": True, "error": ""}
     assert status["palette"]["ok"] is False
     assert status["palette"]["error"] == "Hot key is already registered."
-    assert set(backend.live) == {C.HOTKEY_SNAPSHOT, C.HOTKEY_ADD_WINDOW, C.HOTKEY_PANEL}
+    assert set(backend.live) == {C.HOTKEY_SNAPSHOT, C.HOTKEY_ADD_WINDOW, C.HOTKEY_PANEL, C.HOTKEY_PARK}
     assert seen and seen[-1] == status
 
 
@@ -86,7 +86,7 @@ def test_register_all_reports_bad_and_duplicate_keys():
     assert status["panel"]["ok"] is False and "Ctrl, Alt or Win" in status["panel"]["error"]
     # a missing entry falls back to the default; an empty one is "No shortcut set"
     assert status["palette"] == {"keys": "", "ok": False, "error": "No shortcut set"}
-    assert list(backend.live) == [C.HOTKEY_SNAPSHOT]
+    assert list(backend.live) == [C.HOTKEY_SNAPSHOT, C.HOTKEY_PARK]       # park: missing, so its default
 
 
 def test_reregister_and_unregister_leave_nothing_behind():
@@ -95,7 +95,7 @@ def test_reregister_and_unregister_leave_nothing_behind():
     mgr.register_all(dict(C.HOTKEY_DEFAULTS))
     mgr.register_all({**C.HOTKEY_DEFAULTS, "snapshot": "Ctrl+Shift+F9"})
     assert backend.live[C.HOTKEY_SNAPSHOT][1] == 0x78
-    assert len(backend.live) == 4
+    assert len(backend.live) == len(C.HOTKEY_DEFAULTS)
     status = mgr.register_all(dict(C.HOTKEY_DEFAULTS), enabled=False)
     assert backend.live == {} and all(not s["ok"] for s in status.values())
     mgr.register_all(dict(C.HOTKEY_DEFAULTS))

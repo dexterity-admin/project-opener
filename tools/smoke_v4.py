@@ -66,6 +66,7 @@ SIZES = ((1400, 860), (1040, 660))
 HUB_TABS = ("published", "inbox", "tasks", "announcements", "activity", "groups")
 ROUTES = ("home", "activity", "activity-running", "activities", "projects", "project",
           *(f"hub-{t}" for t in HUB_TABS), "updates", "settings")
+ROUTES += ("timetravel",)
 TALL_ROUTES = ("settings", "home", "activity", "activity-running", "updates", *(f"hub-{t}" for t in HUB_TABS))
 FIRST_RUN_ROUTES = ("home", "activity", "activities", "projects", "project", "hub", "updates", "settings")
 MESSAGES: list[str] = []
@@ -694,7 +695,8 @@ def main() -> int:
         desk = DesktopApi(facade)
         desk._hotkey_status = {"snapshot": {"keys": "Ctrl+Alt+S", "ok": True, "error": ""},
                                "add_window": {"keys": "Ctrl+Alt+A", "ok": True, "error": ""},
-                               "panel": {"keys": "Ctrl+Alt+P", "ok": True, "error": ""},
+                               "panel": {"keys": "Ctrl+Alt+O", "ok": True, "error": ""},
+                               "park": {"keys": "Ctrl+Alt+P", "ok": True, "error": ""},
                                "palette": {"keys": "Ctrl+Alt+K", "ok": False,
                                            "error": "Hot key is already registered."}}
         if not args.stubs and not args.first_run:
@@ -933,6 +935,7 @@ def SHEETS(ids: dict[str, str]) -> list[tuple[str, dict[str, Any]]]:  # noqa: N8
         ("WatcherSheet", {"activityId": lot7}),
         ("StartFromOpenSheet", {}),
         ("SaveNewSheet", {}),
+        ("ParkSheet", {}),
         ("ResumeSheet", {}),
         ("AddChooserSheet", {"paths": [_job(r"Lot 8\Comment register.xlsx")]}),
         ("AttachPathSheet", {"entryKey": "win:ustation.exe|PIPE-GAD-0120.dgn - MicroStation",
