@@ -567,7 +567,7 @@ class TeamHub:
                 continue
             if kind == "activity" and not isinstance(d.get("activity"), dict):
                 continue
-            if kind not in ("project", "activity", "mention", "task"):
+            if kind not in ("project", "activity", "mention", "task", "handover"):
                 continue
             d = dict(d)
             d["kind"] = kind

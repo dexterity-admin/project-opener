@@ -381,6 +381,7 @@ def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
         write_json_atomic(hub_dir / "watch" / f"{login}.json", M.HealthObservation(
             user=login, host=host, ts=datetime.fromtimestamp(ahead).astimezone().isoformat(timespec="seconds"),
             roots=[M.RootObservation(r"\\nas01", "offline", down, jobs, 23)]).to_dict())
+    seed_team(data_dir, hub_dir, me, lot7.id)        # Wrapped's week and board, a colleague on leave
     return {"lot7": lot7.id, "p1": p1.id, "gad": gad.id, "running": gad.id, "w_rev": w_rev.id, "w_nas": w_nas.id,
             "rev_c": rev_c}
 
@@ -399,6 +400,48 @@ def seed_alerts(app: Any, ids: dict[str, str]) -> None:
     # this PC first saw nas01 down at the same time (watch/<me>.json keeps it)
     app.watchers._root_since = {r"\\nas01": ("offline", today_at(STORY["drive_down"])),
                                 "{SERVER_ROOT}": ("variable", today_at(STORY["lot7_opened"]))}
+
+
+def seed_team(data_dir: Path, hub_dir: Path, me: str, lot7_id: str) -> None:
+    """Wrapped and the Office pulse: launches this week (this PC's history), a task I closed on time, the
+    colleagues' board files counted by the same code from their own launches, and Prakash on leave with his
+    work handed to Ravi (accepted).  Every number on the pages is computed from these rows."""
+    from project_opener.core import models as M
+    from project_opener.core import wrapped as W
+    from project_opener.core.jsonio import append_jsonl
+    from project_opener.core.tasks import TaskStore
+    from project_opener.lan.hub import TeamHub
+    from project_opener.lan.teamboard import TeamBoard
+
+    today = datetime.now().astimezone().date()
+    mon = W.week_start(today)
+
+    def row(day: Any, hh: int, act: bool = True) -> dict[str, Any]:
+        ts = datetime(day.year, day.month, day.day, hh, 5).astimezone().isoformat(timespec="seconds")
+        r = {"ts": ts, "project_id": "", "project": "", "set": "", "count": 8, "ok": 8, "missing": 0}
+        if act:
+            r.update(activity_id=lot7_id, activity="Lot 7 check")
+        return r
+
+    days = [mon - timedelta(days=3)] + [mon + timedelta(days=i) for i in range((today - mon).days + 1)]
+    mine = [row(d, h) for d in days for h in (9, 14)][:-1] + [row(today, 11, act=False)]
+    for r in mine:
+        append_jsonl(data_dir / "history.jsonl", r)
+    tasks = TaskStore(hub_dir / "tasks")
+    closed = M.Task("Issue lot 6 comments", owner=me, due=today.isoformat(), created_by="yokesh")
+    closed.mark_done(me)
+    tasks.save(closed)
+    everyone = tasks.all()
+    for login, name, active in (("yokesh", "Yokesh", [0, 1, 2]), ("priya", "Priya", [0, 1, 2, 3]),
+                                ("ravi", "Ravi", [1, 3])):
+        hist = [row(mon + timedelta(days=i), 10) for i in active if mon + timedelta(days=i) <= today]
+        hub = TeamHub(hub_dir, user=login, display_name=name)
+        hub.host = f"PC-{login.upper()}"
+        TeamBoard(hub).write_week(W.week_stats(hist, everyone, login, today), hidden=False, name=name)
+    leaver = TeamHub(hub_dir, user="prakash", display_name="Prakash")
+    hid = TeamBoard(leaver).create_handover("ravi", (today - timedelta(days=1)).isoformat(),
+                                            (today + timedelta(days=5)).isoformat(), [], [], "Ravi")
+    TeamBoard(TeamHub(hub_dir, user="ravi", display_name="Ravi")).accept(hid, [])
 
 
 def seed_first_run(data_dir: Path) -> None:

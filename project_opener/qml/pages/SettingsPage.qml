@@ -97,6 +97,7 @@ Page {
                 input.onEditingFinished: page.set("email", text)
             }
         }
+        ActionButton { text: "Hand over while on leave"; icon: "airplane-tilt"; onClicked: app.ui.go("handover", ({})) }
     }
 
     // ------------------------------------------------------------ appearance
@@ -244,6 +245,7 @@ Page {
             }
         }
         SwitchRow { label: "Share what I open"; help: "Colleagues see the activity or project you are in, and the register records openings."; checked: page.v("hub_share_pulse") === true; onToggled: (on) => page.set("hub_share_pulse", on) }
+        SwitchRow { label: "Show me on the office board"; help: "Your weekly numbers on Wrapped's board. Off: colleagues do not see them; your own Wrapped stays."; checked: page.v("board_show_me") === true; onToggled: (on) => page.set("board_show_me", on) }
         SwitchRow { label: "Find colleagues on this network"; help: "A small broadcast so the office shows who is in before the hub folder is read."; checked: page.v("presence_udp") === true; onToggled: (on) => page.set("presence_udp", on) }
     }
 

@@ -31,6 +31,9 @@ Window {
         "projects": "pages/ProjectsPage.qml",
         "project": "pages/ProjectPage.qml",
         "hub": "pages/HubPage.qml",
+        "wrapped": "pages/WrappedPage.qml",
+        "office": "pages/OfficePage.qml",
+        "handover": "pages/HandoverPage.qml",
         "updates": "pages/UpdatesPage.qml",
         "settings": "pages/SettingsPage.qml"
     })

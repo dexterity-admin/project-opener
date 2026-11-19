@@ -210,11 +210,12 @@ Page {
                         spacing: 2
                         Row {
                             spacing: 8
-                            Icon { name: model.kind === "mention" ? "at" : model.kind === "task" ? "check-square" : model.kind === "activity" ? "stack" : "folder"; size: 14; anchors.verticalCenter: parent.verticalCenter }
+                            Icon { name: model.kind === "mention" ? "at" : model.kind === "task" ? "check-square" : model.kind === "activity" ? "stack" : model.kind === "handover" ? "airplane-tilt" : "folder"; size: 14; anchors.verticalCenter: parent.verticalCenter }
                             Txt {
                                 // a task note is either an assignment or a "<name> finished <title>" (tasks_api)
                                 text: model.senderName + (model.kind === "mention" ? " mentioned you"
                                       : model.kind === "task" ? (String(model.message).indexOf(" finished ") >= 0 ? " finished a task" : " gave you a task")
+                                      : model.kind === "handover" ? " handed work to you"
                                       : " sent you " + model.title)
                                 strong: true
                                 anchors.verticalCenter: parent.verticalCenter
@@ -230,7 +231,7 @@ Page {
                             HoverHandler { id: msgHover }
                             Tip { visible: msgHover.hovered && model.mentionLogins !== ""; text: model.mentionLogins }
                         }
-                        Txt { width: parent.width; visible: model.kind === "mention" || model.kind === "task"; text: model.title; role: "small"; tone: "faint" }
+                        Txt { width: parent.width; visible: model.kind === "mention" || model.kind === "task" || model.kind === "handover"; text: model.title; role: "small"; tone: "faint" }
                     }
                     Row {
                         id: inAct
@@ -238,8 +239,8 @@ Page {
                         y: 12
                         spacing: 6
                         ActionButton {
-                            visible: model.kind === "project" || model.kind === "activity"
-                            text: "Add to workspace"
+                            visible: model.kind === "project" || model.kind === "activity" || model.kind === "handover"
+                            text: model.kind === "handover" ? "Accept" : "Add to workspace"
                             small: true
                             onClicked: Window.window.safe(function () { app.hub.acceptInbox(model.messageId) })
                         }

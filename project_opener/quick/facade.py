@@ -49,6 +49,7 @@ class AppFacade(QObject):
     chooserRequested = Signal("QStringList")               # paths to add when no activity runs (Explorer/Send to)
     desktopChanged = Signal()
     namesChanged = Signal()
+    from project_opener.quick.team_api import team  # noqa: E402  app.team (Wrapped, Office pulse, Handover)
 
     def __init__(self, data_dir: Path | None = None, parent: QObject | None = None):
         super().__init__(parent)

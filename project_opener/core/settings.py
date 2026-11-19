@@ -94,6 +94,8 @@ class Settings:
     cliq_token_enc: str = ""            # DPAPI blob of the office bot token (shared service account)
     notify_cliq_default: bool = True    # DM me on mention / task / watcher hits when linked
     mail_client: str = "outlook"        # outlook | mailto
+    board_show_me: bool = True          # Weekly Wrapped: my numbers on the office board (opt out here)
+    wrapped_channel: str = ""           # the Cliq channel "Post to Cliq" used last
 
     # ------------------------------------------------------------ persistence
     @classmethod

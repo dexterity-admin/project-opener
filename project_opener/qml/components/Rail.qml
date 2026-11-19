@@ -25,6 +25,9 @@ Rectangle {
           detail: [rail.hubCount > 0 ? rail.hubCount + " in your inbox" : "",
                    rail.tasksOpen > 0 ? rail.tasksOpen + (rail.tasksOpen === 1 ? " task open" : " tasks open") : ""]
                   .filter(function (s) { return s !== "" }).join(" · ") },
+        { route: "office", glyph: "heartbeat", label: "Office pulse", count: 0 },
+        { route: "wrapped", glyph: "trophy", label: "Wrapped", count: 0 },
+        { route: "handover", glyph: "airplane-tilt", label: "Handover", count: app.team.incomingCount },
         { route: "updates", glyph: "arrow-circle-down", label: "Updates", count: 0 },
         { route: "settings", glyph: "sliders-horizontal", label: "Settings", count: 0 }
     ]
