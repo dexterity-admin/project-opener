@@ -51,6 +51,7 @@ class AppFacade(QObject):
     desktopChanged = Signal()
     namesChanged = Signal()
     from project_opener.quick.spacemap_api import spacemap  # noqa: E402  app.spacemap (Space map, built on first read)
+    from project_opener.quick.team_api import team  # noqa: E402  app.team (Wrapped, Office pulse, Handover)
 
     def __init__(self, data_dir: Path | None = None, parent: QObject | None = None):
         super().__init__(parent)

@@ -154,6 +154,9 @@ Item {
             NavRow { glyph: "users-three"; label: "Team Hub"; count: side.hubCount
                      active: side.current === "hub" && side.hubTab !== "tasks"; onClicked: side.navigate("hub", ({})) }
             NavRow { glyph: "circles-three"; label: "Space map"; active: side.current === "spacemap"; onClicked: side.navigate("spacemap", ({})) }
+            NavRow { glyph: "heartbeat"; label: "Office pulse"; active: side.current === "office"; onClicked: side.navigate("office", ({})) }
+            NavRow { glyph: "trophy"; label: "Wrapped"; active: side.current === "wrapped"; onClicked: side.navigate("wrapped", ({})) }
+            NavRow { glyph: "airplane-tilt"; label: "Handover"; count: app.team.incomingCount; active: side.current === "handover"; onClicked: side.navigate("handover", ({})) }
         }
 
         Column {

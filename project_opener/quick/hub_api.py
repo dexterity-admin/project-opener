@@ -693,6 +693,10 @@ class HubApi(ApiBase):
                               revision=int(e.get("revision", 0) or 0))
             added = self.adopt_activity(act, origin, e.get("projects") or [])
             self._toast("Added to your workspace", added.name, "success")
+        elif kind == "handover":
+            team = getattr(self.app, "team", None)          # app.team (quick.team_api) takes it over
+            if team is not None:
+                team.acceptHandover(str(e.get("handover_id", "")))
         else:
             link = str(e.get("link") or "") or (link_for("task", str(e["task_id"])) if e.get("task_id") else "")
             if link:

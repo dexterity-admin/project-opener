@@ -95,6 +95,8 @@ class Settings:
     notify_cliq_default: bool = True    # DM me on mention / task / watcher hits when linked
     mail_client: str = "outlook"        # outlook | mailto
     spacemap_stale_months: int = 12     # Space map: a file not modified for this many months is stale
+    board_show_me: bool = True          # Weekly Wrapped: my numbers on the office board (opt out here)
+    wrapped_channel: str = ""           # the Cliq channel "Post to Cliq" used last
 
     # ------------------------------------------------------------ persistence
     @classmethod
