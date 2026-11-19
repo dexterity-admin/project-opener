@@ -36,6 +36,7 @@ a = Analysis(
         "qtawesome", "PySide6.QtSvg", "PySide6.QtNetwork",
         # v4: the Qt Quick shell, capture/restore (pywin32 + comtypes UIA), process info
         "PySide6.QtQml", "PySide6.QtQuick",
+        "PySide6.QtPdf",                     # the revision diff (core/revdiff.py imports it lazily)
         "win32com", "win32com.client", "pythoncom", "pywintypes", "win32gui", "win32con", "win32api",
         "win32process", "comtypes", "comtypes.client", "psutil",
         # v4 desktop: the Send to shortcut (IShellLink) and the native pieces under ctypes
@@ -50,7 +51,7 @@ a = Analysis(
         "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineQuick",
         "PySide6.QtQuick3D", "PySide6.QtQuickWidgets", "PySide6.QtMultimedia",
         "PySide6.QtMultimediaWidgets", "PySide6.QtCharts", "PySide6.QtDataVisualization", "PySide6.Qt3DCore",
-        "PySide6.Qt3DRender", "PySide6.QtPdf", "PySide6.QtPdfWidgets", "PySide6.QtBluetooth", "PySide6.QtNfc",
+        "PySide6.Qt3DRender", "PySide6.QtPdfWidgets",   # not QtPdf: the revision diff renders PDFs with it "PySide6.QtBluetooth", "PySide6.QtNfc",
         "PySide6.QtSerialPort", "PySide6.QtSensors", "PySide6.QtPositioning", "PySide6.QtLocation",
         "PySide6.QtRemoteObjects", "PySide6.QtScxml", "PySide6.QtStateMachine", "PySide6.QtTextToSpeech",
         "PySide6.QtWebSockets", "PySide6.QtWebChannel", "PySide6.QtHttpServer", "PySide6.QtGraphs",
@@ -60,6 +61,7 @@ a = Analysis(
         "PySide6.QtOpenGLWidgets", "PySide6.QtPrintSupport", "PySide6.QtXml",
         "PySide6.QtConcurrent", "PySide6.QtDBus", "PySide6.QtAsyncio",
         "tkinter", "unittest", "pydoc", "doctest", "xmlrpc", "pytest",
+        "pymupdf", "fitz",                   # dev tools only (test fixtures); PyMuPDF is AGPL and never ships
     ],
     noarchive=False,
     optimize=1,
