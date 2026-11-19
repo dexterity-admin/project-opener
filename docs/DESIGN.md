@@ -327,24 +327,60 @@ Items marked *superseded* are what is built today and are replaced by the 4.0 Dr
   Settings, the person at the foot); the current route is the raised `surface_2` circle; counts only on the
   hub (inbox) and my open tasks.  Labels are tooltips and accessible names.  One page at a time, routed by
   `app.ui.route`; sheets, the palette and toasts float above it.
-- **Today** *(to build; replaces "Home is a stage")*. The approved board, top to bottom:
-  - Title row: "Today", the date as a mono label, then "Start from what's open" and "Park day" (with its
-    shortcut) as outlined pills.
-  - **Hero**, a glass card with the 2 px teal top rule and the breathing mist glow. Left: a mono label
-    ("Parked yesterday 18:42 · P12513 back-check"), the Archivo heading "Pick up where you parked", the
-    person's Park note in Cormorant italic, then **Resume activity** (the screen's one amber control, with
-    the shine) and "Pick another moment" (opens Time travel). Right: the restore plan, with a mono label,
-    the window count, chips for the windows that will reopen (+N), and the line of flow from "Parked
-    18:42" to "Ready". With nothing parked, the hero offers the last activity instead; with no activity
-    at all, it offers New activity.
-  - **Four stats**: Tasks due today (of N open, and who from), Changed overnight (files, with a
-    sparkline), Day streak (days, with squares), Setup saved this week (h m, and how many restores).
-  - **Three panels**, sharing a bottom edge: Time travel this week (a lane per day, a tick per snapshot;
-    hover or click shows when, the window count and the activity, and Restore), Office pulse (avatar,
-    name, current project; green = active, amber = idle, faint = away, on leave names the handover),
-    and Space map / Wrapped (one panel that flips between the bubbles and the week's board, with the
-    "Show me on the office board" switch).
-  - Resume opens through the dock, as below.
+- **Today** *(v1 built 19 Nov 2026 on real data only: `pages/HomePage.qml`, route `home`; data `app.today` =
+  `quick/today_api.py`; replaces "Home is a stage")*. Top to bottom, one gap (14):
+  - Title row: "Today", the date as a mono label beside it, then "Start from what's open" and "New activity"
+    as outlined pills (none while there is no activity: the hero offers them). "Park day" joins when Park exists.
+  - **Hero** (`components/TodayHero.qml`), radius 8, the 2 px `accent` rule on its top edge between the
+    corner arcs, `surface` at 94 % in rich motion (opaque below rich and on the software renderer), and the
+    mist glow (a 520 px radial `mist` field off the top-right corner) breathing 0.96-1.04 over 6 s (rich,
+    window active). Left: a mono label ("Stopped yesterday 18:42 · Lot 7 check", "Opened today 09:12 · …"),
+    the Archivo heading (32/250), one grey line, then the screen's one amber control with the shine and one
+    ghost action. Three cases, never invented:
+    - the resume after a shutdown (`app.activities.resume`): "Pick up where you stopped", the resume line,
+      **Resume activity** (the tick list first, `ResumeSheet`) and Dismiss (the snapshot stays in the checkpoints);
+    - else the last-run activity (newest `last_opened`): "Pick up where you left off", its items and job,
+      **Open activity** (through the dock) and Activity page;
+    - else activities exist but none was opened: "Start where you planned", the first in stage order;
+    - no activity at all: "Nothing to pick up yet", one line, **Start from what's open** and New activity.
+    Right (beside it from 600 px of inner width, under it below): the restore plan: a mono "Restore plan"
+    and "6 windows · 3 apps" (the latest snapshot's restorable entries, `snapshots.latest`), else "Opens"
+    and "5 items in launch order" (the enabled items); pale `surface_2` chips with the kind glyph, two rows
+    at most, the last slot "+N"; the line of flow (`components/FlowPipe.qml`) from "Stopped 14:32" /
+    "Opened 09:12" to "Ready". The Cormorant Park note and "Pick another moment" wait for Park and the
+    Time travel page.
+  - **Four stats** (`components/StatCard.qml`), equal columns, one height: radius 8, a 2 px `border_strong`
+    top rule that turns `accent` on hover, a mono label, the numeral (Archivo 44/250, tabular) with its unit
+    in muted body, then one line or one graphic; the tooltip says what is counted.
+    - Tasks due today: my open tasks due today, "of N open"; the line names who set them ("from Ravi") and
+      the overdue count, else "None overdue" / "Nothing open for you".
+    - Changed overnight: files the folder watchers saw new, changed or gone since 18:00 yesterday (a collapsed
+      alert counts its files); the sparkline is the same per hour. With no folder watcher it shows no numeral:
+      "No folder watcher yet." and Add a watcher (on the hero's activity).
+    - Day streak: days in a row with a launch (`store.history`), counted from today, or from yesterday until
+      today has one; a Saturday or Sunday without a launch neither counts nor breaks it. The squares are the
+      last 14 days (as many as fit), teal = something was launched.
+    - Due this week (in place of "Setup saved", which needs the restore log): my open tasks due today to
+      Sunday, "by Sun 22 Nov · N undated".
+  - **Three panels**, one row, one bottom edge: Time travel (1.35 parts) | Office | Drives on this PC (1 each);
+    below 1000 px Time travel takes the width and Office | Drives share the row under it.
+    - Time travel (`components/TimeTravelPanel.qml`): a lane per day, Monday to today, a tick per checkpoint
+      any activity kept this week, placed by time of day across 07:00-19:00 (widened to the earliest and
+      latest checkpoint, hours labelled under the lanes); the tick's height follows its window count; teal,
+      amber when hovered or picked. The card at the panel's foot shows the picked one (the newest at first):
+      "Tue 16:05", "7 windows · Lot 7 check", and Restore (confirmed; disabled with the reason when nothing
+      in it has a path). No checkpoint this week: one line.
+    - Office and Drives are the existing `OfficePanel` and `DrivesPanel` (radius 8 here) until Office pulse
+      and Space map / Wrapped get their pages.
+  - **Arrival**: the eight blocks rise 60 ms apart (Rise, `components/Rise.qml`); each numeral counts up
+    from 0 after its card's rise (900 ms), then the streak squares pop 45 ms apart; the line of flow draws
+    once. A data refresh never replays it.
+  - **The hero grows into the launch dock** for any activity opened while Today shows (the hero's button,
+    the palette, `--bench`): the arrival completes at once, the plan fades out, the hero's frame grows to the
+    dock's height (420 ms, OutCubic) with the dock's header (icon tile, title, line, ×) and rows coming in
+    from 100 ms, the stats and panels dim to 40 %, the glow, shine and slug stop. The guard measures this one
+    grow (`beginDockMeasure` / `endDockMeasure`); all opened, the dock becomes the activity page 1.2 s later;
+    anything not opened, it stays; Esc or × closes it. A project opened the 3.x way docks in a card above the hero.
 - **Home is a stage** *(superseded by Today)*. The Resume band (the one flat colour field, `field_mint`; Resume is the screen's
   one primary while it waits) and then the current activity in the centre at full size: icon tile and title,
   its line, and the three questions in three columns (what was open, health on this PC, the task and the

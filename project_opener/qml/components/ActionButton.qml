@@ -2,7 +2,8 @@ import QtQuick
 
 // A pill button.  kind: primary (the one filled control on a screen) | outline | ghost | danger (outlined in
 // the negative colour) | link (text only).  Hover steps the fill, press sinks 1 px and scales .985 (90 ms).
-// A disabled button keeps its tooltip, which says why.
+// A disabled button keeps its tooltip, which says why.  `shine` (Today's Resume only, DESIGN.md "Motion"): a soft
+// highlight sweeps across the amber face every 4.5 s, in rich motion while the window is active.
 Item {
     id: btn
     readonly property var tk: app.ui.tokens
@@ -13,6 +14,9 @@ Item {
     property string tooltip: ""
     property bool busy: false
     property bool available: true          // false = shown disabled but still hoverable, so the tooltip says why
+    property bool shine: false
+    property real shineT: 0
+    readonly property bool ambient: shine && Window.window !== null && Window.window.ambientOn === true
     signal clicked()
 
     activeFocusOnTab: enabled && visible
@@ -42,6 +46,25 @@ Item {
         Behavior on color { ColorAnimation { duration: Math.round(140 * app.ui.k); easing.type: Easing.OutCubic } }
         Behavior on scale { NumberAnimation { duration: Math.round(90 * app.ui.k) } }
         Behavior on y { NumberAnimation { duration: Math.round(90 * app.ui.k) } }
+
+        // the sweep is strongest mid-face and fades to nothing at the round ends, so the square clip never shows
+        Item {
+            anchors.fill: parent
+            visible: btn.shine && btn.primary && btn.shineT > 0
+            clip: true
+            Rectangle {
+                width: parent.width * 0.4
+                height: parent.height
+                x: -width + btn.shineT * (parent.width + width)
+                opacity: Math.sin(Math.PI * btn.shineT) * 0.8
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: "#00FFFFFF" }
+                    GradientStop { position: 0.5; color: "#B3FFFFFF" }
+                    GradientStop { position: 1; color: "#00FFFFFF" }
+                }
+            }
+        }
 
         Row {
             id: row
@@ -85,6 +108,14 @@ Item {
     Keys.onSpacePressed: if (btn.available) btn.clicked()
     Keys.onReturnPressed: if (btn.available) btn.clicked()
     Keys.onEnterPressed: if (btn.available) btn.clicked()
+
+    SequentialAnimation on shineT {
+        running: btn.shine && btn.primary && btn.visible && btn.ambient
+        loops: Animation.Infinite
+        PauseAnimation { duration: 3300 }
+        NumberAnimation { from: 0; to: 1; duration: 1200; easing.type: Easing.Bezier; easing.bezierCurve: [0.2, 0.7, 0.2, 1, 1, 1] }
+        onRunningChanged: if (!running) btn.shineT = 0
+    }
 
     Tip {
         visible: btn.tooltip !== "" && mouse.containsMouse

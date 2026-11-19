@@ -151,6 +151,10 @@ class WatchersApi(ApiBase):
     def unreadCount(self) -> int:  # noqa: N802
         return sum(1 for r in self._alerts.rows if r.get("unread"))
 
+    def alert_rows(self) -> list[dict[str, Any]]:
+        """The delivered alerts as stored (``WatchEvent`` dicts plus ``read``), newest first: Today's count."""
+        return list(self._alert_raw)
+
     # ------------------------------------------------------------ helpers
     @property
     def ctx(self) -> Any:

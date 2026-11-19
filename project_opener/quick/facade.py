@@ -34,6 +34,7 @@ from project_opener.quick.capture_api import CaptureApi
 from project_opener.quick.hub_api import HubApi
 from project_opener.quick.settings_api import SettingsApi
 from project_opener.quick.tasks_api import TasksApi
+from project_opener.quick.today_api import TodayApi
 from project_opener.quick.ui_state import UiState
 from project_opener.quick.watchers_api import WatchersApi
 from project_opener.ui.context import AppContext
@@ -64,6 +65,7 @@ class AppFacade(QObject):
         self._hub = HubApi(self)
         self._tasks = TasksApi(self)
         self._watchers = WatchersApi(self)
+        self._today = TodayApi(self)
         self._desktop: QObject | None = None
         self.ctx.toast.connect(lambda t, b, lvl: self.toast.emit(t, b, lvl))
         self.ctx.toast_action.connect(self._ctx_toast_action)
@@ -98,6 +100,10 @@ class AppFacade(QObject):
     @Property(QObject, constant=True)
     def watchers(self) -> WatchersApi:
         return self._watchers
+
+    @Property(QObject, constant=True)
+    def today(self) -> TodayApi:
+        return self._today
 
     @Property(QObject, notify=desktopChanged)
     def desktop(self) -> QObject | None:
@@ -168,7 +174,8 @@ class AppFacade(QObject):
 
     # -------------------------------------------------------- lifecycle
     def _apis(self) -> list[Any]:
-        return [self._ui, self._activities, self._settings, self._capture, self._hub, self._tasks, self._watchers]
+        return [self._ui, self._activities, self._settings, self._capture, self._hub, self._tasks, self._watchers,
+                self._today]
 
     @Slot()
     def start(self) -> None:

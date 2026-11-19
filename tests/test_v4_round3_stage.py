@@ -236,7 +236,7 @@ def _read(rel: str) -> str:
 
 def test_no_title_row_action_repeats_the_empty_block():
     home = _read("pages/HomePage.qml")
-    assert 'visible: home.n > 0              // with no activities the empty block offers it' in home
+    assert 'visible: app.activities.activityCount > 0       // with none, the hero offers it' in home   # Today
     acts = _read("pages/ActivitiesPage.qml")
     assert 'visible: app.capture.runningId === "" && rep.count > 0' in acts
     projects = _read("pages/ProjectsPage.qml")
@@ -244,10 +244,9 @@ def test_no_title_row_action_repeats_the_empty_block():
 
 
 def test_empty_states_are_one_line_and_framed():
-    home = _read("pages/HomePage.qml")
-    assert 'Txt { text: "No activities yet."; role: "heading" }' in home
-    assert "height: emptyCol.implicitHeight + 2 * pad" in home                   # sized to its content
-    assert "Open what a task needs" not in home
+    hero = _read("components/TodayHero.qml")                                    # Today: the hero's own empty state
+    assert '"Nothing to pick up yet"' in hero and "restHeight: padY + Math.max(left.implicitHeight" in hero
+    assert "Open what a task needs" not in _read("pages/HomePage.qml")
     assert 'line: "No activities yet."' in _read("pages/ActivitiesPage.qml")
     projects = _read("pages/ProjectsPage.qml")
     assert '"No projects yet."' in projects and "A project holds" not in projects

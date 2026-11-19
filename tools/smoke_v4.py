@@ -766,7 +766,8 @@ def main() -> int:
         STEP[0] = tag
         facade.ui.go(real, payload)
         flush_deletes()
-        pump(app, 700)
+        # Today's arrival: the blocks rise 60 ms apart, the numerals count up after, the streak squares pop
+        pump(app, 2600 if real == "home" else 700)
         page = win.property("pageItem")
         if real == "hub" and payload.get("tab") and page is not None and facade.hub.configured \
                 and page.property("tab") != payload["tab"]:

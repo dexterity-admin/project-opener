@@ -1062,7 +1062,7 @@ class ActivitiesApi(ApiBase):
             count = snap.open_count if snap and snap.entries else len(act.enabled_items)
             title, text = T.resume_text(act.name, count, when, proj.spine if proj else "")
             new = {"activityId": act.id, "title": title, "count": count, "takenAt": T.clock(when), "text": text,
-                   "name": act.name}
+                   "name": act.name, "takenIso": when}
         if new != self._resume:
             self._resume = new
             self.resumeChanged.emit()
