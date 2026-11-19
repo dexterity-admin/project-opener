@@ -34,11 +34,14 @@ Rectangle {
         { route: "settings", glyph: "sliders-horizontal", label: "Settings", count: 0 }
     ]
 
+    // 4.0 added routes (Time travel, Space map, Office pulse, Wrapped, Handover): on a short window (the 660 px
+    // minimum) the rail tightens its spacing so the last route never slides under the person at the foot.
+    readonly property bool compact: height < 800
     Column {
         anchors.top: parent.top
-        anchors.topMargin: 20
+        anchors.topMargin: rail.compact ? 12 : 20
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: 8
+        spacing: rail.compact ? 1 : 8
 
         Image {                       // the mark: the app icon (accent squircle, folder, arrow)
             width: 32
@@ -50,14 +53,14 @@ Rectangle {
             smooth: true
             Accessible.name: "Project Opener"
         }
-        Item { width: 1; height: 14 }
+        Item { width: 1; height: rail.compact ? 4 : 14 }
 
         RailButton {
             glyph: "magnifying-glass"
             label: "Search (Ctrl+K)"
             onClicked: rail.search()
         }
-        Item { width: 1; height: 4 }
+        Item { width: 1; height: rail.compact ? 0 : 4 }
 
         Repeater {
             model: rail.routes
@@ -78,7 +81,7 @@ Rectangle {
 
     Avatar {
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 20
+        anchors.bottomMargin: rail.compact ? 10 : 20
         anchors.horizontalCenter: parent.horizontalCenter
         initials: app.displayName.length > 0 ? app.displayName.charAt(0).toUpperCase() : "?"
         hue: rail.tk.accent
