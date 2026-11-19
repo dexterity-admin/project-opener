@@ -85,7 +85,7 @@ Page {
                 width: 220
                 label: "Role"
                 text: page.v("role") || ""
-                placeholder: "Checker"
+                placeholder: "Optional"
                 input.onEditingFinished: page.set("role", text)
             }
             Field {
@@ -93,7 +93,7 @@ Page {
                 label: "E-mail"
                 help: "The Cliq bot finds you by it."
                 text: page.v("email") || ""
-                placeholder: "name@dexterity.in"
+                placeholder: "Your work e-mail"
                 input.onEditingFinished: page.set("email", text)
             }
         }
@@ -126,29 +126,6 @@ Page {
                     onPicked: (val) => page.set("density", val)
                 }
             }
-        }
-        Column {
-            spacing: 6
-            Txt { text: "Accent"; strong: true }
-            Row {
-                spacing: 8
-                Repeater {
-                    model: ["#0E7C5B", "#0F766E", "#1D5FB8", "#4F46A3", "#A3285B", "#B4452E", "#8A5A00", "#3B6A1F", "#5C5F66", "#1A201D"]
-                    delegate: Rectangle {
-                        required property var modelData
-                        readonly property bool on: String(page.v("accent")).toUpperCase() === modelData
-                        width: 28; height: 28; radius: 14
-                        color: modelData
-                        border.width: on ? 3 : 1
-                        border.color: on ? page.tk.text : page.tk.border_strong
-                        Accessible.role: Accessible.RadioButton
-                        Accessible.name: "Accent " + modelData
-                        Accessible.checked: on
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: page.set("accent", parent.modelData) }
-                    }
-                }
-            }
-            Txt { text: "The accent marks the one main action, focus and selection; colour on data stays the projects' own."; role: "small"; tone: "faint" }
         }
         Column {
             spacing: 6
@@ -231,8 +208,8 @@ Page {
         }
         Row {
             spacing: 12
-            Field { id: varName; width: 200; label: "Variable"; placeholder: "{SERVER_ROOT}" }
-            Field { id: varValue; width: 340; label: "On this PC"; placeholder: "\\\\nas01\\Project"; onAccepted: addVar.clicked() }
+            Field { id: varName; width: 200; label: "Variable"; placeholder: "A name in braces" }
+            Field { id: varValue; width: 340; label: "On this PC"; placeholder: "Its path on this PC"; onAccepted: addVar.clicked() }
             ActionButton {
                 id: addVar
                 y: 25
@@ -256,7 +233,7 @@ Page {
                 width: Math.min(520, secHub.width - 200)
                 label: "Hub folder"
                 text: page.v("hub_path") || ""
-                placeholder: "\\\\nas01\\Project\\_ProjectOpenerHub"
+                placeholder: "Paste the shared folder's path, or Browse"
                 input.onEditingFinished: page.set("hub_path", text)
             }
             ActionButton {
@@ -413,7 +390,7 @@ Page {
         Connections { target: app.settings; function onCliqTested(ok, message) { secCliq.testOk = ok; secCliq.testText = message } }
         Row {
             spacing: 16
-            Field { width: 220; label: "Bot"; placeholder: "projectopener"; text: page.v("cliq_bot") || ""; input.onEditingFinished: page.set("cliq_bot", text) }
+            Field { width: 220; label: "Bot"; placeholder: "The bot's unique name"; text: page.v("cliq_bot") || ""; input.onEditingFinished: page.set("cliq_bot", text) }
             Field { width: 320; label: "Cliq address"; text: page.v("cliq_api_base") || ""; input.onEditingFinished: page.set("cliq_api_base", text) }
         }
         Row {

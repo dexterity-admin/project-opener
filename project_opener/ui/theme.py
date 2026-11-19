@@ -1,12 +1,14 @@
-"""Design tokens and the generated Qt stylesheet ("Aurora, disciplined").
+"""Design tokens and the generated Qt stylesheet (4.0 "Drafted Glass", the Dexterity brand).
 
 The rules live in docs/DESIGN.md.  Everything visual derives from ``Tokens`` so
-a theme change (dark/light/accent/density) is one call: ``apply_theme(app, ...)``.
+a theme change (dark/light/density) is one call: ``apply_theme(app, ...)``.
 Widgets that need colours at paint time read them from ``current()``.
 
 Old token names are kept (bg, surface_2, text_muted, accent_soft, ...) so every
-widget keeps working; new roles (pill_*, field_*, radius_card, control_h) were
-added for the 3.1 design.
+widget keeps working.  4.0 adds the brand roles: ``teal`` (graphics, rules, progress),
+``teal_deep``, ``action`` (amber: the one thing to press per screen), ``mist`` and ``grid``.
+The colours are the brand's and fixed: the ``accent`` argument is accepted for old callers
+and ignored (the 3.x accent picker is retired).
 """
 from __future__ import annotations
 
@@ -21,15 +23,21 @@ from project_opener import constants as C
 
 log = logging.getLogger(__name__)
 
-FONT_FAMILY = "Onest"
-DEFAULT_ACCENT = "#0E7C5B"
+FONT_FAMILY = "Instrument Sans"         # body, nav, rows (brand body face)
+DISPLAY_FAMILY = "Archivo"              # page titles, the hero, stat numerals (light weights)
+MONO_FAMILY = "JetBrains Mono"          # section labels, annotations, counts
+NOTE_FAMILY = "Cormorant Garamond"      # a person's own note (italic); never UI text
+DEFAULT_ACCENT = "#1C7680"              # brand teal-ink: text, links, fills that carry white text
 
-# Ten flat accents, each ≥ 4.5:1 with white text (checked with tools/check_contrast.py).
-ACCENTS: list[tuple[str, str]] = [
-    ("#0E7C5B", "Aurora green"), ("#0F766E", "Teal"), ("#1D5FB8", "Blue"), ("#4F46A3", "Iris"),
-    ("#A3285B", "Berry"), ("#B4452E", "Terracotta"), ("#8A5A00", "Amber"), ("#3B6A1F", "Olive"),
-    ("#5C5F66", "Graphite"), ("#1A201D", "Ink"),
-]
+# The brand fixes the colour; kept as a list for old callers and tools/check_contrast.py.
+ACCENTS: list[tuple[str, str]] = [(DEFAULT_ACCENT, "Dexterity teal")]
+
+# Brand palette (U:\Vikram\Dexterity-Brand\tokens\dexterity.css, --dx-*).
+TEAL = "#2A8C98"
+TEAL_DEEP = "#1E6066"
+INK = "#132B2E"
+AMBER = "#F7AF44"
+AMBER_INK = "#9A5B00"
 
 
 @dataclass(frozen=True)
@@ -75,9 +83,18 @@ class Tokens:
     field_blush: str
     field_ink: str
     shadow: str
-    # shape
-    radius: int = 16          # cards
-    radius_sm: int = 10       # inputs, menus
+    # 4.0 brand roles (docs/DESIGN.md "Colour")
+    teal: str                 # graphics: rules, progress, ticks, the line of flow (never body text)
+    teal_deep: str
+    action: str               # amber: the one thing to press per screen
+    action_hover: str
+    action_fg: str            # ink on amber
+    action_ink: str           # amber as text
+    mist: str                 # the one ground glow
+    grid: str                 # isometric hairlines, #AARRGGBB
+    # shape (drawn, not bubbly)
+    radius: int = 8           # cards
+    radius_sm: int = 6        # inputs, menus
     control_h: int = 34       # buttons / inputs height; pills use control_h / 2
     pad: int = 20             # card padding
     gap: int = 16
@@ -125,37 +142,48 @@ def tint(hex_color: str, amount: float, dark: bool) -> str:
 
 
 def build_tokens(dark: bool, accent: str = DEFAULT_ACCENT, density: str = "comfortable") -> Tokens:
-    accent = accent if QColor(accent).isValid() else DEFAULT_ACCENT
-    pad = 20 if density == "comfortable" else 14
+    del accent                       # the brand fixes the colour (docs/DESIGN.md "Colour")
+    pad = 18 if density == "comfortable" else 12
     if dark:
-        acc = _mix(accent, "#FFFFFF", 0.35) if contrast(accent, "#171B19") < 4.5 else accent
+        # Ink-teal, not navy and not neutral grey.  Hairlines are white at 11 % / 20 %, flattened onto
+        # the surface so QSS (which has no alpha blending over the ground) draws the same line.
+        surface = "#152B2F"
+        acc = "#4FB3BE"
         return Tokens(
             name="dark", dark=True,
-            bg="#0F1211", bg_alt="#0F1211", surface="#171B19", surface_2="#202623", surface_3="#2A312D",
-            border="#262D29", border_strong="#3A443E",
-            text="#ECF0ED", text_muted="#A8B3AD", text_faint="#8A958E",
-            accent=acc, accent_hover=_mix(acc, "#FFFFFF", 0.12), accent_soft=_mix(acc, "#171B19", 0.78),
-            accent_fg=readable_on(acc),
+            bg="#0F2124", bg_alt="#0F2124", surface=surface, surface_2="#1C363A", surface_3="#24434A",
+            border=_mix(surface, "#FFFFFF", 0.11), border_strong=_mix(surface, "#FFFFFF", 0.20),
+            text="#EAF4F5", text_muted="#B5C9CB", text_faint="#8FA7AA",
+            accent=acc, accent_hover=_mix(acc, "#FFFFFF", 0.12), accent_soft=_mix(acc, surface, 0.78),
+            accent_fg="#0F2124",
             success="#3FC07A", warning="#F5B73B", danger="#F07070", info="#6FB1FF",
             pill_ok_bg="#172A1D", pill_ok_ink="#3FC07A", pill_warn_bg="#2E2410", pill_warn_ink="#F5B73B",
             pill_bad_bg="#2C1A1A", pill_bad_ink="#F07070", pill_info_bg="#14243A", pill_info_ink="#6FB1FF",
-            pill_neutral_bg="#202623", pill_neutral_ink="#A8B3AD",
-            field_mint="#132A21", field_sky="#13212E", field_blush="#2C1C20", field_ink="#ECF0ED",
-            shadow="rgba(0,0,0,0.45)", pad=pad,
+            pill_neutral_bg="#1C363A", pill_neutral_ink="#B5C9CB",
+            field_mint="#16343A", field_sky="#13212E", field_blush="#2C1C20", field_ink="#EAF4F5",
+            shadow="rgba(0,0,0,0.45)",
+            teal="#3FA3AF", teal_deep=TEAL_DEEP, action=AMBER, action_hover=_mix(AMBER, "#FFFFFF", 0.12),
+            action_fg=INK, action_ink=AMBER, mist="#1C363A", grid="#0AFFFFFF",
+            pad=pad,
         )
+    surface = "#FFFFFF"
     return Tokens(
         name="light", dark=False,
-        bg="#F5F8F6", bg_alt="#F5F8F6", surface="#FFFFFF", surface_2="#EEF3F0", surface_3="#E4EBE7",
-        border="#E3E9E5", border_strong="#C9D3CD",
-        text="#141A17", text_muted="#5B6660", text_faint="#66706A",
-        accent=accent, accent_hover=_mix(accent, "#000000", 0.14), accent_soft=_mix(accent, "#FFFFFF", 0.84),
-        accent_fg=readable_on(accent),
+        bg="#F6FAFA", bg_alt="#F6FAFA", surface=surface, surface_2="#E8F2F3", surface_3="#D6E8EA",
+        # brand hairlines (deep teal at 16 % / 30 %) flattened onto white
+        border=_mix(surface, TEAL_DEEP, 0.16), border_strong=_mix(surface, TEAL_DEEP, 0.30),
+        text=INK, text_muted="#4C6366", text_faint="#5A7073",
+        accent=DEFAULT_ACCENT, accent_hover=_mix(DEFAULT_ACCENT, "#000000", 0.14),
+        accent_soft=_mix(DEFAULT_ACCENT, "#FFFFFF", 0.86), accent_fg="#FFFFFF",
         success="#1F7A4D", warning="#92400E", danger="#B42318", info="#175CD3",
         pill_ok_bg="#DCFAE5", pill_ok_ink="#04250E", pill_warn_bg="#FFF4D6", pill_warn_ink="#7A3E00",
         pill_bad_bg="#FEE4E2", pill_bad_ink="#7A1C14", pill_info_bg="#E0ECFF", pill_info_ink="#0B3A8C",
-        pill_neutral_bg="#EEF3F0", pill_neutral_ink="#3A443E",
-        field_mint="#DDF3EA", field_sky="#DCEBF7", field_blush="#FCE4E6", field_ink="#141A17",
-        shadow="rgba(16,24,20,0.12)", pad=pad,
+        pill_neutral_bg="#E8F2F3", pill_neutral_ink="#314548",
+        field_mint="#E3F1F2", field_sky="#DCEBF7", field_blush="#FCE4E6", field_ink=INK,
+        shadow="rgba(19,43,46,0.12)",
+        teal=TEAL, teal_deep=TEAL_DEEP, action=AMBER, action_hover=_mix(AMBER, "#000000", 0.08),
+        action_fg=INK, action_ink=AMBER_INK, mist="#E3F1F2", grid="#0D1E6066",
+        pad=pad,
     )
 
 
@@ -197,7 +225,8 @@ def pill_colors(t: Tokens, level: str) -> tuple[str, str]:
 
 # ------------------------------------------------------------------- fonts
 def load_fonts() -> None:
-    """Register the bundled Onest variable font once per process."""
+    """Register the bundled fonts (Instrument Sans, Archivo, JetBrains Mono, Cormorant Garamond italic,
+    and Onest for 3.x callers) once per process."""
     global _fonts_loaded
     if _fonts_loaded:
         return
@@ -221,8 +250,9 @@ def preferred_font() -> str:
 
 
 def display_font() -> str:
-    """One family in the app (Operate mode); kept for callers."""
-    return preferred_font()
+    """Archivo (page titles, the hero, numerals); the body face where it is missing."""
+    load_fonts()
+    return DISPLAY_FAMILY if DISPLAY_FAMILY in set(QFontDatabase.families()) else preferred_font()
 
 
 def ui_font(size_pt: float | None = None, weight: int = 400, tabular: bool = False) -> QFont:

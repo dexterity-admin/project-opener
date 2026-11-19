@@ -5,7 +5,7 @@ import QtQuick.Controls.Basic as C
 // the project page uses.  Every row is laid out from the first frame, queued rows at 35 % (juror D2-2: the
 // card is never an empty frame); a row comes to full strength as its launch starts, its pill reads Opening…
 // while the item is tried, then settles.  A 3 px progress line under the heading.  Footer: "9 opened · 2 not
-// opened · 0 skipped · 3.4 s", "Open the 2 again" when something did not open, the task line on the right.
+// opened · 3.4 s" (no zero facts), "Open the 2 again" when something did not open, the task line on the right.
 // `record`: the same rows as the activity page's "Opened at 09:12" column (static, no arrival).
 // `embedded`: on Home the centre scene keeps its own title row through the grow (the shared element), so the
 // dock shows only its line, the progress and the rows.

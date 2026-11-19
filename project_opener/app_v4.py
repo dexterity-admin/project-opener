@@ -6,8 +6,8 @@ Order matters (spikes/quick/REPORT.md):
 3. ``QApplication`` (not QGuiApplication: the tray and native dialogs need QtWidgets);
 4. single instance on ``SINGLE_INSTANCE_KEY_V4`` (forward and exit when one runs);
 5. the facade, the QML engine with the context property ``app``, ``qml/Main.qml``;
-6. the desktop integration (pill, hotkeys, tray), the socket, the CLI commands;
-7. ``facade.start`` on the next turn of the event loop.
+6. the socket, then the window is shown and ``facade.start`` runs 50 ms later;
+7. once the first frame is on screen: the desktop integration (pill, hotkeys, tray), then the CLI commands.
 
 Source runs without ``--data-dir`` use a separate data folder (``ProjectOpener-v4dev``
 next to the real one, seeded once from it) so a development run never migrates the
@@ -202,7 +202,6 @@ def main(args: Any) -> int:
 
     desktop = DesktopIntegration(facade, engine, window)
     facade.set_desktop(desktop.api)
-    desktop.start()
 
     def show_window() -> None:
         window.show()
@@ -211,11 +210,34 @@ def main(args: Any) -> int:
 
     facade.showWindowRequested.connect(show_window)
     server.command.connect(facade.handle_command)
-    if not (args.minimised or facade.ctx.settings.start_minimised):
+    # Second stage: the tray, the pill (a QML window of its own), the picker and the hotkeys start once the
+    # main window's first frame is on screen, not before it (they cost the first frame several hundred ms).
+    # The CLI commands follow them, as before, so a --snapshot or a Send to still finds the desktop pieces.
+    second_stage_done = [False]
+
+    def second_stage() -> None:
+        if second_stage_done[0]:
+            return
+        second_stage_done[0] = True
+        try:
+            window.frameSwapped.disconnect(on_first_frame)
+        except (RuntimeError, TypeError):
+            pass
+        desktop.start()
+        for cmd in cmds:
+            QTimer.singleShot(400, lambda c=cmd: facade.handle_command(c))
+
+    def on_first_frame() -> None:                  # queued to the GUI thread: the frame has been swapped
+        QTimer.singleShot(0, second_stage)
+
+    minimised = bool(args.minimised or facade.ctx.settings.start_minimised)
+    if minimised:
+        QTimer.singleShot(0, second_stage)         # no window, no frame: the tray is the app
+    else:
+        window.frameSwapped.connect(on_first_frame, Qt.ConnectionType.QueuedConnection)
+        QTimer.singleShot(2000, second_stage)      # a frame that never comes (an occluded window) still starts it
         window.show()
     QTimer.singleShot(50, facade.start)
-    for cmd in cmds:
-        QTimer.singleShot(400, lambda c=cmd: facade.handle_command(c))
     if args.quit_after:
         QTimer.singleShot(int(args.quit_after), app.quit)
 

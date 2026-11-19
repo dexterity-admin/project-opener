@@ -64,7 +64,7 @@ Sheet {
         visible: s.mode === "announce"
         width: parent.width
         label: "Title"
-        placeholder: "Z: drive moves on Friday"
+        placeholder: "What changes, in a few words"
     }
     MentionField {
         id: desc

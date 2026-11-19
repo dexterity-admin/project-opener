@@ -15,7 +15,6 @@ from typing import Any
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 
 from project_opener import constants as C
-from project_opener.core import mail
 from project_opener.core import mentions as MN
 from project_opener.core import models as M
 from project_opener.core.tasks import TaskStore, due_text, is_overdue, parse_due, sort_by_due, when_text
@@ -52,6 +51,12 @@ class TasksApi(ApiBase):
         self._on_hub = False
         self._refreshing = False
         self._timer: QTimer | None = None
+        # Local writes a refresh must not undo (release check, two PCs on one hub): a refresh that started
+        # before a write landed reads the old file set, and applying it dropped a new task, or put an edited
+        # one back to its old title, until the next refresh.  id -> (task, or None for a removal; the refresh
+        # generation when the write landed, None while it is in flight).
+        self._gen = 0
+        self._pending: dict[str, tuple[M.Task | None, int | None]] = {}
 
     @Property(QObject, constant=True)
     def mine(self) -> DictListModel:
@@ -135,10 +140,13 @@ class TasksApi(ApiBase):
         if self._refreshing:
             return
         self._refreshing = True
+        self._gen += 1
+        gen = self._gen
         hub = self.ctx.hub
         local = self.local_root()
+        was_on_hub = self._on_hub
 
-        def work() -> tuple[Path, bool, list[M.Task], int]:
+        def work() -> tuple[Path, bool, list[M.Task], int, set[str]]:
             moved = 0
             if hub.configured and hub.reachable():
                 root = hub.sub("tasks")
@@ -146,22 +154,51 @@ class TasksApi(ApiBase):
                 store = TaskStore(root)
                 if local.exists():
                     moved = store.adopt_local(local)
-                return root, True, store.all(), moved
-            return local, False, TaskStore(local).all(), 0
+                return root, True, store.all(), moved, store.unreadable
+            ls = TaskStore(local)
+            return local, False, ls.all(), 0, ls.unreadable
 
         def done(res: tuple[Path, bool, list[M.Task], int]) -> None:
             self._refreshing = False
-            root, on_hub, tasks, moved = res
+            root, on_hub, tasks, moved, unreadable = res
+            if unreadable and root == self._root:
+                # listed but not readable this once (another PC rewriting it): keep the copy last read
+                have = {t.id for t in tasks}
+                tasks = tasks + [self._tasks[i] for i in unreadable if i in self._tasks and i not in have]
+            if was_on_hub and not on_hub and hub.configured:
+                # the hub did not answer this once: keep the team's tasks as last read (with this PC's own
+                # unsynced ones) instead of emptying every list until the next refresh
+                held = {t.id: t for t in self._tasks.values()}
+                held.update({t.id: t for t in tasks})
+                tasks = list(held.values())
             self._root, self._on_hub = root, on_hub
             if moved:
                 self._toast("Tasks moved to the Team Hub", f"{moved} task{'s' if moved != 1 else ''}", "info")
-            self._apply(tasks)
+            self._apply(self._overlay(tasks, gen))
 
         def fail(exc: Exception) -> None:
             self._refreshing = False
             log.warning("task refresh failed: %s", exc)
 
         self.app.run_async(work, done, fail)
+
+    def _overlay(self, tasks: list[M.Task], gen: int) -> list[M.Task]:
+        """``tasks`` as read by refresh ``gen``, with this PC's writes that refresh may predate laid over it."""
+        by = {t.id: t for t in tasks}
+        for tid, (task, landed) in list(self._pending.items()):
+            if landed is not None and gen > landed:
+                del self._pending[tid]               # read after the write landed: the file is the truth
+                continue
+            if task is None:
+                by.pop(tid, None)
+            else:
+                by[tid] = task
+        return list(by.values())
+
+    def _landed(self, tid: str, task: M.Task | None) -> None:
+        cur = self._pending.get(tid)
+        if cur is not None and cur[0] is task:      # a later write of the same task waits for its own
+            self._pending[tid] = (task, self._gen)
 
     def _apply(self, tasks: list[M.Task], detect: bool = True) -> None:
         self._tasks = {t.id: t for t in tasks}
@@ -194,15 +231,32 @@ class TasksApi(ApiBase):
         if not link:
             return "", ""
         store = self.ctx.store
+        # a task made before its activity was published carries no published id; the published record keeps
+        # the publisher's own id, so another PC's clone still finds it (release check: two PCs on one hub)
+        pid = link.published_id or self._published_id_of(link.kind, link.local_id)
         if link.kind == "activity":
             act = store.activity(link.local_id) if link.local_id else None
-            if act is None and link.published_id:
-                act = next((a for a in store.activities if a.origin.published_id == link.published_id), None)
+            if act is None and pid:
+                act = next((a for a in store.activities if a.origin.published_id == pid), None)
             return (act.id if act else ""), link.title or (act.name if act else "")
         proj = store.get(link.local_id) if link.local_id else None
-        if proj is None and link.published_id:
-            proj = next((p for p in store.projects if p.origin.published_id == link.published_id), None)
+        if proj is None and pid:
+            proj = next((p for p in store.projects if p.origin.published_id == pid), None)
         return (proj.id if proj else ""), link.title or (proj.title if proj else "")
+
+    def _published_id_of(self, kind: str, source_id: str) -> str:
+        """The hub id of the published activity / project whose publisher's own id is ``source_id``."""
+        if not source_id:
+            return ""
+        try:
+            pubs = self.app.hub._pubs
+        except AttributeError:
+            return ""
+        for pid, pub in list(pubs.items()):
+            obj = getattr(pub, "activity" if kind == "activity" else "project", None)
+            if obj is not None and getattr(obj, "id", "") == source_id:
+                return pid
+        return ""
 
     def _row(self, t: M.Task) -> dict[str, Any]:
         attach_id, attach_title = self._attach(t)
@@ -235,6 +289,7 @@ class TasksApi(ApiBase):
     def _put(self, task: M.Task) -> None:
         """Show at once, write on the pool."""
         self._tasks[task.id] = task
+        self._pending[task.id] = (task, None)
         if self._known is not None:
             self._known[task.id] = (task.owner.lower(), task.done_at)
         self._rebuild()
@@ -251,7 +306,12 @@ class TasksApi(ApiBase):
                 local.save(copy)             # hub unreachable: keep it here; it moves on the next refresh
                 return False
 
-        self.app.run_async(work, None, lambda e: self._toast("Task not saved", str(e), "error"))
+        def failed(e: Exception) -> None:
+            if self._pending.get(task.id, (None, None))[0] is task:
+                del self._pending[task.id]
+            self._toast("Task not saved", str(e), "error")
+
+        self.app.run_async(work, lambda _ok: self._landed(task.id, task), failed)
 
     def _notify(self, logins: list[str], text: str, task: M.Task, kind: str = "task") -> None:
         logins = [lg for lg in logins if lg and lg.lower() != self.me.lower()]
@@ -362,17 +422,20 @@ class TasksApi(ApiBase):
     def remove(self, task_id: str) -> None:
         if self._tasks.pop(task_id, None) is None:
             return
+        self._pending[task_id] = (None, None)
         if self._known is not None:
             self._known.pop(task_id, None)
         self._rebuild()
         store = self._store()
-        self.app.run_async(lambda: store.remove(task_id))
+        self.app.run_async(lambda: store.remove(task_id), lambda _r: self._landed(task_id, None),
+                           lambda _e: self._pending.pop(task_id, None))
 
     @Slot(str)
     def mailTask(self, task_id: str) -> None:  # noqa: N802
         task = self._tasks.get(task_id)
         if task is None:
             return
+        from project_opener.core import mail  # on first use: not needed for the first frame
         draft = mail.task_draft(task, task_link(task.id), self.name_for(task.owner),
                                 self.name_for(task.done_by) if task.done_by else "")
         client = self.ctx.settings.mail_client
@@ -386,11 +449,9 @@ class TasksApi(ApiBase):
     @Slot(str, str, result=str)
     def lineFor(self, kind: str, local_id: str) -> str:  # noqa: N802
         """"Task: back-check lot 7, due Fri" for a card or the dock footer; "" when none."""
-        store = self.ctx.store
-        obj: Any = store.activity(local_id) if kind == "activity" else store.get(local_id)
-        pid = obj.origin.published_id if obj is not None else ""
+        # the same resolution as the card's open tasks (``_attach``), so the two never disagree
         hits = [t for t in self._tasks.values() if not t.done and t.link and t.link.kind == kind
-                and ((local_id and t.link.local_id == local_id) or (pid and t.link.published_id == pid))]
+                and local_id and self._attach(t)[0] == local_id]
         if not hits:
             return ""
         first = sort_by_due(hits)[0]

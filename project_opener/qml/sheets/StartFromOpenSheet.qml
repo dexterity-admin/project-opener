@@ -46,7 +46,7 @@ Sheet {
     Row {
         width: parent.width
         spacing: 16
-        Field { id: nameField; width: (parent.width - 16) / 2; label: "Name"; placeholder: "Lot 8 check" }
+        Field { id: nameField; width: (parent.width - 16) / 2; label: "Name"; help: nameField.text.trim() === "" ? "Name it to start." : "" }
         ChoiceField {
             id: job
             width: (parent.width - 16) / 2

@@ -72,11 +72,11 @@ Sheet {
         if (ok) s.close()
     }
 
-    Field { id: titleField; width: parent.width; label: "Task"; placeholder: "Back-check lot 7"; onAccepted: s.accept() }
+    Field { id: titleField; width: parent.width; label: "Task"; help: titleField.text.trim() === "" ? "Name the task to create it." : ""; onAccepted: s.accept() }
     Row {
         width: parent.width
         spacing: 16
-        ForField { id: who; width: (parent.width - 16) / 2; label: "Owner"; help: "Empty: you." }
+        ForField { id: who; width: (parent.width - 16) / 2; label: "Owner"; help: "Leave empty to keep it yourself." }
         ChoiceField {
             id: due
             width: (parent.width - 16) / 2

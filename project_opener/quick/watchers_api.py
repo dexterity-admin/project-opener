@@ -89,11 +89,13 @@ def since_text(status: str, since_iso: str, seen_by: int) -> str:
     return T.join_facts(first, f"seen by {T.plural(seen_by, 'PC')}" if seen_by else "")
 
 
-def notify_text(n: M.Notify) -> str:
+def notify_text(n: M.Notify, cliq_linked: bool = True) -> str:
+    """"Toast · @priya · Cliq DM"; while this PC has not linked Cliq, the DM is a promise for later and says
+    so, "Cliq DM once linked" (juror T3-2)."""
     parts = ["Toast"] if n.toast else []
     parts += [f"@{m.lstrip('@')}" for m in n.mentions]
     if n.cliq_dm:
-        parts.append("Cliq DM")
+        parts.append("Cliq DM" if cliq_linked else "Cliq DM once linked")
     if n.cliq_channel:
         parts.append(f"#{n.cliq_channel.lstrip('#')}")
     return " · ".join(parts) or "Alert list only"
@@ -197,6 +199,9 @@ class WatchersApi(ApiBase):
         from project_opener.core import launcher as launcher_mod
         launcher_mod.set_profile_lookup(self.ctx.store.profile)
         self.ctx.store.subscribe(self._on_store)
+        changed = getattr(getattr(self.app, "settings", None), "changed", None)
+        if changed is not None:                      # linking Cliq changes what the watcher rows promise
+            changed.connect(lambda _key: self._sync_watchers())
         self._sync_watchers()
         self._load_alerts()
         self._timer = QTimer(self)
@@ -226,10 +231,11 @@ class WatchersApi(ApiBase):
 
     # ------------------------------------------------------------- models
     def _sync_watchers(self) -> None:
+        linked = bool(getattr(self.ctx.settings, "cliq_user_id", ""))     # as Settings > Cliq's "Linked"
         rows = []
         for w in self.ctx.store.watchers:
             rows.append({"watcherId": w.id, "name": w.name, "kind": w.kind, "target": w.target,
-                         "events": list(w.events), "watcherEnabled": w.enabled, "notifyText": notify_text(w.notify),
+                         "events": list(w.events), "watcherEnabled": w.enabled, "notifyText": notify_text(w.notify, linked),
                          "lastHitText": when_text(self._last_hit.get(w.id, "")), "activityId": w.activity_id,
                          "projectId": w.project_id})
         self._watchers.sync(rows)

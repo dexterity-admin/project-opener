@@ -27,7 +27,8 @@ Page {
     readonly property bool docked: app.activities.dockOpen && centreId !== "" && app.activities.dockId === centreId
     readonly property bool projectDock: app.activities.dockOpen && app.activities.dockId !== ""
                                         && app.activities.activities.indexOf(app.activities.dockId) < 0
-    readonly property int sceneH: 330
+    // follows the centre card's content (juror D3-1); the wings stay vertically centred on it
+    readonly property int sceneH: stage.centreScene ? Math.max(240, stage.centreScene.centreHeight) : 330
     readonly property int foldH: 150
 
     function relocate() {

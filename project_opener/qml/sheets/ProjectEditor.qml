@@ -38,15 +38,15 @@ Sheet {
         s.close()
     }
 
-    Field { id: nameField; width: parent.width; label: "Name"; placeholder: "As-built isometrics"; onAccepted: s.accept() }
+    Field { id: nameField; width: parent.width; label: "Name"; help: nameField.text.trim() === "" ? "Name it to start." : ""; onAccepted: s.accept() }
     Row {
         width: parent.width
         spacing: 16
-        Field { id: client; width: (parent.width - 16) / 2; label: "Client"; placeholder: "FST" }
-        Field { id: jobNo; width: (parent.width - 16) / 2; label: "Job number"; placeholder: "P12513"; help: "Leads every title: P12513 · As-built isometrics." }
+        Field { id: client; width: (parent.width - 16) / 2; label: "Client" }
+        Field { id: jobNo; width: (parent.width - 16) / 2; label: "Job number"; help: "Leads every title, before the name." }
     }
-    Field { id: desc; width: parent.width; label: "Description"; placeholder: "RLM red-line cross-check" }
-    Field { id: tags; width: parent.width; label: "Tags"; placeholder: "as-built, isometrics"; help: "Separate with commas." }
+    Field { id: desc; width: parent.width; label: "Description"; placeholder: "What the project covers" }
+    Field { id: tags; width: parent.width; label: "Tags"; help: "Separate with commas." }
     Column {
         spacing: 6
         Txt { text: "Colour"; strong: true }

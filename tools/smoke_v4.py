@@ -758,7 +758,7 @@ def main() -> int:
         if overflow_check:
             page = win.property("pageItem")
             if page is not None:
-                for o in overflow(page, w - 68)[:5]:
+                for o in overflow(page, w - int(win.property("navWidth") or 68))[:5]:
                     problems.append(f"{tag}: {o}")
 
     def visit(route: str, tag: str, w: int, h: int, overflow_check: bool, take: bool = True) -> Any:

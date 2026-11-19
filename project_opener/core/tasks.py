@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from datetime import date, datetime
 from pathlib import Path
 
@@ -31,6 +32,9 @@ def parse_due(due: str) -> date | None:
 class TaskStore:
     def __init__(self, root: Path):
         self.root = Path(root)
+        # ids whose file was listed but could not be read by the last ``all()``: on a share, another PC's
+        # atomic rewrite can make a read fail for an instant (release check a), and that is not a removal
+        self.unreadable: set[str] = set()
 
     def _path(self, task_id: str) -> Path | None:
         # Ids come from other PCs' files; never let one name a path outside the folder.
@@ -39,6 +43,7 @@ class TaskStore:
     def all(self) -> list[M.Task]:
         """Every readable task; corrupt files skipped (logged)."""
         out: list[M.Task] = []
+        self.unreadable = set()
         try:
             files = sorted(self.root.glob("*.json"))
         except OSError as exc:
@@ -46,9 +51,14 @@ class TaskStore:
             return out
         for f in files:
             d = read_json(f, None)
+            if d is None and f.exists():
+                time.sleep(0.05)                    # mid-rewrite by another PC: one retry
+                d = read_json(f, None)
             if not isinstance(d, dict) or not d.get("title"):
                 if d is not None:
                     log.warning("skipping unreadable task file %s", f)
+                else:                               # gone, or still unreadable: not proof of a removal
+                    self.unreadable.add(f.stem)
                 continue
             t = M.Task.from_dict(d)
             if not d.get("id"):

@@ -17,7 +17,7 @@ Text {
     horizontalAlignment: Text.AlignHCenter
     verticalAlignment: Text.AlignVCenter
     color: tone === "ink" ? tk.text : tone === "faint" ? tk.text_faint : tone === "accent" ? tk.accent
-         : tone === "onAccent" ? tk.accent_fg : tone === "ok" ? tk.success : tone === "warn" ? tk.warning
+         : tone === "onAccent" ? tk.accent_fg : tone === "onAction" ? tk.action_fg : tone === "ok" ? tk.success : tone === "warn" ? tk.warning
          : tone === "bad" ? tk.danger : tk.text_muted
     Accessible.ignored: true
 }

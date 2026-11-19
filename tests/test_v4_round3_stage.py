@@ -57,6 +57,8 @@ def test_last_windows_of_an_activity_that_is_not_running(facade, seeded):  # noq
     assert rows["identified"]["monitor"] == "monitor 1"
     assert rows["identified"]["placeW"] == pytest.approx(0.5)
     assert rows["unidentified"]["placeX"] == pytest.approx(0.5) and rows["unidentified"]["placeH"] == pytest.approx(0.5)
+    # each checkpoint frame carries its glyph (juror C3-1)
+    assert rows["identified"]["glyph"] == "file-pdf" and rows["unidentified"]["glyph"] == "app-window"
     assert facade.capture.lastWindows("") == {"takenText": "", "rows": []}
 
 
@@ -157,6 +159,8 @@ def texts(item):
 out = {
     "frames": sorted([fr.property("edge").name() for fr in frames]),
     "layer_opacity": [l.property("opacity") for l in layer],
+    "dashed": len([d for d in find_all(top, "monitorFrameDashed") if d.isVisible()]),
+    "centre_height": find_all(top, "centre")[0].property("centreHeight"),
     "face_bottom": [sy(fa) + fa.height() for fa in faces],
     "label_top": [sy(lb) for lb in labels],
     "labels": [lb.property("text") for lb in labels],
@@ -199,7 +203,9 @@ def test_monitor_frames_neutral_unless_flagged_and_last_snapshot_at_half(rendere
     tk = o["tokens"]
     # one identified window in border_strong, one that needs a path in the warning colour; none in amber chrome
     assert sorted(o["frames"]) == sorted([tk["border_strong"], tk["warning"]])
-    assert o["layer_opacity"] and all(abs(v - 0.5) < 1e-6 for v in o["layer_opacity"])     # not running: 50 %
+    # not running: full strength, dashed, not faded (juror C3-1)
+    assert o["layer_opacity"] and all(abs(v - 1) < 1e-6 for v in o["layer_opacity"])
+    assert o["dashed"] == len(o["frames"])
 
 
 def test_monitor_label_sits_under_the_screen(rendered):

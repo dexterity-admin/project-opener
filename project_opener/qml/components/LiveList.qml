@@ -22,11 +22,14 @@ Column {
         return st === "identified" ? "identified" : st === "offline" ? "offline"
              : st === "window" || st === "unsaved" ? "window" : "needs"
     }
+    // each heading counts the rows under it (juror U3-1); the page header keeps the totals
     function heading(g) {
-        if (g === "needs") return "Needs a path · " + app.capture.needsPathCount
-        if (g === "offline") return "Server offline · reopens when the server answers"
-        if (g === "window") return "Not a file · nothing to reopen"
-        return "Identified · " + app.capture.identifiedCount + (app.capture.newToSave > 0 ? " · " + app.capture.newToSave + " new" : "")
+        var c = app.capture.groupCounts || {}
+        var n = c[g] || 0, fresh = c[g + "New"] || 0
+        if (g === "needs") return "Needs a path · " + n
+        if (g === "offline") return "Server offline · " + n + " · reopens when the server answers"
+        if (g === "window") return "Not a file · " + n + " · nothing to reopen"
+        return "Identified · " + n + (fresh > 0 ? " · " + fresh + " new" : "")
     }
 
     Txt {                                   // the one capture-state line, when it is not simply watching

@@ -9,6 +9,8 @@ Item {
     property string glyph: ""
     property string label: ""
     property int count: 0
+    property bool dot: false          // a quieter second queue (open tasks beside the inbox count)
+    property string detail: ""        // what the badge and dot count, for the tooltip
     property bool active: false
     signal clicked()
 
@@ -16,7 +18,7 @@ Item {
     height: 40
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
-    Accessible.name: label + (count > 0 ? ", " + count : "")
+    Accessible.name: label + (detail !== "" ? ", " + detail : count > 0 ? ", " + count : "")
     Accessible.onPressAction: rb.clicked()
     Keys.onReturnPressed: rb.clicked()
     Keys.onSpacePressed: rb.clicked()
@@ -56,6 +58,19 @@ Item {
             color: rb.tk.accent_fg
         }
     }
+    Rectangle {                       // open tasks: a dot, bottom right, so it never reads as part of the count
+        visible: rb.dot
+        width: 8
+        height: 8
+        radius: 4
+        color: rb.tk.accent
+        border.width: 2
+        border.color: rb.tk.bg
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: 1
+        anchors.bottomMargin: 1
+    }
     MouseArea {
         id: mouse
         anchors.fill: parent
@@ -63,5 +78,5 @@ Item {
         cursorShape: Qt.PointingHandCursor
         onClicked: rb.clicked()
     }
-    Tip { visible: mouse.containsMouse; text: rb.label }
+    Tip { visible: mouse.containsMouse; text: rb.label + (rb.detail !== "" ? " · " + rb.detail : "") }
 }

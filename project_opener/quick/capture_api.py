@@ -111,6 +111,46 @@ def monitor_and_place(pl: M.WindowPlacement | None, screens: list[Any]) -> tuple
                  "placeW": clamp((r[2] - r[0]) / mw), "placeH": clamp((r[3] - r[1]) / mh)}
 
 
+
+def snapshot_glyph(kind: str, path: str) -> str:
+    """The glyph on a checkpoint frame in the Monitors panel (juror C3-1): the item glyph for a path, an app
+    window for a window without one."""
+    if not path and kind in ("", "app"):
+        return "app-window"
+    from project_opener.quick.activities_api import item_glyph
+    return item_glyph(kind or "file", path)
+
+
+def new_note(saveable: int, needs_path: int, other: int) -> str:
+    """The pill panel's note on what is open but not in the activity, one fact per count (juror U3-2):
+    "2 can be saved · 1 needs a path" (· "1 more to review" for rows that are neither)."""
+    parts = []
+    if saveable:
+        parts.append(f"{saveable} can be saved")
+    if needs_path:
+        parts.append(f"{needs_path} {'needs' if needs_path == 1 else 'need'} a path")
+    if other > 0:
+        parts.append(f"{other} more to review")
+    return " · ".join(parts)
+
+
+def live_group(status: str) -> str:
+    """The Open-now group a row's status falls in (LiveList.qml's groupOf mirrors it)."""
+    if status in ("identified", "offline"):
+        return status
+    return "window" if status in ("window", "unsaved") else "needs"
+
+
+def live_group_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    """{group: rows, group + "New": rows badged New} over the Open-now rows (juror U3-1)."""
+    out: dict[str, int] = {}
+    for r in rows:
+        g = live_group(str(r.get("status", "")))
+        out[g] = out.get(g, 0) + 1
+        if r.get("toSave"):
+            out[g + "New"] = out.get(g + "New", 0) + 1
+    return out
+
 class CaptureApi(ApiBase):
     stateChanged = Signal()
     liveChanged = Signal()
@@ -142,6 +182,8 @@ class CaptureApi(ApiBase):
         self._needs_path = 0
         self._new = 0
         self._new_to_save = 0
+        self._group_counts: dict[str, int] = {}
+        self._new_note = ""
         self._last_checkpoint_text = ""
         self._since_checkpoint = 0
         self._drive_down = False
@@ -204,6 +246,10 @@ class CaptureApi(ApiBase):
     needsPathCount = ro(int, "_needs_path", liveChanged)
     newCount = ro(int, "_new", liveChanged)                     # open, not items yet (the sheet's rows)
     newToSave = ro(int, "_new_to_save", liveChanged)            # of those, ticked when the sheet opens
+    # rows per Open-now group, so a group heading counts the rows under it (juror U3-1); "<group>New" is how
+    # many of that group's rows carry the "New" badge
+    groupCounts = ro("QVariantMap", "_group_counts", liveChanged)
+    newNote = ro(str, "_new_note", liveChanged)                 # "2 can be saved · 1 needs a path" (U3-2)
     lastCheckpointText = ro(str, "_last_checkpoint_text", checkpointsChanged)
     sinceCheckpoint = ro(int, "_since_checkpoint", liveChanged)  # "2 new since"
 
@@ -412,6 +458,9 @@ class CaptureApi(ApiBase):
         self._needs_path = sum(1 for s in statuses.values() if W.needs_you(s))
         self._new = len(new_list)
         self._new_to_save = len(to_save)
+        self._group_counts = live_group_counts(rows)
+        new_needs = sum(1 for e in new_list if e.key not in to_save and W.needs_you(statuses.get(e.key, "")))
+        self._new_note = new_note(len(to_save), new_needs, len(new_list) - len(to_save) - new_needs)
         cps = self.app.snapshots.checkpoints(self._running_id) if self._running_id else []
         self._since_checkpoint = len(diff.new_since(cps[0].snapshot if cps else None, snap)) if snap else 0
         roots_used = {self._root_of(i.path) for i in self._running_items()} | {
@@ -1052,7 +1101,7 @@ class CaptureApi(ApiBase):
     def lastWindows(self, activity_id: str) -> dict[str, Any]:  # noqa: N802
         """The Monitors panel of an activity that is not running (juror D2-1, C2-1): the windows of its last
         snapshot (``SnapshotStore.latest``) on their monitors, as {"takenText", "rows"}; each row has
-        ``monitor``, ``status``, ``name`` and ``placeX/Y/W/H``.  Empty rows when nothing was recorded."""
+        ``monitor``, ``status``, ``name``, ``glyph`` (juror C3-1) and ``placeX/Y/W/H``.  Empty rows when nothing was recorded."""
         snap = self.app.snapshots.latest(activity_id) if activity_id else None
         if snap is None:
             return {"takenText": "", "rows": []}
@@ -1060,5 +1109,6 @@ class CaptureApi(ApiBase):
         rows = []
         for e in W.dedupe(snap.entries):
             mon, place = monitor_and_place(e.placement, screens)
-            rows.append({"monitor": mon, "status": W.display_status(e), "name": W.entry_name(e), **place})
+            rows.append({"monitor": mon, "status": W.display_status(e), "name": W.entry_name(e),
+                         "glyph": snapshot_glyph(e.kind, e.path), **place})
         return {"takenText": time_text(snap.taken_at), "rows": rows}

@@ -4,7 +4,7 @@ import "components"
 
 // The Stage shell (brief section 4; concept-1-stage).  Owner: builder 4 (SHELL).
 // Context property `app` is the AppFacade (project_opener/quick/facade.py); every fact comes from it.
-// The shell is a 68 px rail and one page routed by app.ui.route; sheets, the command palette and toasts
+// The shell is the 4.0 sidebar (236 px, the 68 px rail below 1100 px) and one page routed by app.ui.route; sheets, the command palette and toasts
 // float above it.  Pages and sheets reach the shell through `Window.window` (openSheet, openPalette, toast).
 Window {
     id: root
@@ -93,13 +93,16 @@ Window {
     }
 
     // ---------------------------------------------------------------- layout
-    Rail {
+    // The 4.0 sidebar (docs/DESIGN.md): 236 px labelled, folding to the 68 px rail below a 1100 px window.
+    readonly property int navWidth: rail.width
+    Sidebar {
         id: rail
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
+        expanded: root.width >= 1100
         current: app.ui.route
-        onNavigate: (route) => app.ui.go(route, ({}))
+        onNavigate: (route, payload) => app.ui.go(route, payload)
         onSearch: cmdPalette.show("")
     }
 

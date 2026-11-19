@@ -30,7 +30,7 @@ _IGNORE_DEFAULT_BETA = [{"process": "claude.exe"}, *IGNORE_DEFAULT]
 @dataclass
 class Settings:
     theme: str = "dark"                 # dark | light | system
-    accent: str = "#0E7C5B"
+    accent: str = "#1C7680"              # 4.0: the brand fixes it; kept so old files load
     density: str = "comfortable"        # comfortable | compact
     view_mode: str = "grid"             # grid | list
     sort_key: str = "smart"
@@ -117,8 +117,7 @@ class Settings:
             s.hotkeys = {**C.HOTKEY_DEFAULTS, **{str(k): str(v) for k, v in s.hotkeys.items()}}
         if not isinstance(s.capture_ignore, list) or s.capture_ignore == _IGNORE_DEFAULT_BETA:
             s.capture_ignore = cls().capture_ignore
-        if s.accent in ("#4F7DFF", "#2F5BFF"):   # 3.0 default blue -> 3.1 default (docs/DESIGN.md)
-            s.accent = cls.accent
+        s.accent = cls.accent                    # 4.0: brand colours, no picker (docs/DESIGN.md "Colour")
         s._root = root  # type: ignore[attr-defined]
         return s
 

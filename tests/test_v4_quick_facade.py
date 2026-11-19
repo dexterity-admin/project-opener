@@ -179,7 +179,7 @@ def test_open_over_the_limit_asks_first(facade, seeded):
     deadline = time.monotonic() + 10
     while not finished and time.monotonic() < deadline:
         pump(30)
-    assert finished and finished[0].startswith("3 opened · 0 not opened")
+    assert finished and finished[0].startswith("3 opened") and "not opened" not in finished[0]
     assert [api.dock.get(i)["statusLabel"] for i in range(3)] == ["Opened"] * 3
     assert facade.ctx.store.activity(seeded["act"]).open_count == 1
 
@@ -254,10 +254,10 @@ def test_explicit_motion_is_not_reduced(facade):
 def test_theme_tokens(facade):
     ui = facade.ui
     ui.setTheme("light")
-    assert ui.dark is False and ui.tokens["bg"] == "#F5F8F6"
+    assert ui.dark is False and ui.tokens["bg"] == "#F6FAFA"   # brand paper (docs/DESIGN.md "Colour")
     assert ui.tokens["scrim"].startswith("#") and len(ui.tokens["shadow_q"]) == 9
     ui.setTheme("dark")
-    assert ui.dark is True and ui.tokens["bg"] == "#0F1211"
+    assert ui.dark is True and ui.tokens["bg"] == "#0F2124"   # brand ink-teal dark
 
 
 def test_icons_map_old_names(facade):

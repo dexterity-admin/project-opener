@@ -191,10 +191,13 @@ def pill_view(f: PillFacts) -> dict[str, Any]:
     return {**base, "kind": "running", "detail": str(f.open_count)}
 
 
-def panel_meta(open_count: int, identified: int, last_checkpoint: str, since: int = 0) -> str:
+def panel_meta(open_count: int, identified: int, last_checkpoint: str, since: int = 0, paused: bool = False) -> str:
     """"12 open · 9 identified · last checkpoint 10:52".  One new count per surface (juror U2-3): the panel's
-    is its foot line ("3 open, not yet in the activity · Save 2 new as items"), as on the activity page, so the
-    since-checkpoint count (``since``) is no longer said here."""
+    is its foot line ("2 can be saved · 1 needs a path · Save 2 new as items"), as on the activity page, so the
+    since-checkpoint count (``since``) is no longer said here.  Paused, the counts are a stale snapshot, so the
+    line says the state in words instead (juror U3-2): "Capture paused · last checkpoint 10:52"."""
+    if paused:
+        return "Capture paused" + (f" · last checkpoint {last_checkpoint}" if last_checkpoint else "")
     parts = [f"{open_count} open", f"{identified} identified"]
     if last_checkpoint:
         parts.append(f"last checkpoint {last_checkpoint}")
@@ -360,7 +363,8 @@ class PillController(QObject):
         meta = ""
         if cap is not None:
             meta = panel_meta(int(cap.property("openCount") or 0), int(cap.property("identifiedCount") or 0),
-                              str(cap.property("lastCheckpointText") or ""), int(cap.property("sinceCheckpoint") or 0))
+                              str(cap.property("lastCheckpointText") or ""), int(cap.property("sinceCheckpoint") or 0),
+                              paused=str(cap.property("state") or "") == "paused")
         changed = view != self._view or meta != self._meta
         was_visible = self.visible
         self._view, self._meta = view, meta

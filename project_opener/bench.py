@@ -457,6 +457,7 @@ def _run(args: Any, runs: int, out: Path, saved: dict[str, Any], work: Path, dat
     lot7 = seed(data_dir)
     phases["seed"] = time.time() - t
 
+    t = time.time()
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setApplicationName(C.APP_NAME + " bench")
@@ -468,6 +469,7 @@ def _run(args: Any, runs: int, out: Path, saved: dict[str, Any], work: Path, dat
     theme.load_fonts()
     facade = AppFacade(data_dir)
     facade.ctx.store.write_in_background()
+    phases["app_setup"] = time.time() - t           # QApplication, fonts, the facade's import and construction
 
     # the backend and level the app would choose on a first start (a fresh probe, no saved reduction)
     screen = app.primaryScreen()
@@ -541,7 +543,9 @@ def _run(args: Any, runs: int, out: Path, saved: dict[str, Any], work: Path, dat
     win.show()
     win.raise_()
     _pump(app, 0.05)
+    t = time.time()
     facade.start()
+    phases["facade_start"] = time.time() - t
     try:
         facade.ctx.hub_timer.stop()
     except Exception:  # noqa: BLE001

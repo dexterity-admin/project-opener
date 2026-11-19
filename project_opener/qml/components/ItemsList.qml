@@ -1,7 +1,8 @@
 import QtQuick
 
 // Items in launch order (an activity's, or a project's): the step number, the kind glyph, the name over the
-// portable path (muted, elided in the middle), the group, the health pill, and a fixed action slot per row
+// group and portable path in the grey sub-line (juror D3-2: a group name beside the pill read as a health state
+// in progress, "Checking … Reachable"), the health pill, and a fixed action slot per row
 // (Open; the editor holds the rest) so every pill ends on one line.  `model` rows: ITEM_ROLES.
 Column {
     id: list
@@ -37,30 +38,19 @@ Column {
             Column {
                 anchors.left: glyph.right
                 anchors.leftMargin: 10
-                anchors.right: grp.left
+                anchors.right: pill.left
                 anchors.rightMargin: 12
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 1
                 Txt { width: parent.width; text: model.name + (model.itemEnabled ? "" : " · off"); strong: true }
                 Txt {
                     width: parent.width
-                    text: [model.path, list.showProject ? model.projectTitle : "", model.profileName !== "" ? "profile " + model.profileName : ""]
+                    text: [model.group, model.path, list.showProject ? model.projectTitle : "", model.profileName !== "" ? "profile " + model.profileName : ""]
                           .filter(function (s) { return s && s !== "" }).join(" · ")
                     role: "small"
                     tone: "faint"
                     elide: Text.ElideMiddle
                 }
-            }
-            Txt {
-                id: grp
-                width: 96
-                anchors.right: pill.left
-                anchors.rightMargin: 12
-                anchors.verticalCenter: parent.verticalCenter
-                text: model.group
-                role: "small"
-                tone: "faint"
-                horizontalAlignment: Text.AlignRight
             }
             Item {
                 id: pill

@@ -32,6 +32,12 @@ def pairs(t: theme.Tokens) -> list[tuple[str, str, str, float]]:
         ("field ink on mint", t.field_ink, t.field_mint, 4.5), ("field ink on sky", t.field_ink, t.field_sky, 4.5),
         ("field ink on blush", t.field_ink, t.field_blush, 4.5),
         ("border_strong on surface (control edge)", t.border_strong, t.surface, 1.2),
+        # 4.0 brand roles
+        ("action_fg on action (the amber primary)", t.action_fg, t.action, 4.5),
+        ("action_fg on action_hover", t.action_fg, t.action_hover, 4.5),
+        ("action_ink as text on surface", t.action_ink, t.surface, 4.5),
+        ("teal graphics on surface", t.teal, t.surface, 3.0), ("teal graphics on bg", t.teal, t.bg, 3.0),
+        ("faint label on surface_2", t.text_faint, t.surface_2, 4.5),
     ]
     for hexv, name in theme.ACCENTS:
         out.append((f"white on accent {name}", "#FFFFFF", hexv, 4.5))

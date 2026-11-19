@@ -14,8 +14,11 @@ Sheet {
     // the band's own words: one snapshot, one count (juror T1)
     subtitle: (r.count !== undefined ? r.count + (r.count === 1 ? " thing" : " things") + " open" : "What was open")
               + (r.takenAt !== undefined && r.takenAt !== "" ? " at " + r.takenAt : "") + " · tick what to reopen"
-    confirmText: "Reopen " + ticked
-    confirmEnabled: ticked > 0
+    // nothing recorded: one Close, not a "Reopen 0" beside Cancel (juror T3-1)
+    readonly property bool empty: list.count === 0
+    confirmText: empty ? "Close" : "Reopen " + ticked
+    confirmEnabled: empty || ticked > 0
+    showCancel: !empty
     sheetWidth: 640
 
     function recount() {
@@ -30,6 +33,7 @@ Sheet {
     }
     Component.onCompleted: recount()
     onAccepted: {
+        if (s.empty) { s.close(); return }
         var ok = Window.window.safe(function () { app.activities.resumeNow() })
         if (ok) s.close()
     }

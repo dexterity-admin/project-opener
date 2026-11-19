@@ -270,16 +270,18 @@ def capture_line(state: str, last_snapshot: str = "", open_count: int = 0, ident
 
 
 def launch_footer(results: list[str], elapsed_s: float = 0.0) -> str:
-    """"9 opened · 2 not opened · 0 skipped · 3.4 s" from the dock's result codes (DESIGN.md: "not
+    """"9 opened · 2 not opened · 1 skipped · 3.4 s" from the dock's result codes (DESIGN.md: "not
     opened" counts failed, not found, offline and undefined variable; "skipped" only skips).
-    The elapsed time is left out under 0.1 s."""
+    Zero facts are left out (juror T3-1: "0 skipped" states nothing); "opened" always stays, since
+    "0 opened" is news.  The elapsed time is left out under 0.1 s."""
     done = [r for r in results if r not in ("queued", "opening", "")]
     if not done:
         return ""
     opened = sum(1 for r in done if r == "opened")
     skipped = sum(1 for r in done if r == "skipped")
     not_opened = len(done) - opened - skipped
-    parts = [f"{opened} opened", f"{not_opened} not opened", f"{skipped} skipped"]
+    parts = [f"{opened} opened"] + ([f"{not_opened} not opened"] if not_opened else []) + (
+        [f"{skipped} skipped"] if skipped else [])
     if elapsed_s >= 0.1:
         parts.append(f"{elapsed_s:.1f} s")
     return " · ".join(parts)

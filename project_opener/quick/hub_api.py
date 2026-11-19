@@ -372,7 +372,8 @@ class HubApi(ApiBase):
             act = pa.activity
             spine = pa.projects[0]["job_number"] or pa.projects[0]["title"] if pa.projects else ""
             title = f"{spine} · {act.name}" if spine else act.name
-            rows.append(self._pub_row(pa.published_id, "activity", act.name, spine, pa.author, pa.revision,
+            # the Published row carries the same full title as the register, palette and Home (juror T3-2)
+            rows.append(self._pub_row(pa.published_id, "activity", title, spine, pa.author, pa.revision,
                                       pa.published_at, pa.for_targets, pa.description, pa.published_id in cloned,
                                       len(act.items)))
             # the register groups under the activity's own title, "P12513 · Lot 7 check" (juror T2-3)

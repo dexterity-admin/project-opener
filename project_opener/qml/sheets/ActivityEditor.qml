@@ -71,7 +71,7 @@ Sheet {
         Row {
             width: parent.width
             spacing: 16
-            Field { id: nameField; width: (parent.width - 16) / 2; label: "Name"; placeholder: "Lot 7 check"; onAccepted: s.accept() }
+            Field { id: nameField; width: (parent.width - 16) / 2; label: "Name"; help: nameField.text.trim() === "" ? "Name it to start." : ""; onAccepted: s.accept() }
             Field { id: shortField; width: (parent.width - 16) / 2; label: "Short name"; help: "On the pill and the tray; up to 18 characters."; placeholder: nameField.text.slice(0, 18); input.maximumLength: 18 }
         }
         ChoiceField {
@@ -86,7 +86,7 @@ Sheet {
             }
             onPicked: (v) => value = v
         }
-        AreaField { id: descField; width: parent.width; label: "Description"; placeholder: "Back-check of lot 7 against the RLM mark-ups"; boxHeight: 64 }
+        AreaField { id: descField; width: parent.width; label: "Description"; placeholder: "What the activity is for"; boxHeight: 64 }
         Column {
             width: parent.width
             spacing: 6

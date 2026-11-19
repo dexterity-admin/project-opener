@@ -73,7 +73,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 text: cap.runningName || cap.runningLabel
                 elide: Text.ElideRight
-                font.family: "Onest"; font.pixelSize: 15; font.weight: Font.DemiBold
+                font.family: panel.tk.face; font.pixelSize: 15; font.weight: Font.DemiBold
                 color: tk.text
             }
             Row {
@@ -125,7 +125,7 @@ Rectangle {
             topPadding: 6; bottomPadding: 12
             text: pill.meta
             wrapMode: Text.WordWrap
-            font.family: "Onest"; font.pixelSize: 13
+            font.family: panel.tk.face; font.pixelSize: 13
             font.features: ({ "tnum": 1 })
             color: tk.text_muted
         }
@@ -165,7 +165,7 @@ Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         text: rowItem.appName
                         elide: Text.ElideRight
-                        font.family: "Onest"; font.pixelSize: 13
+                        font.family: panel.tk.face; font.pixelSize: 13
                         color: tk.text_muted
                     }
                     Text {
@@ -174,7 +174,7 @@ Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         text: rowItem.name
                         elide: Text.ElideMiddle
-                        font.family: "Onest"; font.pixelSize: 13
+                        font.family: panel.tk.face; font.pixelSize: 13
                         color: tk.text
                     }
                     StatusPill {
@@ -200,14 +200,14 @@ Rectangle {
             Text {
                 visible: rows.count === 0
                 text: "Nothing open yet. The watcher looks every few seconds."
-                font.family: "Onest"; font.pixelSize: 13
+                font.family: panel.tk.face; font.pixelSize: 13
                 color: tk.text_muted
             }
             Text {
                 visible: rows.count > panel.shownRows
                 leftPadding: 84
                 text: "+" + (rows.count - panel.shownRows) + " more"
-                font.family: "Onest"; font.pixelSize: 13
+                font.family: panel.tk.face; font.pixelSize: 13
                 font.features: ({ "tnum": 1 })
                 color: tk.text_muted
             }
@@ -223,7 +223,7 @@ Rectangle {
                     text: panel.ignored.always === true ? "Ignoring every " + panel.ignored.app + " window"
                                                         : "Ignored here: " + (panel.ignored.name || "")
                     elide: Text.ElideMiddle
-                    font.family: "Onest"; font.pixelSize: 13
+                    font.family: panel.tk.face; font.pixelSize: 13
                     color: tk.text_muted
                 }
                 Row {
@@ -255,8 +255,8 @@ Rectangle {
             height: visible ? 30 : 0
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: cap.newCount + " open, not yet in the activity"
-                font.family: "Onest"; font.pixelSize: 13
+                text: cap.newNote !== "" ? cap.newNote : cap.newCount + " to review"     // one fact per count (U3-2)
+                font.family: panel.tk.face; font.pixelSize: 13
                 font.features: ({ "tnum": 1 })
                 color: tk.text_muted
             }
@@ -329,7 +329,7 @@ Rectangle {
                 id: label
                 anchors.verticalCenter: parent.verticalCenter
                 text: pb.text
-                font.family: "Onest"; font.pixelSize: 13; font.weight: Font.Medium
+                font.family: panel.tk.face; font.pixelSize: 13; font.weight: Font.Medium
                 color: pb.kind === "primary" ? tk.accent_fg : tk.text
             }
             Rectangle {
@@ -346,7 +346,7 @@ Rectangle {
                     id: kbdText
                     anchors.centerIn: parent
                     text: pb.keys
-                    font.family: "Onest"; font.pixelSize: 11; font.weight: Font.Medium
+                    font.family: panel.tk.face; font.pixelSize: 11; font.weight: Font.Medium
                     color: pb.kind === "primary" ? tk.accent_fg : tk.text_muted
                 }
             }

@@ -26,14 +26,18 @@ Rectangle {
 
     onLabelChanged: {
         if (app.ui.k === 0 || shown === "" || label === "") { shown = label; return }
+        swapIn.stop()
         swap.restart()
     }
-    SequentialAnimation {
+    // Two halves joined by a signal handler, not a ScriptAction: a ScriptAction is a QQmlExpression, and one
+    // that fires after a torn-down page's context is gone prints "evaluate an expression in an invalid
+    // context"; a handler in a dead context is skipped quietly.  (A PropertyAction read a stale value.)
+    NumberAnimation {
         id: swap
-        NumberAnimation { target: pillText; property: "opacity"; to: 0; duration: Math.round(90 * app.ui.k) }
-        ScriptAction { script: pill.shown = pill.label }
-        NumberAnimation { target: pillText; property: "opacity"; to: 1; duration: Math.round(90 * app.ui.k) }
+        target: pillText; property: "opacity"; to: 0; duration: Math.round(90 * app.ui.k)
+        onFinished: { pill.shown = pill.label; swapIn.restart() }
     }
+    NumberAnimation { id: swapIn; target: pillText; property: "opacity"; to: 1; duration: Math.round(90 * app.ui.k) }
 
     Text {
         id: pillText

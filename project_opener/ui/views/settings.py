@@ -102,7 +102,8 @@ class SettingsPage(Page):
             b.clicked.connect(lambda _=False, cc=c: self._set_accent(cc))
             accent_row.addWidget(b)
         accent_row.addStretch(1)
-        trow.addWidget(field_block("Accent", accent_w))
+        if len(theme.ACCENTS) > 1:           # 4.0: the brand fixes the colour, so no picker
+            trow.addWidget(field_block("Accent", accent_w))
         self.density = QComboBox()
         self.density.addItem("Comfortable", "comfortable")
         self.density.addItem("Compact", "compact")

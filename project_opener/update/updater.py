@@ -29,18 +29,30 @@ import re
 import shutil
 import subprocess
 import sys
-import urllib.error
-import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from project_opener import constants as C
 from project_opener.core.jsonio import read_json, write_json_atomic
 
+if TYPE_CHECKING:
+    import urllib.request
+
 log = logging.getLogger(__name__)
 USER_AGENT = f"ProjectOpener/{C.VERSION}"
 Progress = Callable[[int, int], None]
+
+
+def __getattr__(name: str):
+    """``urllib`` is imported on first use, not at start-up (it pulls http.client, email and ssl: about 0.3 s
+    before the first frame); ``updater.urllib`` still resolves for callers and tests that patch it."""
+    if name == "urllib":
+        import urllib.error
+        import urllib.request
+        return urllib
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # ----------------------------------------------------------------- versions
@@ -145,6 +157,9 @@ class Updater:
         return info
 
     def _request(self, url: str, accept: str = "application/vnd.github+json") -> urllib.request.Request:
+        import urllib.error
+        import urllib.request
+
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept,
                                                   "X-GitHub-Api-Version": "2022-11-28"})
         if self.token:
@@ -152,6 +167,9 @@ class Updater:
         return req
 
     def _get_json(self, url: str):
+        import urllib.error
+        import urllib.request
+
         try:
             with urllib.request.urlopen(self._request(url), timeout=self.timeout) as resp:
                 return json.loads(resp.read().decode("utf-8"))
@@ -186,6 +204,9 @@ class Updater:
         return self._release_info(data)
 
     def _release_info(self, rel: dict) -> UpdateInfo | None:
+        import urllib.error
+        import urllib.request
+
         assets = {a.get("name", ""): a for a in rel.get("assets", []) if isinstance(a, dict)}
         manifest = None
         if "latest.json" in assets:
@@ -212,6 +233,9 @@ class Updater:
 
     # ------------------------------------------------------------ download
     def download(self, info: UpdateInfo, progress: Progress | None = None) -> Path:
+        import urllib.error
+        import urllib.request
+
         self.download_dir.mkdir(parents=True, exist_ok=True)
         target = self.download_dir / info.installer
         if target.exists() and info.sha256 and sha256_of(target) == info.sha256:

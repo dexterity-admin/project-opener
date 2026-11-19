@@ -78,7 +78,7 @@ Window {
                 width: parent.width
                 elide: Text.ElideRight
                 text: overlay.f.known ? label.lines[0] : (overlay.f.title || "Reading this window…")
-                font.family: "Onest"; font.pixelSize: 13; font.weight: Font.DemiBold
+                font.family: overlay.tk.face; font.pixelSize: 13; font.weight: Font.DemiBold
                 color: overlay.tk.text
             }
             Text {
@@ -87,7 +87,7 @@ Window {
                 visible: text !== ""
                 wrapMode: Text.WordWrap
                 text: overlay.f.known ? label.lines.slice(1).join(" ") : ""
-                font.family: "Onest"; font.pixelSize: 13
+                font.family: overlay.tk.face; font.pixelSize: 13
                 color: overlay.tk.text_muted
             }
         }
@@ -105,7 +105,7 @@ Window {
         Text {
             id: hint
             anchors.centerIn: parent
-            font.family: "Onest"; font.pixelSize: 13
+            font.family: overlay.tk.face; font.pixelSize: 13
             color: overlay.tk.text_muted
         }
     }

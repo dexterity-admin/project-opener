@@ -40,7 +40,7 @@ Page {
         back: "Back"
         onBackClicked: app.ui.back()
         title: page.known ? proj.title : "Project not found"
-        subtitle: page.known ? proj.subtitle : "It may have been deleted on this PC."
+        subtitle: page.known ? proj.subtitle : ""
         icon: page.known ? proj.icon : ""
         tint: page.known ? proj.dotColor : ""
         ActionButton {
@@ -225,7 +225,7 @@ Page {
     EmptyBlock {
         visible: !page.known
         width: page.contentW
-        line: "This project is not in your workspace."
+        line: "Not in your workspace: it may have been deleted on this PC."      // one line (juror T3-1)
         action: "All projects"
         onTriggered: app.ui.go("projects", ({}))
     }

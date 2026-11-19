@@ -364,6 +364,9 @@ Card {
         }
     }
     // a wing is as tall as what it shows (juror D1): heading, two lines, the Open button
+    // the centre is as tall as its tallest column plus the action row 20 px under it (juror D3-1: a fixed
+    // height left a ~70 px dead band above the actions)
+    readonly property int centreHeight: pad + head.height + 18 + cols.implicitHeight + 20 + 34 + pad
     readonly property int wingHeight: pad + head.height + 14 + wingBody.implicitHeight + 16 + 28 + pad - 4
 
     // ------------------------------------------------------------ the dock (the centre grown)
@@ -394,7 +397,7 @@ Card {
         PauseAnimation { duration: Math.round(100 * app.ui.k) }
         NumberAnimation { target: dockView; property: "opacity"; to: 1; duration: Math.round(140 * app.ui.k); easing.type: Easing.OutCubic }
         PauseAnimation { duration: Math.max(0, scene.growMs - Math.round(240 * app.ui.k)) }
-        ScriptAction { script: scene.growing = false }
+        onFinished: scene.growing = false      // a handler, not a ScriptAction (see StatusPill)
     }
     Component.onCompleted: if (docked) dockView.opacity = 1
     readonly property int dockHeight: pad + head.height + 8 + dockView.implicitHeight + pad

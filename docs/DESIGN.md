@@ -1,90 +1,118 @@
-# DESIGN.md - Project Opener 3 visual system ("Aurora, disciplined")
+# DESIGN.md - Project Opener 4 visual system ("Drafted Glass")
 
-The durable visual decisions for the desktop app (`project_opener/ui`) and the landing page
-(`site/`). Every token, rule and exception lives here; code references tokens, never raw values.
-Companion: `docs/PRODUCT.md` (who uses it and for what).
+The durable visual decisions for the desktop app (`project_opener/qml`, `project_opener/ui`) and the
+landing page (`site/`). Every token, rule and exception lives here; code references tokens, never raw
+values. Companions: `docs/PRODUCT.md` (who uses it and for what), `docs/V4-BRIEF.md` and
+`docs/V4-PLUS-BRIEF.md` (what 4.0 does), the concept board `docs/concepts/v4plus-boards.html` (concept B).
+
+**This contract leads the code.** As of 19 November 2026 the app still renders the 3.x "Aurora" tokens
+inside the Stage shell. Sections marked *(to build)* describe the target. The behaviour rules further
+down (dialogs, launch sheet, copy, motion levels, the office's own objects) carry over unchanged.
 
 ## Where it comes from
 
-Concept 2 "Aurora Glass" was chosen by the owner (1 Nov 2026) and then disciplined with two
-published design methods, `taste-skill` v2 and `impeccable`. Where the two conflicted with the
-chosen concept, the concept's identity won (impeccable: "the brief wins"); where the methods
-sharpened it, they won. Kept from Aurora: light-first, soft luminous colour, generous white,
-large radii, pill controls, friendly tone, a composed dark mode. Changed by the methods:
+- **3.x, "Aurora, disciplined"** (1 Nov 2026): light, pastel, Onest, one flat aurora-green accent. It
+  was disciplined by `taste-skill` and `impeccable`, which banned glass, gradients, eyebrows and mono labels.
+- **4.0, "Drafted Glass"** (owner, 19 Nov 2026): concept B of three boards built after the v4-plus
+  interview. Two sources:
+  - **The Dexterity brand** (`U:\Vikram\Dexterity-Brand\BRAND.md`; skill `dexterity-brand`) gives the
+    identity. It is drawn, not bubbly: hairlines, small radii, title-block labels, teal for structure,
+    amber for the one action, and "Line of flow" motion.
+  - **Cleanly** (github.com/0xCodez/cleanly; tokens read from its bundled CSS) gives the layout
+    (labelled sidebar, hero, stat cards, panels) and the motion (blur-rise entrances, shine, breathing
+    glow, bubble physics). Cleanly's licence is not verified yet, so take ideas and values, not code or assets.
 
-| Aurora as drawn | Shipped | Why |
+What 4.0 reverses from the 3.x bans, and why:
+
+| 3.x rule | 4.0 | Why |
 |---|---|---|
-| Indigo→pink gradient accent, gradient word | One flat accent, aurora green `#0E7C5B` | Gradients and violet/indigo are the most recognisable generated look; a real aurora is green |
-| Blurred pastel blobs, frosted glass, backdrop blur | Flat pastel colour fields (site); opaque surfaces one tone step apart (app) | Glass and glow are banned; fields are the stronger colour move |
-| Mono eyebrows, tracked uppercase section labels | Sentence-case headings in the text face | Eyebrows are a ban in both methods |
-| Icon in a tinted circle on every stat tile and card | Label over value in one divided strip; one plain grey icon where it helps | 0 of 23 studied product screens do it |
-| Soft shadow under every card | 1 px border, no shadow; shadows only on what floats (menus, toasts, palette, dialogs) | |
-| Every card with a filled gradient "Open" pill | One filled accent control per screen; other actions are outlined pills | Accent under 5 % of pixels; rarity gives it force |
-| Monospace paths | Paths in the text face, muted | Mono only for real code |
-| Navy-tinted dark mode | True neutral darks with a faint green tint | No navy/slate dark themes |
+| No glass, no backdrop blur | Glass on what floats (sheets, palette, the pill's panel, toasts) and on the Today hero, rich motion only | Owner ruling: the Cleanly-grade look; degrades to opaque surfaces |
+| No gradients | One soft radial "mist" glow on the ground and a breathing glow behind the hero; never on text, buttons or data | Atmosphere only, never as the accent |
+| No eyebrows, no mono labels | Mono uppercase section labels (the brand's drawing title-block voice) | Brand rule: "labels, numbers, annotations: JetBrains Mono" |
+| No display face in the app | Archivo light for page titles, the hero and stat numerals | Brand headings; large and quiet |
+| No sparklines or icons on KPIs | Today's stat cards may carry one small graphic (sparkline, streak squares) | Approved board |
+| One flat green accent, user-selectable | Brand colours fixed: teal for structure, amber for the one action | Owner ruling: Dexterity brand accent |
+| Onest everywhere | Instrument Sans body (brand) | Brand body face |
 
-## Type
+Kept from 3.x: one primary per screen, no resting shadows on cards, a border or a shadow but never
+both, tabular figures, contrast computed rather than eyeballed, and every copy and behaviour rule below.
 
-- **App (Operate mode): one family, Onest** (OFL, bundled in `resources/fonts/Onest[wght].ttf`,
-  loaded by `theme.apply_theme`). Fallback: Segoe UI Variable Text, Segoe UI, Arial.
-  Roles (pt → px at 96 dpi): title 18 pt / 24 px weight 600; section 12 pt / 16 px 600;
-  KPI value 18 pt / 24 px weight 400; body, nav, cells 10 pt / 13.3 px 400; small 9 pt / 12 px.
-  Nothing under 9 pt. Tabular figures on every number that lines up (`QFont.setFeature("tnum")`).
-  Sentence case everywhere; no tracked uppercase; no display face in the app.
-- **Site (Persuade mode): Unbounded 600** for the two headline sizes (hero `clamp(2.6rem, 1rem + 5.2vw, 4.5rem)`,
-  tracking -0.04em, leading 1.0; section headings `clamp(1.9rem, 1rem + 2.6vw, 3rem)`), **Onest** for
-  everything else (body 17-19 px, lead 20-26 px, small 13-14 px). Five sizes, far apart. Every headline
-  two lines or fewer at 390, 768 and 1440 (hero ≤ 32 characters).
+## Type *(fonts bundled and `Txt` roles built 19 Nov 2026; screens still to follow)*
 
-## Colour
+Four families, all OFL, bundled under `resources/fonts/`. The brand kit ships woff2, so convert to TTF
+for Qt with fontTools. Do not link to U: at run time.
 
-Roles, light theme (`theme.build_tokens(dark=False)`):
+| Role | Face | Size / weight | Notes |
+|---|---|---|---|
+| Page title | Archivo | 30 px, 300, tracking -0.03 em | one per page, a noun |
+| Hero heading | Archivo | 32 px, 250 | Today's hero only |
+| Stat numeral | Archivo | 44-46 px, 250, tracking -0.04 em, tabular | unit beside it in body 13 px, muted |
+| Body, nav, rows | Instrument Sans | 13.5-14 px, 400 / 500 / 600 | fallback Segoe UI |
+| Small | Instrument Sans | 12 px | nothing smaller in body text |
+| Section label | JetBrains Mono | 10.5 px, 500, uppercase, tracking 0.14 em | labels and annotations only, never a sentence |
+| Park note | Cormorant Garamond italic | 19 px, 500 | a person's own note; never UI text |
+
+Tabular figures on every number that lines up. Titles are never tabular (see "The office's own objects").
+
+## Colour *(tokens built 19 Nov 2026; screens still to follow)*
+
+Brand tokens (`--dx-*` in the kit) mapped onto the existing `build_tokens` roles. Light:
 
 | Token | Value | Use |
 |---|---|---|
-| `bg` | `#F5F8F6` | ground, tinted from the product's world (a faint mint) |
-| `bg_alt` | `#F5F8F6` | sidebar = ground (never a dark or tinted sidebar on light) |
-| `surface` | `#FFFFFF` | cards, inputs |
-| `surface_2` | `#EEF3F0` | active nav pill, hover, raised wells |
-| `surface_3` | `#E4EBE7` | pressed |
-| `border` | `#E3E9E5` | card and row edges |
-| `border_strong` | `#C9D3CD` | control borders, scrollbar |
-| `text` | `#141A17` | ink |
-| `text_muted` | `#5B6660` | secondary (5.9:1 on white) |
-| `text_faint` | `#66706A` | meta, placeholders (4.7:1 on white) |
-| `accent` | `#0E7C5B` | the one accent: primary action, focus, selection, data hue |
-| `accent_hover` | `#0B6A4E` | |
-| `accent_soft` | `#DDF3EA` | selected rows, checked chips, info banners |
-| `accent_fg` | `#FFFFFF` | text on accent |
-| `success` / `warning` / `danger` / `info` | `#1F7A4D` / `#92400E` / `#B42318` / `#175CD3` | status text and icons (all ≥ 4.5:1 on white) |
-| `pill_*_bg` / `pill_*_ink` | ok `#DCFAE5`/`#04250E`, warn `#FFF4D6`/`#7A3E00`, bad `#FEE4E2`/`#7A1C14`, info `#E0ECFF`/`#0B3A8C`, neutral `#EEF3F0`/`#3A443E` | status pills: pale tint, dark text of the same hue |
-| `field_mint` / `field_sky` / `field_blush` | `#DDF3EA` / `#DCEBF7` / `#FCE4E6` | flat colour fields (site sections, the one "aurora" of the app: the Home greeting band) |
-| `shadow` | `rgba(16,24,20,0.12)` | floating surfaces only |
+| `bg` | `#F6FAFA` | paper: the ground and the sidebar |
+| `surface` | `#FFFFFF` | cards (`#FFFFFFF0` where glass is on), inputs |
+| `surface_2` | `#E8F2F3` | stone: active nav item, hover, chips |
+| `surface_3` | `#D6E8EA` | pressed |
+| `border` | deep teal at 16 % on white (`#DBE5E6`) | hairlines (cards, rows, the hero); flattened to opaque so QSS and QML draw the same line |
+| `border_strong` | deep teal at 30 % on white (`#BBCFD1`) | control borders, stat-card top rule, scrollbar |
+| `text` | `#132B2E` | ink |
+| `text_muted` | `#4C6366` | graphite, secondary |
+| `text_faint` | `#5A7073` | meta, labels, placeholders |
+| `accent` | `#1C7680` | teal-ink: selection, focus, links, accent text, fills that carry white text (the brand's AA teal) |
+| `teal` | `#2A8C98` | brand teal for graphics only (rules, progress, ticks, the line of flow; 3:1, never body text) |
+| `teal_deep` | `#1E6066` | deep teal: time-travel ticks, dark panels |
+| `action` / `action_hover` / `action_fg` | `#F7AF44` / 8 % darker / ink | amber: **the one thing to press per screen** (`ActionButton` kind primary), the line-of-flow slug, a done node |
+| `action_ink` | `#9A5B00` | amber as text on light |
+| status and pills | unchanged from 3.x | already contrast-checked |
+| `mist` | radial `#E3F1F2` at the top-right of the ground | the one ground glow |
+| `grid` | 30° / 150° hairlines `#1E60660D`, 26 px pitch | house texture behind everything; dropped below rich |
 
-Dark theme: `bg` `#0F1211`, `surface` `#171B19`, `surface_2` `#202623`, `surface_3` `#2A312D`,
-`border` `#262D29`, `border_strong` `#3A443E`, `text` `#ECF0ED`, `text_muted` `#A8B3AD`,
-`text_faint` `#8A958E`, `accent` `#3BC98F` with `accent_fg` `#0F1211`, `accent_soft` `#163A2C`,
-status `#3FC07A` / `#F5B73B` / `#F07070` / `#6FB1FF`, pills on dark tints of themselves
-(`#172A1D`, `#2E2410`, `#2C1A1A`, `#14243A`). Dark is composed, not inverted: lighter weights, more
-leading, surfaces lift by lightness only.
+Dark (passes `tools/check_contrast.py`, 19 Nov 2026): `bg` `#0F2124`, `surface` `#152B2F`,
+`surface_2` `#1C363A`, `surface_3` `#24434A`, `border` `#FFFFFF1C`, `border_strong` `#FFFFFF33`,
+`text` `#EAF4F5`, `text_muted` `#B5C9CB`, `text_faint` `#8FA7AA`, `accent` `#4FB3BE` (ink text on it),
+`teal` `#3FA3AF`, `action` `#F7AF44` with ink text, `grid` `#0AFFFFFF`. Dark is ink-teal, not navy and not neutral grey.
 
-Proportion: ground 70-90 %, ink, accent under 5 % of any screen. Project colours are data (the
-project's own icon tint and a 6 px dot), never chrome. People get a stable pale tint of their own hue
-(`Avatar`), identity not data. User-selectable accent is kept (Settings → Appearance) with ten
-flat choices that each pass 4.5:1 with white text.
-
+Proportion: ground 70-90 %, teal for structure and data, **amber under 2 % of any screen**: one
+filled amber control and the line-of-flow slug. Project colours are data (the icon tile's tint, a 6 px
+dot), never chrome. People get a stable tint (`Avatar`), shown as a 4 px-radius square. The 3.x
+user-selectable accent is retired: `Settings.load` migrates any stored accent to the brand, and
+Settings > Appearance keeps Theme and Density only.
 ## Shape and space
 
-- 4 px base. Card padding 20 (comfortable) / 14 (compact). One gap value per screen: 16.
-- Radii, soft family: cards 16, inputs 10, pills 999 (buttons are 34 px tall → radius 17), chips 999.
-- Borders 1 px (`border`); controls one step stronger. A border or a shadow, never both. Cards have no
-  shadow. Menus, popovers, toasts, the command palette and dialogs float: `0 8px 24px shadow`.
-- Sidebar 232 px on the page ground, no border; collapsed 68. Active item: `surface_2` pill, label
-  unchanged. Counts only on queues that need action (Inbox).
-- Page title 24 px 600, one per page, a noun (Home keeps its greeting: it is a personal home). One
+- 4 px base. Card padding 16-18 (comfortable) / 12 (compact). One gap value per screen: 14 on Today, 16 elsewhere.
+- **Radii, drawn family** *(to build)*: cards 8, inputs 6, nav items 5, avatars 4, sheets and the
+  palette 10, window corners 10. Buttons and chips stay pills (999), as on the company site.
+- **Hairlines, not boxes**: 1 px `border` on cards and rows; controls one step stronger. A border or a
+  shadow, never both. Cards have no resting shadow. Things that float (menus, toasts, the palette,
+  sheets, the pill's panel) carry the floating shadow and, in rich motion, glass.
+- **Title-block rules**: Today's hero has a 2 px `accent` rule on its top edge; each stat card has a
+  2 px `border_strong` top rule that turns `accent` on hover. Label (mono) over value (Archivo numeral).
+- **Glass** *(to build)*: in rich motion, a floating surface is `surface` at 94 % over a 14 px blur of
+  the page behind it (Qt Quick `MultiEffect`, saturation 1.3). Below rich, or on the software renderer
+  (which has no blur), it is opaque `surface`. A glass surface never sits on another glass surface.
+- **Sidebar** *(built 19 Nov 2026, `components/Sidebar.qml`)*: 236 px on the page ground, with a hairline on its right edge. The brand mark
+  and "Project Opener" at the top. Mono uppercase group labels: WORKSPACE (Today, Activities, Projects,
+  Tasks, Time travel) and OFFICE (Office pulse, Space map, Wrapped, Handover); a route appears only once its
+  page exists (built: Today, Activities, Projects, Tasks = the hub's Tasks tab, Team Hub; Updates and Settings sit
+  at the foot over the person). The active item is a
+  `surface_2` fill with a 2 px `accent` bar on its left; counts are mono, faint, right-aligned, and only
+  on queues. Below a 1100 px window the sidebar folds to the
+  68 px rail (labels become tooltips), so pages keep their 860 px minimum.
+- Page title Archivo 30 px, one per page, a noun (Today keeps its date beside it as a mono label). One
   optional grey line under it: the finding, never a description of the interface.
-- KPIs: one card divided by 1 px rules, label (12 px grey) over value (24 px 400). No icons, no
-  sparklines, no deltas without their window.
+- Stats (Today): four cards in one row, each a mono label, an Archivo numeral with its unit, and one line
+  or one small graphic (sparkline, streak squares). Elsewhere KPIs keep the 3.x divided strip.
 - Rows 44-56 px; two-line rows 56+; one status mark per row; numbers right-aligned tabular.
 - Empty states keep the frame and the heading, span the block they stand in (never a narrow
   island in a flow), say in one sentence what the block will hold, and offer one action where
@@ -240,10 +268,22 @@ Opening a project is the product's one moment, so it gets live feedback instead 
 
 ## Motion
 
-App: feedback only (press, hover, focus, a menu or toast arriving), 150-250 ms, `OutCubic`. No
-entrance choreography. Site: one signature move (the hero's launch sequence), staggered entrances
-(heading → text → picture, 60-90 ms apart, 16-24 px rise, once), hover/press feedback, one moving
-picture; everything has a `prefers-reduced-motion` fallback that keeps the content.
+Motion is part of the look in 4.0, but it never slows work. Lists, navigation, typing and scrolling
+stay at frame rate at every motion level, and every effect below has a still form.
+
+| Move | Spec | Where | Levels |
+|---|---|---|---|
+| Feedback | press 90 ms, hover 140 ms, state 180-240 ms; exits faster than entrances; no bounce | everywhere | rich, purposeful (x0.6) |
+| Rise | opacity 0 to 1, 10-12 px up, blur 6 px to 0 (blur in rich only), 600-700 ms, staggered 60 ms | once per page arrival, never on a data refresh | rich, purposeful (fade only) |
+| Count-up | 0 to value, 900 ms, ease-out cubic, after the rise; streak squares pop 45 ms apart | Today's stat numerals | rich, purposeful |
+| Shine | a soft highlight sweeps across the amber primary every 4.5 s | Today's Resume only | rich, active window only |
+| Breathe | the hero's mist glow scales 0.96 to 1.04 and back over 6 s | Today's hero | rich, active window only |
+| Line of flow | brand table: draws to the far node (1.6 s), then an amber slug travels every few seconds; done = far node fills amber and a tick draws in | restore plan, hub link, any transfer | rich (loops), purposeful (one pass, then still) |
+| Space Map physics | bubbles drift gently, can be dragged and bump each other; amber = duplicate or stale | Space map | rich (drift), purposeful (settle, then stop), off (packed, still) |
+
+Easing: `cubic-bezier(.2,.7,.2,1)` for entrances and feedback (`Easing.Bezier`), `cubic-bezier(.65,0,.35,1)`
+for flow. Durations scale with `app.ui.k`; loops are gated by `app.ui.ambient` (see Motion levels). Site:
+the same moves, with a `prefers-reduced-motion` fallback that keeps the content.
 
 ## Copy
 
@@ -262,26 +302,50 @@ a heading is a finding, a count or the next step.
 
 Flat: an accent-green squircle, a white folder with its flap lifting and an arrow leaving it to the
 right. No gradient, no glow. Source `resources/icon/app.svg`; `tools/build_icon.py` renders the PNG
-sizes and `app.ico`.
+sizes and `app.ico`. *Open (4.0):* whether the app icon moves to the brand teal and amber. The
+sidebar already carries the Dexterity mark (`logos/dexterity-mark-*.png` from the kit, copied into
+`resources/`), which is never redrawn.
 
 ## Checks before shipping a screen
 
-Contrast computed, not eyeballed (`tools/check_contrast.py`); one filled accent per screen; no
-eyebrow, no icon circle, no gradient, no resting shadow; every number tabular; the screen names the
-product and offers its main job in one click; both themes screenshotted by `tools/smoke_ui.py`,
-including every dialog and state (`--all`), compact density (`--density compact`) and 2×
-(`--scale 2`), with no Qt warnings in its output.
+Contrast computed, not eyeballed (`tools/check_contrast.py`, both themes, the brand tokens);
+**one amber control per screen**; glass only on floating surfaces and the Today hero; mono only for
+section labels, annotations and counts, never for a sentence; Archivo only for titles, the hero and
+numerals; no resting shadow on a card; no gradient on text, buttons or data; every number that lines up
+tabular; the screen names the product and offers its main job in one click; every effect has its
+purposeful and off forms (screenshot all three levels); both themes screenshotted by `tools/smoke_v4.py`
+with no Qt or QML warnings; the bench (`--bench`) holds Rich on the reference PC.
 
 ## Project Opener 4: Stage (the Qt Quick shell)
 
 Concept "Stage" (docs/V4-BRIEF.md section 4, the concept round's `concept-1-stage`), built in Qt Quick
 (`project_opener/qml`).  Everything above still holds; this section adds what the stage changes.
+Items marked *superseded* are what is built today and are replaced by the 4.0 Drafted Glass rules above.
 
-- **Shell.** A 68 px rail on the ground (the mark, Search, Home, Activities, Projects, Team Hub, Updates,
+- **Shell** *(superseded by the 236 px labelled sidebar in "Shape and space"; the rail stays as its folded
+  form below 1100 px).* A 68 px rail on the ground (the mark, Search, Home, Activities, Projects, Team Hub, Updates,
   Settings, the person at the foot); the current route is the raised `surface_2` circle; counts only on the
   hub (inbox) and my open tasks.  Labels are tooltips and accessible names.  One page at a time, routed by
   `app.ui.route`; sheets, the palette and toasts float above it.
-- **Home is a stage.** The Resume band (the one flat colour field, `field_mint`; Resume is the screen's
+- **Today** *(to build; replaces "Home is a stage")*. The approved board, top to bottom:
+  - Title row: "Today", the date as a mono label, then "Start from what's open" and "Park day" (with its
+    shortcut) as outlined pills.
+  - **Hero**, a glass card with the 2 px teal top rule and the breathing mist glow. Left: a mono label
+    ("Parked yesterday 18:42 · P12513 back-check"), the Archivo heading "Pick up where you parked", the
+    person's Park note in Cormorant italic, then **Resume activity** (the screen's one amber control, with
+    the shine) and "Pick another moment" (opens Time travel). Right: the restore plan, with a mono label,
+    the window count, chips for the windows that will reopen (+N), and the line of flow from "Parked
+    18:42" to "Ready". With nothing parked, the hero offers the last activity instead; with no activity
+    at all, it offers New activity.
+  - **Four stats**: Tasks due today (of N open, and who from), Changed overnight (files, with a
+    sparkline), Day streak (days, with squares), Setup saved this week (h m, and how many restores).
+  - **Three panels**, sharing a bottom edge: Time travel this week (a lane per day, a tick per snapshot;
+    hover or click shows when, the window count and the activity, and Restore), Office pulse (avatar,
+    name, current project; green = active, amber = idle, faint = away, on leave names the handover),
+    and Space map / Wrapped (one panel that flips between the bubbles and the week's board, with the
+    "Show me on the office board" switch).
+  - Resume opens through the dock, as below.
+- **Home is a stage** *(superseded by Today)*. The Resume band (the one flat colour field, `field_mint`; Resume is the screen's
   one primary while it waits) and then the current activity in the centre at full size: icon tile and title,
   its line, and the three questions in three columns (what was open, health on this PC, the task and the
   watchers).  The others stand in the wings, smaller (scale .94) and dimmer (62 %); below 1180 px of page
@@ -300,7 +364,8 @@ Concept "Stage" (docs/V4-BRIEF.md section 4, the concept round's `concept-1-stag
   room's **Monitors panel** (this PC's screens to scale with the windows seen on each), the checkpoints.
 - **The office breathes once.** A colleague who comes online gets one ring that grows 8 to 20 px beyond
   the avatar and fades over 2.4 s.  Only in rich motion and only while the window is active.
-- **Colour.** Unchanged discipline: identity (6 px dot, the icon tile's tint) and health (the pills) only.
+- **Colour** *(the green accent is superseded by the brand tokens in "Colour"; the QML-only tokens stay)*.
+  Unchanged discipline: identity (6 px dot, the icon tile's tint) and health (the pills) only.
   QML reads `app.ui.tokens` (= `ui.theme.build_tokens`) plus three QML-only tokens: `shadow_q` and
   `shadow_soft` (the floating shadow as `#AARRGGBB`, two offset rings on dark only: QML cannot parse `rgba()` and the
   software renderer has no blur; on light both are transparent and the surface's 1 px `border_strong` ring is
@@ -309,8 +374,8 @@ Concept "Stage" (docs/V4-BRIEF.md section 4, the concept round's `concept-1-stag
   `#62A994`, which reads as a disabled control on the dark ground).
 - **Icons** are Phosphor (regular) from the icon font qtawesome ships, one stroke everywhere; 3.x
   `fa5s.*` names on migrated activities map to Phosphor names (`ui_state.FA_TO_PH`).
-- **Sheets** are the one dialog grammar (`components/Sheet.qml`): scrim, 16 px radius surface, heading
-  21 px 600 and one grey line naming the object, labels above fields, the error above the buttons, Cancel
+- **Sheets** are the one dialog grammar (`components/Sheet.qml`): scrim, 10 px radius surface (glass in rich
+  motion; 16 px and opaque as built today), heading 21 px 600 and one grey line naming the object, labels above fields, the error above the buttons, Cancel
   then the named confirming button; destructive = outlined negative with Cancel as the Enter default; at
   most 640 px tall, the body scrolls.  The @ picker and the "For" field float in the window's overlay so a
   sheet never clips them.
@@ -319,8 +384,9 @@ Concept "Stage" (docs/V4-BRIEF.md section 4, the concept round's `concept-1-stag
   under small muted group headings, most likely first; a row that cannot be added or reopened keeps an empty
   box at 45 % and says why ("No file path: cannot be reopened"); the confirming button counts the ticks
   ("Save 2 as items", "Reopen 9").  Nothing is ticked that the evidence does not support.
-- **The pill's panel** is the main window's surface (`surface`, opaque, `border_strong` edge) with the same
-  text tokens; its opening animation always completes (a timer finishes it), so it never rests translucent.
+- **The pill's panel** is the main window's surface (`surface`, `border_strong` edge) with the same
+  text tokens; its opening animation always completes (a timer finishes it), so it never rests half-faded.
+  In rich motion it is glass (see "Glass"); otherwise it is opaque.
   Rows offer Ignore on hover; the note under the list offers "Always ignore <app>" and Undo.
 - **Every page fits 1040 × 660.** Each page declares `minimumWidth` (860, beside the 68 px rail);
   `tools/smoke_v4.py` fails when one exceeds the 972 px beside the rail, when any visible item runs past
@@ -333,9 +399,13 @@ Concept "Stage" (docs/V4-BRIEF.md section 4, the concept round's `concept-1-stag
 
 | Level | When (auto) | What moves |
 |---|---|---|
-| rich | a GPU and a screen above 1366 × 768 | everything, including the office's breath |
-| purposeful | software rendering, a screen at or below 1366 × 768, Windows animations off, battery | every transition at 0.6×, no loop |
-| off | remote desktop | nothing; every screen complete and still |
+| rich | a GPU and a screen above 1366 × 768 | everything, including the office's breath; glass, the isometric grid, the rise's blur, shine, breathe, line-of-flow loops, Space Map drift |
+| purposeful | software rendering, a screen at or below 1366 × 768, Windows animations off, battery | every transition at 0.6×, no loop; surfaces opaque, no grid, no blur; rise is a fade; line of flow runs once; Space Map settles, then stops |
+| off | remote desktop | nothing; every screen complete and still; numerals show their value, the Space Map is packed |
+
+Effects are dropped in this order when the guard lowers a level: glass and blur first (the costliest on
+an old GPU), then the grid and glows, then loops, then durations. Lists, navigation and typing are never
+animated in a way the guard has to measure.
 
 The runtime guard measures each dock opening over its grow (`frameSwapped` stamps for 420 ms × k plus
 80 ms, `motion.dock_measure_ms`): two in a row over 33 ms mean or 120 ms worst 1 % drop one level, saved in
@@ -349,20 +419,32 @@ from the click to the first frame, is the opening's response time, and the guard
   the launcher starting Excel, Word and a PDF viewer beside the app. That contention is outside the app's
   control, and it is the same at every level, Off included. A lower level cannot shorten it, so counting
   it reduced motion for no gain and never gave it back.
-- **Six real launches (round 3).** Two .xlsx, a .docx, a PDF and two folders on an i7-6700 with a GT 710:
-  - the first interval was 158–243 ms, while every later frame of the grow was 34 ms or less;
-  - counting the first interval, the guard saw a worst 1 % of 156–314 ms and dropped Rich on a PC that
-    animates the grow at 60 Hz;
-  - without it, the worst 1 % is 19–33 ms.
-- **What the bench shows.** `--bench` (a dry run, nothing opened) measured worst 1 % of 47–72 ms. It also
-  reports the response time on its own (first frame median and max per level), so a slow opening stays
-  visible without changing the motion level.
+- **Six real launches (round 3, `run-fin2_1..6`).** Two .xlsx, a .docx, a PDF and two folders on an
+  i7-6700 with a GT 710:
+  - the first interval was 118–379 ms;
+  - without it, the guard's mean was 14.6–17.6 ms and its worst 1 % 21.6–40.9 ms, and Rich held in 6 of 6;
+  - counting it (the round-2 guard), the worst 1 % was 156–314 ms and Rich was dropped on a PC that animates
+    the grow at 60 Hz.
+- **What the bench shows.** `--bench` (a dry run, nothing opened; `temp\fin\bench\frozen-2.txt`, the
+  frozen exe on the same PC) measured Rich at a worst 1 % median of 22 ms (max 32) and Purposeful at a median
+  of 23 ms (max 56). It also reports the response time on its own (first frame median and max per level), so
+  a slow opening stays visible without changing the motion level.
+- **Round 4, the frozen exe from local disk** (`build\local-dist\bench\run-1..2`, same PC): Rich mean
+  16–17 ms with a worst 1 % median of 20–22 ms (max 47), Purposeful 13–16 ms (median 20 ms), Rich held in
+  both runs; first frame after the click median 58–59 ms (max 223). Six real launches with the dock driver
+  (`fin4\runs\final_1..6`): guard mean 12.6–16.7 ms, worst 1 % 20.2–33.6 ms, Rich held in 6 of 6.
+- **The stall after the grow is not ours to fix.** Those launches still show one 0.6–0.9 s gap after the
+  grow. Frame logs show the GUI thread doing native/QML event work in it, not rendering and not Python (the
+  Python stack is only `app.exec`), and it coincides with the first Explorer window appearing. No
+  window-active gate in the app does work on a focus change, so there is nothing to debounce.
 
 The window is cut where the grow ends (`motion.window_stamps`). Its timer fires late when the GUI thread is
 busy, and in round 3 one closed 2.2 s late and counted a 750 ms stall after the grow. A stall that starts
 inside the grow still counts, up to the window's end.
 
 The limits stay at 33 ms and 120 ms. With about 25 frames in a grow, the worst 1 % is the single longest
-animation frame, so 120 ms still catches one visible hitch in the grow itself.  Feedback durations follow the craft table:
+animation frame, so 120 ms still catches one visible hitch in the grow itself.
+
+Feedback durations follow the craft table:
 press 90 ms, hover 140 ms, state 180-240 ms, the dock's grow 420 ms; exits are faster than entrances; no
 bounce.

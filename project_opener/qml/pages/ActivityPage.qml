@@ -81,7 +81,7 @@ Page {
         back: "Back"
         onBackClicked: app.ui.back()
         title: page.known ? act.title : "Activity not found"
-        subtitle: page.known ? page.subtitle() : "It may have been deleted on this PC."
+        subtitle: page.known ? page.subtitle() : ""
         icon: page.known ? act.icon : ""
         tint: page.known ? act.dotColor : ""
 
@@ -302,7 +302,7 @@ Page {
     EmptyBlock {
         visible: !page.known
         width: page.contentW
-        line: "This activity is not in your workspace."
+        line: "Not in your workspace: it may have been deleted on this PC."     // one line (juror T3-1)
         action: "All activities"
         onTriggered: app.ui.go("activities", ({}))
     }

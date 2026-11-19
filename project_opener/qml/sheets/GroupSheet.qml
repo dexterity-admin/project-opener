@@ -21,7 +21,7 @@ Sheet {
         if (ok) s.close()
     }
 
-    Field { id: nameField; width: 300; label: "Name"; placeholder: "checkers"; help: "Mentioned as @name; spaces become dashes." }
+    Field { id: nameField; width: 300; label: "Name"; help: "Mentioned as @name; spaces become dashes." }
     ForField { id: who; width: parent.width; label: "Members" }
     Column {
         spacing: 6

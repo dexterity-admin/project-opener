@@ -98,5 +98,5 @@ Sheet {
             Accessible.checked: on
         }
     }
-    Field { id: newName; visible: s.chosen === "__new"; width: (parent.width - 16) / 2; label: "Name"; placeholder: "Lot 8 check" }
+    Field { id: newName; visible: s.chosen === "__new"; width: (parent.width - 16) / 2; label: "Name"; help: newName.text.trim() === "" ? "Name it to start." : "" }
 }

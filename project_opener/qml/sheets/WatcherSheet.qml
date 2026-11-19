@@ -56,7 +56,7 @@ Sheet {
             id: target
             width: parent.width - (browseBtn.visible ? browseBtn.width + 12 : 0)
             label: s.kind === "folder" ? "Folder" : "Server, share or drive"
-            placeholder: s.kind === "folder" ? "\\\\nas01\\Project\\P12513\\ISO\\Revision C" : "\\\\nas01"
+            placeholder: s.kind === "folder" ? "Paste the folder's path, or Browse" : "The server's name or address"
         }
         ActionButton {
             id: browseBtn
@@ -67,7 +67,7 @@ Sheet {
             onClicked: { var p = app.settings.browseFolder("Folder to watch", target.text); if (p !== "") target.text = p }
         }
     }
-    Field { id: pattern; visible: s.kind === "folder"; width: (parent.width - 16) / 2; label: "Files"; placeholder: "*.pdf"; help: "Empty: every file." }
+    Field { id: pattern; visible: s.kind === "folder"; width: (parent.width - 16) / 2; label: "Files"; placeholder: "A pattern, such as *.pdf"; help: "Leave empty for every file." }
     Column {
         width: parent.width
         spacing: 6
@@ -90,5 +90,5 @@ Sheet {
     SwitchRow { id: toast; label: "Tell me with a toast"; checked: true; onToggled: (v) => checked = v }
     ForField { id: tell; width: parent.width; label: "Also tell"; help: "People and groups get it in their inbox." }
     SwitchRow { id: dm; label: "Message on Cliq"; help: "To me and the people above, when linked."; checked: app.settings.value("notify_cliq_default") === true; onToggled: (v) => checked = v }
-    Field { id: channel; width: (parent.width - 16) / 2; label: "Cliq channel"; placeholder: "#p12513"; help: "Optional: post there too." }
+    Field { id: channel; width: (parent.width - 16) / 2; label: "Cliq channel"; placeholder: "A channel name"; help: "Optional: post there too." }
 }

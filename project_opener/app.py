@@ -5,18 +5,12 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-import traceback
-
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtNetwork import QLocalServer, QLocalSocket
-from PySide6.QtWidgets import QApplication, QMessageBox
+from typing import Any
 
 from project_opener import constants as C
-from project_opener.core import winutil
-from project_opener.core.logging_setup import setup_logging
-from project_opener.ui import icons, theme
-from project_opener.ui.context import AppContext
-from project_opener.ui.main_window import MainWindow, _system_dark
+
+# Start-up: nothing of the 3.2 widgets UI (qtawesome, the main window, its views) is imported at module level.
+# The v4 shell is the default and never uses it; importing it here cost about 1.5 s before the first frame.
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +41,8 @@ def classic_requested(args: argparse.Namespace) -> bool:
 
 
 def _forward_to_running_instance(argv: list[str]) -> bool:
+    from PySide6.QtNetwork import QLocalSocket
+
     sock = QLocalSocket()
     sock.connectToServer(C.SINGLE_INSTANCE_KEY)
     if sock.waitForConnected(300):
@@ -58,7 +54,11 @@ def _forward_to_running_instance(argv: list[str]) -> bool:
     return False
 
 
-def _install_excepthook(app: QApplication) -> None:
+def _install_excepthook(app: Any) -> None:
+    import traceback
+
+    from PySide6.QtWidgets import QMessageBox
+
     def hook(exc_type, exc, tb):
         text = "".join(traceback.format_exception(exc_type, exc, tb))
         log.error("Unhandled exception:\n%s", text)
@@ -111,6 +111,20 @@ def main(argv: list[str] | None = None) -> int:
     if not classic_requested(args):
         from project_opener import app_v4
         return app_v4.main(args)
+    return _main_classic(args)
+
+
+def _main_classic(args: argparse.Namespace) -> int:
+    """The 3.2 widgets UI (``--classic``)."""
+    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtNetwork import QLocalServer
+    from PySide6.QtWidgets import QApplication
+
+    from project_opener.core import winutil
+    from project_opener.core.logging_setup import setup_logging
+    from project_opener.ui import icons, theme
+    from project_opener.ui.context import AppContext
+    from project_opener.ui.main_window import MainWindow, _system_dark
 
     log_path = setup_logging()
     log.info("%s %s starting (frozen=%s)", C.APP_NAME, C.VERSION, C.is_frozen())

@@ -42,6 +42,7 @@ class FakeCapture(QObject):
         self._needs_path = 0
         self._new = 0
         self._new_to_save = 0
+        self._new_note = ""
         self._last_checkpoint_text = ""
         self._since_checkpoint = 0
         self._drive_down = False
@@ -61,6 +62,7 @@ class FakeCapture(QObject):
     needsPathCount = ro(int, "_needs_path", liveChanged)
     newCount = ro(int, "_new", liveChanged)
     newToSave = ro(int, "_new_to_save", liveChanged)
+    newNote = ro(str, "_new_note", liveChanged)      # "2 can be saved · 1 needs a path" (CaptureApi, U3-2)
 
     @Property("QVariantMap", constant=True)
     def statusMeta(self) -> dict[str, Any]:  # noqa: N802

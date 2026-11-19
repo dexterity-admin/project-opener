@@ -14,9 +14,10 @@ Sheet {
     subtitle: total > 0 ? app.capture.runningName + " · " + total + (total === 1 ? " new thing" : " new things")
                           + " open · tick what belongs" : app.capture.runningName
     confirmText: ticked > 0 ? "Save " + ticked + " as " + (ticked === 1 ? "item" : "items")
-                            : total > 0 ? "Leave all out" : "Done"
+                            : total > 0 ? "Leave all out" : "Close"
     // the rule lives on the button, not in a sentence over the list (juror T2-4)
     confirmTooltip: total > 0 ? "Unticked things stay open and are not offered again for this activity" : ""
+    showCancel: total > 0                  // empty: one Close, not Cancel / Done twins (juror T3-1)
     sheetWidth: 640
 
     function recount() {

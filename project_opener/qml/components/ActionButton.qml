@@ -34,7 +34,7 @@ Item {
         radius: height / 2
         y: mouse.pressed ? 1 : 0
         scale: mouse.pressed ? 0.985 : 1
-        color: btn.primary ? (btn.hovered ? tk.accent_hover : tk.accent)
+        color: btn.primary ? (btn.hovered ? tk.action_hover : tk.action)
              : btn.kind === "link" ? "transparent"
              : btn.hovered ? tk.surface_2 : (btn.kind === "ghost" ? "transparent" : tk.surface)
         border.width: btn.primary || btn.kind === "ghost" || btn.kind === "link" ? 0 : 1
@@ -51,7 +51,7 @@ Item {
                 visible: btn.icon !== ""
                 name: btn.icon
                 size: btn.small ? 14 : 16
-                tone: btn.primary ? "onAccent" : btn.kind === "danger" ? "bad" : (btn.text === "" ? "muted" : "ink")
+                tone: btn.primary ? "onAction" : btn.kind === "danger" ? "bad" : (btn.text === "" ? "muted" : "ink")
                 anchors.verticalCenter: parent.verticalCenter
             }
             Txt {
@@ -59,7 +59,7 @@ Item {
                 text: btn.text
                 role: btn.small ? "small" : "body"
                 strong: true
-                tone: btn.primary ? "onAccent" : btn.kind === "danger" ? "bad" : "ink"
+                tone: btn.primary ? "onAction" : btn.kind === "danger" ? "bad" : "ink"
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideNone
             }

@@ -70,14 +70,14 @@ Window {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: win.v.text || ""
-                font.family: "Onest"; font.pixelSize: 13; font.weight: Font.Medium
+                font.family: win.tk.face; font.pixelSize: 13; font.weight: Font.Medium
                 color: win.tk.text
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: text !== ""
                 text: win.v.detail || ""
-                font.family: "Onest"; font.pixelSize: 13; font.weight: Font.Medium
+                font.family: win.tk.face; font.pixelSize: 13; font.weight: Font.Medium
                 font.features: ({ "tnum": 1 })
                 color: win.v.tone === "ok" ? win.tk.success : win.tk.text_muted
             }

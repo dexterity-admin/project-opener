@@ -41,7 +41,6 @@ FA_TO_PH = {
     "hard-hat": "hard-hat", "building": "buildings", "map": "map-trifold", "pencil-ruler": "ruler",
     "search": "magnifying-glass", "users": "users-three", "calendar": "calendar", "star": "star", "bolt": "lightning",
 }
-DARK_ACCENT = "#3BC98F"
 DEFAULT_ACTIVITY_ICON = "stack"
 DEFAULT_PROJECT_ICON = "folder"
 
@@ -64,10 +63,6 @@ def tokens_for(dark: bool, accent: str, density: str) -> dict[str, Any]:
     ring, dark only; both are transparent on light, where the border_strong ring alone floats a surface)."""
     from project_opener.ui import theme
     t = dict(dataclasses.asdict(theme.build_tokens(dark=dark, accent=accent, density=density)))
-    if dark and (accent or "").upper() == theme.DEFAULT_ACCENT.upper():
-        # docs/DESIGN.md's dark accent for the default green (#3BC98F, ink on it); build_tokens' generic
-        # lightening gives #62A994, which reads as a disabled control on the Stage's dark ground.
-        t.update(accent=DARK_ACCENT, accent_fg="#0F1211", accent_hover="#5ED3A3", accent_soft="#163A2C")
     # The floating shadow is two offset rings (the software renderer has no blur).  On dark they read as
     # depth; on light they read as a misregistered grey slab, so light keeps only the surface's own 1 px
     # border_strong ring and both offset rings are transparent (juror round 1, D4).
@@ -75,6 +70,9 @@ def tokens_for(dark: bool, accent: str, density: str) -> dict[str, Any]:
     t["shadow_soft"] = "#26000000" if dark else "#00000000"
     t["scrim"] = "#8C000000" if dark else "#66141A17"
     t["face"] = theme.FONT_FAMILY
+    t["face_display"] = theme.DISPLAY_FAMILY
+    t["face_mono"] = theme.MONO_FAMILY
+    t["face_note"] = theme.NOTE_FAMILY
     return t
 
 
@@ -99,12 +97,29 @@ def resolve_dark(mode: str) -> bool:
     return True                         # dark by default (brief section 4)
 
 
-def _phosphor_files() -> tuple[Path, Path] | None:
+def _qtawesome_dir() -> Path | None:
+    """qtawesome's package folder, found without importing it: the import pulls qtpy and QtWidgets' icon
+    machinery (about 1.4 s before the first frame) and the shell only needs the font files beside it."""
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("qtawesome")
+        locs = list(spec.submodule_search_locations or []) if spec is not None else []
+        if locs and (Path(locs[0]) / "fonts").is_dir():
+            return Path(locs[0]).resolve()
+    except Exception:  # noqa: BLE001
+        pass
     try:
         import qtawesome
     except Exception:  # noqa: BLE001
         return None
-    fonts = Path(qtawesome.__file__).resolve().parent / "fonts"
+    return Path(qtawesome.__file__).resolve().parent
+
+
+def _phosphor_files() -> tuple[Path, Path] | None:
+    pkg = _qtawesome_dir()
+    if pkg is None:
+        return None
+    fonts = pkg / "fonts"
     ttf = sorted(fonts.glob("phosphor-*.ttf"))
     cmap = sorted(fonts.glob("phosphor-charmap-*.json"))
     return (ttf[-1], cmap[-1]) if ttf and cmap else None

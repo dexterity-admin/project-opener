@@ -14,11 +14,17 @@ Rectangle {
     color: tk.bg
 
     readonly property int hubCount: (app.hub.inboxCount || 0)
+    readonly property int tasksOpen: (app.tasks.mineOpenCount || 0)
     readonly property var routes: [
         { route: "home", glyph: "house", label: "Home", count: 0 },
         { route: "activities", glyph: "stack", label: "Activities", count: 0 },
         { route: "projects", glyph: "squares-four", label: "Projects", count: 0 },
-        { route: "hub", glyph: "users-three", label: "Team Hub", count: rail.hubCount + (app.tasks.mineOpenCount || 0) },
+        // the badge is the unread inbox only, so it matches the Hub's "Inbox" tab and clears when read; open
+        // tasks are a separate small dot, counted in the tooltip (juror U3-2)
+        { route: "hub", glyph: "users-three", label: "Team Hub", count: rail.hubCount, dot: rail.tasksOpen > 0,
+          detail: [rail.hubCount > 0 ? rail.hubCount + " in your inbox" : "",
+                   rail.tasksOpen > 0 ? rail.tasksOpen + (rail.tasksOpen === 1 ? " task open" : " tasks open") : ""]
+                  .filter(function (s) { return s !== "" }).join(" · ") },
         { route: "updates", glyph: "arrow-circle-down", label: "Updates", count: 0 },
         { route: "settings", glyph: "sliders-horizontal", label: "Settings", count: 0 }
     ]
@@ -55,6 +61,8 @@ Rectangle {
                 glyph: modelData.glyph
                 label: modelData.label
                 count: modelData.count
+                dot: modelData.dot === true
+                detail: modelData.detail || ""
                 active: rail.current === modelData.route
                         || (modelData.route === "activities" && rail.current === "activity")
                         || (modelData.route === "projects" && rail.current === "project")

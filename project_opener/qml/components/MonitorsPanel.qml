@@ -2,7 +2,7 @@ import QtQuick
 
 // Control room's Monitors panel on an activity's page: this PC's screens drawn to scale, each with the windows
 // the watcher saw on it, so it is plain that restore puts windows back.  Running: the live rows.  Not running:
-// the last snapshot's windows at 50 % (juror D2-1 / C2-1), so the page always shows where things go back.
+// the last snapshot's windows as dashed frames with their glyphs (juror D2-1 / C2-1 / C3-1), so the page always shows where things go back.
 // Frames are drawn in border_strong; only a window that needs a path (warning) or whose server is offline
 // (danger) is coloured.  Each screen's label sits in a 16 px strip under it, never on the frame lines.
 Card {
@@ -116,7 +116,6 @@ Card {
                         objectName: "monitorWindows"
                         anchors.fill: parent
                         anchors.margins: 1
-                        opacity: panel.running ? 1 : 0.5
                         Repeater {
                             model: scr.wins
                             delegate: Rectangle {
@@ -131,10 +130,37 @@ Card {
                                 height: (modelData.placeH || 0) * parent.height
                                 radius: 3
                                 color: "transparent"
-                                border.width: flagged ? 1.5 : 1
+                                // live: solid frames; the last checkpoint: Desk's 4/3 dash ("not live") at full
+                                // strength, each with its app glyph, so the picture tells the story (juror C3-1)
+                                border.width: panel.running ? (flagged ? 1.5 : 1) : 0
                                 readonly property color edge: panel.frameColor(modelData.status)
                                 border.color: edge
                                 z: flagged ? 1 : 0
+                                Canvas {
+                                    objectName: "monitorFrameDashed"
+                                    visible: !panel.running
+                                    anchors.fill: parent
+                                    property color line: parent.edge
+                                    onLineChanged: requestPaint()
+                                    onWidthChanged: requestPaint()
+                                    onHeightChanged: requestPaint()
+                                    onPaint: {
+                                        var c = getContext("2d")
+                                        c.reset()
+                                        c.strokeStyle = line
+                                        c.lineWidth = 1
+                                        c.setLineDash([4, 3])
+                                        c.strokeRect(0.5, 0.5, Math.max(0, width - 1), Math.max(0, height - 1))
+                                    }
+                                }
+                                Icon {
+                                    visible: !panel.running && modelData.glyph !== undefined && parent.width >= 18 && parent.height >= 18
+                                    x: 3
+                                    y: 3
+                                    size: 12
+                                    name: modelData.glyph || "app-window"
+                                    tone: "muted"
+                                }
                             }
                         }
                     }

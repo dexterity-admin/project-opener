@@ -48,7 +48,7 @@ Sheet {
     Field { id: label; width: parent.width; label: "Label"; placeholder: "Leave empty to show the file name" }
     Row {
         spacing: 12
-        Field { id: pathField; width: 440; label: "Path or address"; placeholder: "\\\\nas01\\Project\\P12513\\ISO" }
+        Field { id: pathField; width: 440; label: "Path or address"; placeholder: "Paste a path or an address, or Browse" }
         ActionButton {
             y: 25
             text: "Browse"
@@ -66,9 +66,9 @@ Sheet {
                       { value: "app", text: "Application" }, { value: "command", text: "Command" }]
             onPicked: (v) => value = v
         }
-        Field { id: group; width: 300; label: "Group"; placeholder: "Checking" }
+        Field { id: group; width: 300; label: "Group"; placeholder: "Optional" }
     }
-    Field { id: args; visible: kind.value === "app" || kind.value === "command"; width: parent.width; label: "Arguments"; placeholder: "{ITEM} -viewpoint \"Lot 7\"" }
+    Field { id: args; visible: kind.value === "app" || kind.value === "command"; width: parent.width; label: "Arguments"; placeholder: "Optional; {ITEM} stands for the path" }
     ChoiceField {
         id: profile
         visible: kind.value === "app"

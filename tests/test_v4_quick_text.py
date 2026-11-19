@@ -38,7 +38,7 @@ def test_health_line_never_reads_like_a_launch_result():
 def test_launch_footer_counts_not_opened_and_skipped_apart():
     codes = ["opened"] * 9 + ["offline", "variable", "skipped"]
     assert T.launch_footer(codes, 3.4) == "9 opened · 2 not opened · 1 skipped · 3.4 s"
-    assert T.launch_footer(["opened", "opening", "queued"], 0.05) == "1 opened · 0 not opened · 0 skipped"
+    assert T.launch_footer(["opened", "opening", "queued"], 0.05) == "1 opened"   # no zero facts (T3-1)
     assert T.launch_footer(["queued", "opening"]) == ""
 
 
