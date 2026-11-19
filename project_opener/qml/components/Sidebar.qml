@@ -152,6 +152,7 @@ Item {
             Txt { text: "Office"; role: "label"; leftPadding: 12; topPadding: 18; bottomPadding: 8 }
             NavRow { glyph: "users-three"; label: "Team Hub"; count: side.hubCount
                      active: side.current === "hub" && side.hubTab !== "tasks"; onClicked: side.navigate("hub", ({})) }
+            NavRow { glyph: "circles-three"; label: "Space map"; active: side.current === "spacemap"; onClicked: side.navigate("spacemap", ({})) }
         }
 
         Column {

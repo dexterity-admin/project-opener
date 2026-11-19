@@ -49,6 +49,7 @@ class AppFacade(QObject):
     chooserRequested = Signal("QStringList")               # paths to add when no activity runs (Explorer/Send to)
     desktopChanged = Signal()
     namesChanged = Signal()
+    from project_opener.quick.spacemap_api import spacemap  # noqa: E402  app.spacemap (Space map, built on first read)
 
     def __init__(self, data_dir: Path | None = None, parent: QObject | None = None):
         super().__init__(parent)
