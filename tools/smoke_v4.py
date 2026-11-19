@@ -469,6 +469,63 @@ def demo_fill(app: Any, ids: dict[str, str]) -> None:
     app.activities.refresh()
 
 
+def seed_spacemap(work: Path, hub_dir: Path) -> None:
+    """The Space map's last scan: a small demo share under the work folder (never PO_DEMO_ROOT, which may be
+    real job folders) scanned by the real ``Scanner`` into the hub's cache, plus the office's nas01 folder
+    reported as skipped without touching the network.  Seeded random bytes, so the duplicates are real."""
+    import random
+
+    from project_opener.core import spacemap as S
+
+    share = work / "spacemap-share"
+    shutil.rmtree(share, ignore_errors=True)
+    rng = random.Random(4)
+    now = time.time()
+    old = now - 26 * S.MONTH_S
+    keep: dict[str, bytes] = {}
+
+    def put(rel: str, kb: int, mtime: float | None = None, same_as: str = "") -> None:
+        p = share / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        data = keep[same_as] if same_as else rng.randbytes(kb * 1024)
+        keep[rel] = data
+        p.write_bytes(data)
+        if mtime is not None:
+            os.utime(p, (mtime, mtime))
+
+    for i in range(12):
+        put(f"P12513\\ISO\\Revision B\\P12513-ISO-{1030 + i}-B.pdf", 90 + 7 * i)
+    for i in range(6):
+        put(f"P12513\\ISO\\Revision C\\P12513-ISO-{1040 + i}-C.pdf", 110 + 9 * i)
+    put("P12513\\ISO\\Revision C\\P12513-ISO-1031-B.pdf", 0, same_as="P12513\\ISO\\Revision B\\P12513-ISO-1031-B.pdf")
+    put("P12513\\ISO\\Revision C\\P12513-ISO-1035-B copy.pdf", 0,
+        same_as="P12513\\ISO\\Revision B\\P12513-ISO-1035-B.pdf")
+    put("P12513\\Lot 7\\Comment register.xlsx", 64)
+    for i in range(5):
+        put(f"P12513\\RLM 2023\\RLM-{i + 1:02d}.pdf", 260 + 30 * i, old)
+    put("P12513\\Models\\P12513-unit-300.nwd", 1900)
+    put("P12513\\Models\\P12513-unit-300 (2).nwd", 0, same_as="P12513\\Models\\P12513-unit-300.nwd")
+    for i in range(9):
+        put(f"ANTEO\\Isos\\ANTEO-ISO-{200 + i}.pdf", 80 + 11 * i)
+    put("ANTEO\\Handover\\Line list.xlsx", 140)
+    put("ANTEO\\Handover\\P12513-ISO-1040-C.pdf", 0, same_as="P12513\\ISO\\Revision C\\P12513-ISO-1040-C.pdf")
+    for i in range(6):
+        put(f"DM-GAD\\GAD\\GAD-01{20 + i}-B.pdf", 300 + 25 * i)
+    put("DM-GAD\\Old issue\\GAD-0120-A.pdf", 280, old)
+    put("DM-GAD\\Old issue\\GAD-0121-A.pdf", 290, old)
+
+    cards = [("P12513 · Lot 7 check", [str(share / "P12513")]), ("ANTEO Isometrics", [str(share / "ANTEO")]),
+             ("DM-GAD · Mangala GAD review", [str(share / "DM-GAD")])]
+    roots, by_card = S.roots_from_cards(cards)
+    res = S.Scanner(roots, 12, cards=by_card).run()
+    res.cards["P12513 · Revision C (nas01)"] = [r"\\nas01\Project\P12513\ISO\Revision C"]
+    res.roots.append(S.ScanRoot(r"\\nas01\Project\P12513\ISO\Revision C", ["P12513 · Revision C (nas01)"]))
+    res.skipped.insert(0, {"path": r"\\nas01\Project\P12513\ISO\Revision C", "reason": "server not reachable"})
+    from project_opener.core.jsonio import write_json_atomic
+    write_json_atomic(hub_dir / "spacemap" / "scan.json",
+                      {"version": S.CACHE_VERSION, "result": res.to_dict(), "hashes": {}}, indent=0)
+
+
 def wait_for(app: Any, what: str, cond: Any, seconds: float) -> bool:
     """Pump until ``cond()`` holds (the app's loads run on its pool); say so when it never does."""
     end = time.monotonic() + seconds
@@ -675,6 +732,8 @@ def main() -> int:
         ids: dict[str, str] = {}
     else:
         ids = seed(data_dir, hub_dir, demo_dir)
+        if "spacemap" in args.routes.split(","):
+            seed_spacemap(work, hub_dir)
     trace("seed")
     fast_offline_shares()
 

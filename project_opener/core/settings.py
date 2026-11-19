@@ -94,6 +94,7 @@ class Settings:
     cliq_token_enc: str = ""            # DPAPI blob of the office bot token (shared service account)
     notify_cliq_default: bool = True    # DM me on mention / task / watcher hits when linked
     mail_client: str = "outlook"        # outlook | mailto
+    spacemap_stale_months: int = 12     # Space map: a file not modified for this many months is stale
 
     # ------------------------------------------------------------ persistence
     @classmethod

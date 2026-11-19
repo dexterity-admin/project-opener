@@ -31,6 +31,7 @@ Window {
         "projects": "pages/ProjectsPage.qml",
         "project": "pages/ProjectPage.qml",
         "hub": "pages/HubPage.qml",
+        "spacemap": "pages/SpaceMapPage.qml",
         "updates": "pages/UpdatesPage.qml",
         "timetravel": "pages/TimeTravelPage.qml",
         "settings": "pages/SettingsPage.qml"

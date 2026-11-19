@@ -27,6 +27,7 @@ log = logging.getLogger(__name__)
 
 ROUTES = ("home", "activity", "activities", "projects", "project", "hub", "updates", "settings")
 ROUTES += ("timetravel",)                          # workspace memory: Time travel (one line per added route)
+ROUTES += ("spacemap",)                 # Space map (pages/SpaceMapPage.qml)
 MIN_W, MIN_H = 1040, 660
 RAIL_W = 68
 PALETTE_ROLES = ("rowKey", "rowKind", "group", "title", "subtitle", "glyph", "dotColor", "shortcut", "action",
