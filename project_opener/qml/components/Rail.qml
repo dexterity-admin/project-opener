@@ -19,6 +19,7 @@ Rectangle {
         { route: "home", glyph: "house", label: "Home", count: 0 },
         { route: "activities", glyph: "stack", label: "Activities", count: 0 },
         { route: "projects", glyph: "squares-four", label: "Projects", count: 0 },
+        { route: "timetravel", glyph: "clock-counter-clockwise", label: "Time travel", count: 0 },
         // the badge is the unread inbox only, so it matches the Hub's "Inbox" tab and clears when read; open
         // tasks are a separate small dot, counted in the tooltip (juror U3-2)
         { route: "hub", glyph: "users-three", label: "Team Hub", count: rail.hubCount, dot: rail.tasksOpen > 0,

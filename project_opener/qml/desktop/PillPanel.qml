@@ -286,6 +286,11 @@ Rectangle {
                 onActivated: pill.act("add_window")
             }
             PanelButton {
+                text: "Park"
+                keys: panel.keyText("park")
+                onActivated: pill.act("park")
+            }
+            PanelButton {
                 kind: "ghost"
                 text: "Review"
                 onActivated: pill.act("review")

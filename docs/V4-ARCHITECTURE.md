@@ -463,8 +463,9 @@ the window and emit `chooserRequested(paths)`.
 |---|---|---|
 | Ctrl+Alt+S | `HOTKEY_SNAPSHOT` 0xB001 | `app.capture.snapshotNow()` |
 | Ctrl+Alt+A | `HOTKEY_ADD_WINDOW` 0xB002 | `app.capture.addForegroundWindow()`; twice within 1 s -> `app.desktop.startPicker()` |
-| Ctrl+Alt+P | `HOTKEY_PANEL` 0xB003 | `app.desktop.togglePanel()` |
+| Ctrl+Alt+O | `HOTKEY_PANEL` 0xB003 | `app.desktop.togglePanel()` (Ctrl+Alt+P until Park took it; `Settings.load` moves a stored old default) |
 | Ctrl+Alt+K | `HOTKEY_PALETTE` 0xB004 | `app.paletteRequested()` |
+| Ctrl+Alt+P | `HOTKEY_PARK` 0xB005 | `app.capture.requestPark()` -> Park sheet -> `app.capture.park(note)` |
 
 Configurable in `Settings.hotkeys`; registered with `MOD_NOREPEAT`; a refused registration is
 shown with Windows' error text in Settings > Snapshot.

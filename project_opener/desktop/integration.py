@@ -292,6 +292,8 @@ class DesktopIntegration(QObject):
                 self.api.togglePanel()
             elif name == "palette":
                 f.paletteRequested.emit()
+            elif name == "park":
+                f.capture.requestPark()
         except Exception:  # noqa: BLE001 - a hotkey must never take the event filter down
             log.exception("hotkey %s failed", name)
 

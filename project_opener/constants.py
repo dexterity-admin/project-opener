@@ -56,7 +56,14 @@ CAPTURE_INTERVAL_S = 3      # EnumWindows pass
 CAPTURE_FULL_REFRESH_S = 30  # full re-identification
 CAPTURE_SNAPSHOT_WRITE_MIN_S = 10  # live snapshot written at most this often (and only on change)
 RESTORE_SETTLE_S = 25
-CHECKPOINTS_KEPT = 10
+CHECKPOINTS_KEPT = 10        # newest checkpoints listed on the activity page (retention is by age, below)
+# Checkpoint retention (owner ruling, 19 Nov 2026): one on start/switch, on Park, and at most every 15 minutes
+# while windows changed (never while idle); every checkpoint kept 14 days, then one per day up to 60 days.
+CHECKPOINT_START_AFTER_S = 60       # the start checkpoint: the first pass this long after the activity started
+CHECKPOINT_AUTO_MIN_S = 15 * 60     # automatic checkpoints at most this often, and only when windows changed
+CHECKPOINT_KEEP_DAYS = 14
+CHECKPOINT_THIN_DAYS = 60
+RESTORE_LOG_DAYS = 60               # restore log events kept this long
 RUNNING_HEARTBEAT_S = 60    # RunningMarker.last_seen refresh
 
 # Global hotkeys (RegisterHotKey ids; app range 0x0000-0xBFFF)
@@ -64,14 +71,16 @@ HOTKEY_SNAPSHOT = 0xB001
 HOTKEY_ADD_WINDOW = 0xB002
 HOTKEY_PANEL = 0xB003
 HOTKEY_PALETTE = 0xB004
+HOTKEY_PARK = 0xB005
 HOTKEY_DEFAULTS = {
     "snapshot": "Ctrl+Alt+S",
     "add_window": "Ctrl+Alt+A",
-    "panel": "Ctrl+Alt+P",
+    "panel": "Ctrl+Alt+O",          # was Ctrl+Alt+P until Park took it (Settings.load moves a stored default)
     "palette": "Ctrl+Alt+K",
+    "park": "Ctrl+Alt+P",
 }
 HOTKEY_IDS = {"snapshot": HOTKEY_SNAPSHOT, "add_window": HOTKEY_ADD_WINDOW,
-              "panel": HOTKEY_PANEL, "palette": HOTKEY_PALETTE}
+              "panel": HOTKEY_PANEL, "palette": HOTKEY_PALETTE, "park": HOTKEY_PARK}
 ADD_WINDOW_DOUBLE_PRESS_MS = 1000
 
 # Watchers and the hub additions
@@ -130,6 +139,7 @@ PRE_V4_BACKUP_PREFIX = "pre-v4-workspace-"   # never rotated (does not match wor
 # v4 runtime files, all under data_dir()
 SNAPSHOT_DIR = "snapshots"          # snapshots/<activity_id>.json: live snapshot + checkpoints
 RUNNING_FILE = "running.json"       # RunningMarkers of activities that are running
+RESTORE_LOG_FILE = "restores.json"  # what each restore and launch actually reopened (Today, Wrapped)
 LOCAL_TASKS_DIR = "tasks"           # tasks when no hub is configured (same format as hub tasks/)
 WATCH_STATE_DIR = "watch-state"     # watch-state/<watcher_id>.json: last folder listing
 ALERTS_FILE = "alerts.jsonl"        # alerts shown in the app (WatchEvent rows)

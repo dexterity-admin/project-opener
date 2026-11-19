@@ -148,6 +148,7 @@ Item {
                      onClicked: side.navigate("projects", ({})) }
             NavRow { glyph: "checks"; label: "Tasks"; count: side.tasksOpen; active: side.hubTab === "tasks"
                      onClicked: side.navigate("hub", ({ tab: "tasks" })) }
+            NavRow { glyph: "clock-counter-clockwise"; label: "Time travel"; active: side.current === "timetravel"; onClicked: side.navigate("timetravel", ({})) }
 
             Txt { text: "Office"; role: "label"; leftPadding: 12; topPadding: 18; bottomPadding: 8 }
             NavRow { glyph: "users-three"; label: "Team Hub"; count: side.hubCount

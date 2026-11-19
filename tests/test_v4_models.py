@@ -1,5 +1,6 @@
 """v4 data model: round trips, tolerance, and the schema 3 -> 4 migration of a seeded 3.2 workspace."""
 import json
+from datetime import timedelta
 
 import pytest
 
@@ -253,11 +254,13 @@ def test_snapshot_store_checkpoints_and_markers(isolated_data_dir):
     assert ss.live("act1") is None and ss.checkpoints("act1") == []
     ss.save_live(snapshot())
     assert ss.live("act1").open_count == 4 and ss.latest("act1").identified_count == 2
+    recent = M.parse_iso(M.now_iso())             # retention is by age (14 days, then one a day to 60)
     for i in range(C.CHECKPOINTS_KEPT + 3):
         ss.add_checkpoint(M.Checkpoint(activity_id="act1", snapshot=snapshot(),
-                                       taken_at=f"2026-11-05T10:{i:02d}:00+00:00", label=str(i)))
+                                       taken_at=(recent.replace(second=0) - timedelta(minutes=60 - i)).isoformat(),
+                                       label=str(i)))
     cps = ss.checkpoints("act1")
-    assert len(cps) == C.CHECKPOINTS_KEPT and cps[0].label == str(C.CHECKPOINTS_KEPT + 2)
+    assert len(cps) == C.CHECKPOINTS_KEPT + 3 and cps[0].label == str(C.CHECKPOINTS_KEPT + 2)
     assert ss.checkpoint("act1", cps[3].id) == cps[3]
     ss.mark_running(M.RunningMarker(activity_id="act1", pid=1))
     ss.mark_running(M.RunningMarker(activity_id="act2", pid=1))

@@ -26,6 +26,7 @@ def menu_spec(running: bool, title: str, paused: bool, keys: dict[str, str]) -> 
     rows: list[tuple[str, str, bool, str]] = [
         ("title", title if running else "No activity running", False, ""),
         ("snapshot", "Snapshot now", running, keys.get("snapshot", "")),
+        ("park", "Park…", running, keys.get("park", "")),
         ("add_window", "Add a window…", running, keys.get("add_window", "")),
         ("pause", "Resume capture" if paused else "Pause capture", running, ""),
         ("end", "End activity…", running, ""),
@@ -209,6 +210,8 @@ class TrayController(QObject):
         try:
             if action == "snapshot":
                 f.capture.snapshotNow()
+            elif action == "park":
+                f.capture.requestPark()
             elif action == "add_window":
                 if self.desktop is not None:
                     self.desktop.startPicker()

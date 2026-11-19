@@ -163,7 +163,7 @@ any edge and it snaps.
 | No activity running | Not on screen, unless pinned; pinned, it offers **Start from what's open** |
 | Edge tab (rest style) | A 6 px line in the activity's colour on the screen edge, for people who want nothing visible |
 
-Hover for half a second (or **Ctrl+Alt+P**) and it opens upward into a **panel**: the activity's
+Hover for half a second (or **Ctrl+Alt+O**) and it opens upward into a **panel**: the activity's
 title, "12 open · 9 identified · last checkpoint 10:52, 2 new since", the watcher's list worst
 first (Needs a path, Server offline, Identified), and three actions: **Snapshot now** (the one
 filled button), **Add a window**, **Review**; plus pause capture and open in Project Opener.
@@ -201,7 +201,8 @@ or start a new one from the selection).
 |---|---|
 | Ctrl+Alt+S | Snapshot now |
 | Ctrl+Alt+A | Add the window in front; pressed twice within a second, opens the picker |
-| Ctrl+Alt+P | Show or hide the pill's panel |
+| Ctrl+Alt+O | Show or hide the pill's panel (was Ctrl+Alt+P until Park, V4-PLUS-BRIEF) |
+| Ctrl+Alt+P | Park: keep the workspace with a "where I left off" note |
 | Ctrl+Alt+K | The command palette over whatever is in front |
 
 **Inside the app.** The activity page header carries the capture switch, Snapshot now, Add a

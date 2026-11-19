@@ -687,6 +687,9 @@ class PillController(QObject):
         try:
             if action == "snapshot":
                 f.capture.snapshotNow()
+            elif action == "park":
+                self.closePanel()
+                f.capture.requestPark()
             elif action == "save_new":
                 # the tick list lives in the main window (owner decision: never add without a choice)
                 self.closePanel()

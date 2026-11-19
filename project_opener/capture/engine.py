@@ -102,6 +102,12 @@ class CaptureEngine:
         self._last_touch = float("-inf")
         self._first_seen: dict[str, str] = {}
         self._session_start = ""          # this run's first pass (Snapshot.session_start)
+        # automatic checkpoints (owner ruling): one "start" checkpoint ``CHECKPOINT_START_AFTER_S`` into the
+        # run, then an "auto" one at most every ``CHECKPOINT_AUTO_MIN_S`` and only when windows changed
+        self._run_started = 0.0
+        self._start_cp_due = False
+        self._last_cp_at = float("-inf")
+        self._last_cp_snap: M.Snapshot | None = None
 
     # ------------------------------------------------------------ lifecycle (GUI thread)
     def start(self) -> None:
@@ -246,12 +252,15 @@ class CaptureEngine:
             self._first_seen = {}
             self._session_start = ""
             self._next_due = 0.0
+            self._run_started = self._last_cp_at = self._clock()
+            self._start_cp_due, self._last_cp_snap = True, None
             if self.identifier is not None:
                 self.identifier.items_changed()
         elif name == "end":
             self._flush_live()
             self._activity_id, self._items, self._item_paths = "", [], []
             self._last_emitted = self._last_written = None
+            self._start_cp_due, self._last_cp_snap = False, None
         elif name == "pause":
             self._paused = req[1]
             if not self._paused:
@@ -345,6 +354,30 @@ class CaptureEngine:
         self.stats[-1]["skipped_next"] = skip
         self._next_due = self._clock() + interval * (2 if skip else 1)
         self._after_pass(snap)
+        self._maybe_checkpoint(snap)
+
+    def _maybe_checkpoint(self, snap: M.Snapshot) -> None:
+        """The automatic checkpoints: "start" once the run has gone ``CHECKPOINT_START_AFTER_S`` with something
+        open, then "auto" at most every ``CHECKPOINT_AUTO_MIN_S`` and only when the windows differ from the last
+        checkpoint (``diff.changed``), so an idle PC keeps none.  Paused capture runs no passes, so none either."""
+        if not self._activity_id or not snap.entries:
+            return
+        now = self._clock()
+        if self._start_cp_due:
+            if now - self._run_started >= C.CHECKPOINT_START_AFTER_S:
+                self._store_checkpoint(snap, "start", "")
+            return
+        if now - self._last_cp_at >= C.CHECKPOINT_AUTO_MIN_S and diff.changed(self._last_cp_snap, snap):
+            self._store_checkpoint(snap, "auto", "")
+
+    def _store_checkpoint(self, snap: M.Snapshot, kind: str, label: str) -> M.Checkpoint:
+        cp = M.Checkpoint(activity_id=self._activity_id, snapshot=copy.deepcopy(snap), kind=kind, label=label,
+                          taken_at=snap.taken_at)
+        self.snapshots.add_checkpoint(cp)
+        self._last_written, self._last_write = snap, self._clock()
+        self._last_cp_at, self._last_cp_snap, self._start_cp_due = self._clock(), snap, False
+        self._emit("on_checkpoint", cp)
+        return cp
 
     def _after_pass(self, snap: M.Snapshot) -> None:
         now = self._clock()
@@ -383,11 +416,7 @@ class CaptureEngine:
         if diff.changed(self._last_emitted, snap):
             self._last_emitted = snap
             self._emit("on_snapshot", snap)
-        cp = M.Checkpoint(activity_id=self._activity_id, snapshot=copy.deepcopy(snap), kind=kind, label=label,
-                          taken_at=snap.taken_at)
-        self.snapshots.add_checkpoint(cp)
-        self._last_written, self._last_write = snap, self._clock()
-        self._emit("on_checkpoint", cp)
+        self._store_checkpoint(snap, kind, label)
 
     # ------------------------------------------------------------ requests
     def _identify_one(self, hwnd: int) -> M.SnapshotEntry | None:
@@ -419,4 +448,4 @@ class CaptureEngine:
                                   progress=lambda d, t, lbl: self._emit("on_restore_progress", d, t, lbl))
         self._last_full = float("-inf")
         self._next_due = 0.0
-        self._emit("on_restore_done", report.to_dict())
+        self._emit("on_restore_done", {**report.to_dict(), "activityId": snapshot.activity_id})
