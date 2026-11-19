@@ -254,16 +254,18 @@ Page {
         }
         StatCard {
             id: s3
-            objectName: "statWeek"
+            objectName: "statReopened"
             x: 3 * (stats.cw + home.gap)
             width: stats.cw; height: stats.height
             opacity: arrive
             transform: Translate { y: (1 - s3.arrive) * (app.ui.motion === "rich" ? 12 : 0) }
-            label: "Due this week"
-            value: home.st.ready ? home.st.dueWeek : 0
-            unit: value === 1 ? "task" : "tasks"
-            line: !home.st.ready ? "" : "by " + home.st.weekEnd + (home.st.noDate > 0 ? " · " + home.st.noDate + " undated" : "")
-            tip: "Your open tasks due from today to Sunday"
+            label: "Reopened · week"
+            value: home.st.ready ? home.st.reopened : 0
+            unit: value === 1 ? "window" : "windows"
+            line: !home.st.ready ? "" : home.st.restores > 0
+                  ? "in " + home.st.restores + (home.st.restores === 1 ? " restore" : " restores") + " since Monday"
+                  : "no restore since Monday"
+            tip: "Windows that restores and launches actually reopened since Monday 00:00; windows already open are not counted"
         }
         Rise { id: riseS0; target: s0; index: 1 }
         Rise { id: riseS1; target: s1; index: 2 }

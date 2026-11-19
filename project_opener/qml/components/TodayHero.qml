@@ -18,6 +18,7 @@ Card {
     readonly property var h: app.today.hero
     readonly property bool has: h.activityId !== undefined && h.activityId !== ""
     readonly property bool resume: has && h.kind === "resume"
+    readonly property bool park: has && h.kind === "park"
     readonly property int padX: 28
     readonly property int padY: 26
     readonly property int innerW: width - 2 * padX
@@ -98,6 +99,16 @@ Card {
                 role: "hero"
                 Accessible.role: Accessible.Heading
             }
+            Txt {                               // the Park note, as written
+                objectName: "heroNote"
+                width: parent.width
+                text: hero.park ? hero.h.note : ""
+                role: "note"
+                wrapMode: Text.Wrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+                visible: text !== ""
+            }
             Txt {
                 width: parent.width
                 text: hero.has ? hero.h.line : "Your last activity waits here, with what it will reopen."
@@ -111,14 +122,26 @@ Card {
             Row {
                 spacing: 10
                 ActionButton {                  // the screen's one amber control
-                    text: !hero.has ? "Start from what's open" : hero.resume ? "Resume activity" : "Open activity"
+                    text: !hero.has ? "Start from what's open" : hero.park ? "Restore park"
+                        : hero.resume ? "Resume activity" : "Open activity"
                     icon: !hero.has ? "browsers" : "play"
                     kind: "primary"
                     shine: hero.has
-                    tooltip: hero.resume ? "A tick list first: what reopens is yours to choose" : ""
+                    available: !hero.park || hero.h.planKind === "windows"
+                    tooltip: hero.resume ? "A tick list first: what reopens is yours to choose"
+                           : hero.park ? (available ? "Reopen the parked windows in launch order and put them back where they were"
+                                                    : "Nothing in this park can be reopened: no window has a known path")
+                           : ""
                     onClicked: {
                         if (!hero.has) { Window.window.startFromOpen(); return }
-                        if (hero.resume) {
+                        if (hero.park) {
+                            var p = hero.h
+                            Window.window.confirm("Restore the park of " + p.name + "?",
+                                                  "Its " + p.planCount + (p.planCount === 1 ? " window reopens" : " windows reopen")
+                                                  + " in launch order; windows already open are left alone.",
+                                                  "Restore", false,
+                                                  function () { Window.window.safe(function () { app.capture.restoreCheckpoint(p.activityId, p.checkpointId) }) })
+                        } else if (hero.resume) {
                             var aid = hero.h.activityId
                             var ok = Window.window.safe(function () { app.capture.prepareResume(aid) })
                             if (ok) Window.window.openSheet("ResumeSheet", {})
@@ -128,12 +151,14 @@ Card {
                     }
                 }
                 ActionButton {
-                    text: !hero.has ? "New activity" : hero.resume ? "Dismiss" : "Activity page"
+                    text: !hero.has ? "New activity" : hero.park ? "Pick another moment" : hero.resume ? "Dismiss" : "Activity page"
                     icon: !hero.has ? "plus" : ""
                     kind: hero.has ? "ghost" : "outline"
-                    tooltip: hero.resume ? "The snapshot stays in the activity's checkpoints" : ""
+                    tooltip: hero.resume ? "The snapshot stays in the activity's checkpoints"
+                           : hero.park ? "Time travel: every checkpoint of the last seven days" : ""
                     onClicked: {
                         if (!hero.has) Window.window.openSheet("ActivityEditor", { activityId: "" })
+                        else if (hero.park) app.ui.go("timetravel", ({}))
                         else if (hero.resume) app.activities.dismissResume()
                         else app.ui.go("activity", { activityId: hero.h.activityId })
                     }

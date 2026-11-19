@@ -336,8 +336,13 @@ Items marked *superseded* are what is built today and are replaced by the 4.0 Dr
     mist glow (a 520 px radial `mist` field off the top-right corner) breathing 0.96-1.04 over 6 s (rich,
     window active). Left: a mono label ("Stopped yesterday 18:42 · Lot 7 check", "Opened today 09:12 · …"),
     the Archivo heading (32/250), one grey line, then the screen's one amber control with the shine and one
-    ghost action. Three cases, never invented:
-    - the resume after a shutdown (`app.activities.resume`): "Pick up where you stopped", the resume line,
+    ghost action. Cases, never invented:
+    - the latest Park (`app.capture.latestPark`), unless something newer happened since (a resume snapshot
+      or a launch taken after it): "Parked today 12:40 · Lot 7 check", "Pick up where you parked", the Park
+      note as written (Cormorant, `note` role, two lines at most), "4 windows to reopen · job", **Restore
+      park** (confirmed, then `restoreCheckpoint`; disabled with the reason when nothing in it has a path)
+      and "Pick another moment" (route `timetravel`); the plan is the park's own restorable windows;
+    - else the resume after a shutdown (`app.activities.resume`): "Pick up where you stopped", the resume line,
       **Resume activity** (the tick list first, `ResumeSheet`) and Dismiss (the snapshot stays in the checkpoints);
     - else the last-run activity (newest `last_opened`): "Pick up where you left off", its items and job,
       **Open activity** (through the dock) and Activity page;
@@ -347,8 +352,7 @@ Items marked *superseded* are what is built today and are replaced by the 4.0 Dr
     and "6 windows · 3 apps" (the latest snapshot's restorable entries, `snapshots.latest`), else "Opens"
     and "5 items in launch order" (the enabled items); pale `surface_2` chips with the kind glyph, two rows
     at most, the last slot "+N"; the line of flow (`components/FlowPipe.qml`) from "Stopped 14:32" /
-    "Opened 09:12" to "Ready". The Cormorant Park note and "Pick another moment" wait for Park and the
-    Time travel page.
+    "Opened 09:12" / "Parked 12:40" to "Ready".
   - **Four stats** (`components/StatCard.qml`), equal columns, one height: radius 8, a 2 px `border_strong`
     top rule that turns `accent` on hover, a mono label, the numeral (Archivo 44/250, tabular) with its unit
     in muted body, then one line or one graphic; the tooltip says what is counted.
@@ -360,8 +364,9 @@ Items marked *superseded* are what is built today and are replaced by the 4.0 Dr
     - Day streak: days in a row with a launch (`store.history`), counted from today, or from yesterday until
       today has one; a Saturday or Sunday without a launch neither counts nor breaks it. The squares are the
       last 14 days (as many as fit), teal = something was launched.
-    - Due this week (in place of "Setup saved", which needs the restore log): my open tasks due today to
-      Sunday, "by Sun 22 Nov · N undated".
+    - Reopened · week (windows): the windows restores and launches actually reopened since Monday 00:00 (the
+      restore log, `app.capture.weekReopened`; windows already open and dry runs are not counted); the line
+      is "in N restores since Monday" (`weekRestores`), else "no restore since Monday".
   - **Three panels**, one row, one bottom edge: Time travel (1.35 parts) | Office | Drives on this PC (1 each);
     below 1000 px Time travel takes the width and Office | Drives share the row under it.
     - Time travel (`components/TimeTravelPanel.qml`): a lane per day, Monday to today, a tick per checkpoint
@@ -369,7 +374,8 @@ Items marked *superseded* are what is built today and are replaced by the 4.0 Dr
       latest checkpoint, hours labelled under the lanes); the tick's height follows its window count; teal,
       amber when hovered or picked. The card at the panel's foot shows the picked one (the newest at first):
       "Tue 16:05", "7 windows · Lot 7 check", and Restore (confirmed; disabled with the reason when nothing
-      in it has a path). No checkpoint this week: one line.
+      in it has a path). No checkpoint this week: one line. "Open timeline" (ghost, in the heading row)
+      goes to the Time travel page (route `timetravel`).
     - Office and Drives are the existing `OfficePanel` and `DrivesPanel` (radius 8 here) until Office pulse
       and Space map / Wrapped get their pages.
   - **Arrival**: the eight blocks rise 60 ms apart (Rise, `components/Rise.qml`); each numeral counts up

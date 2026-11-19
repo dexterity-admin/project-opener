@@ -119,6 +119,28 @@ def test_hero_shows_the_restorable_windows_else_the_items():
     assert TA.pick_last([]) == (None, "")
 
 
+def test_hero_park_says_when_where_and_the_note():
+    act = M.Activity("Lot 7 check", items=[M.ActivityItem(path=r"D:\j\a.pdf")])
+    snap = M.Snapshot(act.id, entries=[
+        M.SnapshotEntry("path:1", status="identified", path=r"D:\j\Register.xlsx", kind="file", app="Excel"),
+        M.SnapshotEntry("path:2", status="identified", path=r"D:\j\IN", kind="folder", app="Explorer")])
+    park = {"activityId": act.id, "checkpointId": "cp1", "takenAt": iso(at(0, 8, 5)), "note": "halfway, sheet 4"}
+    h = TA.hero_fact(act, "park", snap, "P12513", park, NOW)
+    assert h["kind"] == "park" and h["label"] == "Parked today 08:05 · Lot 7 check"
+    assert h["heading"] == "Pick up where you parked" and h["note"] == "halfway, sheet 4"
+    assert h["line"] == "2 windows to reopen · P12513" and h["checkpointId"] == "cp1"
+    assert h["planKind"] == "windows" and h["planCount"] == 2 and h["fromText"] == "Parked 08:05"
+    assert TA.hero_fact(act, "last", snap, "", now=NOW)["note"] == ""
+
+
+def test_the_latest_park_wins_unless_something_newer_happened():
+    park = {"checkpointId": "cp1", "takenAt": iso(at(0, 8, 5))}
+    assert TA.park_wins(park, iso(at(1, 18, 0)))                # opened yesterday, parked today: the park
+    assert not TA.park_wins(park, iso(at(0, 9, 0)))             # opened again after parking: the last run
+    assert TA.park_wins(park, None) and TA.park_wins(park, "")  # nothing else to compare: the park
+    assert not TA.park_wins({}, None)                           # no park at all
+
+
 # ---------------------------------------------------------------- facade
 @pytest.fixture(scope="module")
 def qapp():
@@ -169,6 +191,29 @@ def test_facade_hero_week_and_streak_from_the_store(facade):
     assert t.stats["dueToday"] == 0 and t.stats["ready"]
     t.refresh_hero()
     assert t.hero["kind"] == "last" and t.hero["label"].startswith("Opened today ")
+
+
+def test_facade_hero_parks_and_the_week_counts_reopened_windows(facade):
+    app, aid = facade
+    t = app.today
+    now = datetime.now().astimezone()
+    act = app.ctx.store.activity(aid)
+    act.last_opened = iso(now - timedelta(minutes=10))
+    entries = [M.SnapshotEntry(f"k{i}", status="identified", kind="file", path=rf"U:\job\{i}.pdf") for i in range(3)]
+    app.snapshots.add_checkpoint(M.Checkpoint(aid, M.Snapshot(aid, entries=entries), taken_at=iso(now),
+                                              kind="park", label="back after lunch"))
+    app.snapshots.log_reopened(aid, "restore", 4)
+    app.snapshots.log_reopened(aid, "launch", 2)
+    t.start()                                               # wires memoryChanged to the hero and the stats
+    app.capture.refreshMemory()
+    h = t.hero
+    assert h["kind"] == "park" and h["note"] == "back after lunch" and h["planCount"] == 3
+    assert h["label"].startswith("Parked today ") and h["checkpointId"] == app.capture.latestPark["checkpointId"]
+    assert (t.stats["reopened"], t.stats["restores"]) == (6, 1)
+    act.last_opened = iso(now + timedelta(minutes=1))       # opened again after the park: the last run leads
+    t.refresh_hero()
+    assert t.hero["kind"] == "last"
+    t.shutdown()
 
 
 # ------------------------------------------------------------- the page

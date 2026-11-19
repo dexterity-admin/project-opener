@@ -81,6 +81,8 @@ STORY = {
     "lot7_opened": "09:12",            # Lot 7 check opened (its session start)
     "cp_early": "11:20",               # Lot 7 checkpoints kept by the watcher
     "cp_mid": "13:05",
+    "park": "12:40",                   # Lot 7 parked for lunch (older than the power cut: the resume leads Today)
+    "restored": "11:02",               # a Lot 7 checkpoint restored mid-morning (the restore log)
     "rev_c_hit": "10:41",              # the Revision C watcher: 2 new sheets
     "iso_1043_seen": "10:45",          # one of them opened in PDF-XChange
     "resume": "14:32",                 # Lot 7's last checkpoint before the power cut
@@ -260,13 +262,19 @@ def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
     }
     for when, keys, kind in (
             (STORY["cp_early"], ("check", "lines", "register", "timesheet"), "auto"),
+            (STORY["park"], ("check", "lines", "register", "timesheet"), "park"),
             (STORY["cp_mid"], ("check", "lines", "register", "iso1043", "timesheet"), "auto"),
             (STORY["resume"], ("check", "lines", "register", "iso1043", "timesheet", "clash"), "auto")):
         snap = M.Snapshot(activity_id=lot7.id, taken_at=today_at(when), session_start=today_at(opened),
                           monitors=[M.Monitor(device=n, rect=[x, y, x + w, y + h], work=[x, y, x + w, y + h - 40],
                                               primary=i == 0) for i, (n, x, y, w, h) in enumerate(SCREENS)],
                           entries=[M.SnapshotEntry.from_dict(l7[k].to_dict()) for k in keys])
-        snaps.add_checkpoint(M.Checkpoint(activity_id=lot7.id, snapshot=snap, kind=kind, taken_at=today_at(when)))
+        snaps.add_checkpoint(M.Checkpoint(activity_id=lot7.id, snapshot=snap, kind=kind, taken_at=today_at(when),
+                                          label="Lunch: sheets 1 to 4 checked, 1043 next" if kind == "park" else ""))
+    # the restore log: what launches and restores actually reopened today
+    snaps.log_reopened(lot7.id, "launch", 4, at=today_at(STORY["lot7_opened"]))
+    snaps.log_reopened(lot7.id, "restore", 3, at=today_at(STORY["restored"]))
+    snaps.log_reopened(gad.id, "launch", 2, at=today_at(STORY["gad_started"]))
     # the PC went down while it ran: a marker from a process that is gone
     snaps.mark_running(M.RunningMarker(activity_id=lot7.id, pid=999_999, started_at=today_at(opened),
                                        last_seen=today_at(STORY["resume"])))

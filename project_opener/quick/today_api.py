@@ -213,7 +213,8 @@ def entry_chip(e: M.SnapshotEntry) -> dict[str, str]:
 
 def hero_fact(act: M.Activity | None, kind: str, snap: M.Snapshot | None, spine: str,
               resume: dict[str, Any] | None = None, now: datetime | None = None) -> dict[str, Any]:
-    """The hero's facts for ``act``.  ``kind``: resume (the PC stopped while it ran) | last (the last-run
+    """The hero's facts for ``act``.  ``kind``: park (the latest Park; ``resume`` is then the
+    ``app.capture.latestPark`` map) | resume (the PC stopped while it ran) | last (the last-run
     activity) | new (activities exist, none opened yet).  The plan is the snapshot's restorable windows; with
     none, the enabled items in launch order."""
     if act is None:
@@ -230,7 +231,17 @@ def hero_fact(act: M.Activity | None, kind: str, snap: M.Snapshot | None, spine:
                   "app": ""} for i in items]
         plan_kind, plan_count = "items", len(items)
         plan_text = T.plural(plan_count, "item") + (" in launch order" if plan_count > 1 else "")
-    if kind == "resume":
+    note, checkpoint_id = "", ""
+    if kind == "park":
+        park = resume or {}
+        when = park.get("takenAt", "")
+        moment = moment_text(when, now) if when else ""
+        label = T.join_facts(f"Parked {moment}" if moment else "Parked", act.name)
+        heading = "Pick up where you parked"
+        note, checkpoint_id = park.get("note", ""), park.get("checkpointId", "")
+        line = T.join_facts(T.plural(len(restorable), "window") + " to reopen", spine)
+        from_text = f"Parked {T.clock(when)}" if when else "Parked"
+    elif kind == "resume":
         when = (snap.taken_at if snap and snap.entries else "") or (resume or {}).get("takenIso", "")
         moment = moment_text(when, now) if when else (resume or {}).get("takenAt", "")
         label = T.join_facts(f"Stopped {moment}" if moment else "Stopped", act.name)
@@ -250,8 +261,17 @@ def hero_fact(act: M.Activity | None, kind: str, snap: M.Snapshot | None, spine:
         from_text = "Not opened yet"
     return {"activityId": act.id, "kind": kind, "name": act.name, "label": label, "heading": heading,
             "line": line, "planKind": plan_kind, "planCount": plan_count, "planText": plan_text,
-            "chips": chips[:CHIPS_MAX], "fromText": from_text, "toText": "Ready"}
+            "chips": chips[:CHIPS_MAX], "fromText": from_text, "toText": "Ready", "note": note,
+            "checkpointId": checkpoint_id}
 
+
+def park_wins(park: dict[str, Any], other_at: str | None) -> bool:
+    """The latest Park takes the hero unless something newer happened since: a resume snapshot or a launch
+    taken after it (``other_at``, ISO).  Unreadable times never hide a park."""
+    if not park.get("checkpointId"):
+        return False
+    p, o = _local(park.get("takenAt")), _local(other_at)
+    return p is None or o is None or p >= o
 
 def pick_last(acts: Iterable[M.Activity]) -> tuple[M.Activity | None, str]:
     """The last-run activity ("last"); with none ever opened, the first in stage order ("new")."""
@@ -296,6 +316,8 @@ class TodayApi(ApiBase):
         a.activities.activitiesChanged.connect(self._debounce.start)
         a.capture.checkpointsChanged.connect(self._debounce.start)
         a.capture.checkpointsChanged.connect(self.refresh_hero)
+        a.capture.memoryChanged.connect(self.refresh_hero)
+        a.capture.memoryChanged.connect(self.refresh_stats)
         a.tasks.tasksChanged.connect(self.refresh_stats)
         a.watchers.alertsChanged.connect(self.refresh_stats)
         a.watchers.watchersChanged.connect(self.refresh_stats)
@@ -329,10 +351,19 @@ class TodayApi(ApiBase):
             act, kind = store.activity(resume["activityId"]), "resume"
         if act is None:
             act, kind = pick_last(store.activities)
+        park = dict(self.app.capture.latestPark or {})
+        other_at = (resume.get("takenIso") if kind == "resume" else act.last_opened if act else None) or None
+        parked = store.activity(park.get("activityId", "")) if park_wins(park, other_at) else None
+        if parked is not None:
+            act, kind, resume = parked, "park", park
         snap = None
         if act is not None:
             try:
-                snap = self.app.snapshots.latest(act.id)
+                if kind == "park":
+                    cp = self.app.snapshots.checkpoint(act.id, park["checkpointId"])
+                    snap = cp.snapshot if cp else None
+                else:
+                    snap = self.app.snapshots.latest(act.id)
             except Exception:  # noqa: BLE001
                 log.exception("no snapshot for the hero")
         proj = store.get(act.primary_project_id) if act is not None else None
@@ -350,7 +381,8 @@ class TodayApi(ApiBase):
         stats = {"ready": True, **s, "tasksLine": tasks_line(s),
                  "changed": ch["count"], "changedSpark": ch["spark"],
                  "changedSince": f"since {OVERNIGHT_FROM_HOUR}:00 yesterday",
-                 "streak": streak, "streakDays": squares, "launchDays": len(self._days)}
+                 "streak": streak, "streakDays": squares, "launchDays": len(self._days),
+                 "reopened": int(self.app.capture.weekReopened), "restores": int(self.app.capture.weekRestores)}
         self.set_("_stats", stats, self.statsChanged)
 
     def _run(self, key: str, work: Callable[[], Any], done: Callable[[Any], None]) -> None:

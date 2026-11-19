@@ -46,10 +46,21 @@ Card {
         height: 34
         SectionHeading {
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width
+            width: parent.width - timelineBtn.width - 8
             title: "Time travel"
             facts: panel.ticks.length === 0 ? "this week"
                  : "this week · " + panel.ticks.length + (panel.ticks.length === 1 ? " checkpoint" : " checkpoints")
+        }
+        ActionButton {
+            id: timelineBtn
+            objectName: "openTimeline"
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Open timeline"
+            icon: "arrow-right"
+            kind: "ghost"
+            small: true
+            onClicked: app.ui.go("timetravel", ({}))
         }
     }
 
