@@ -86,7 +86,7 @@ ADD_WINDOW_DOUBLE_PRESS_MS = 1000
 # Watchers and the hub additions
 WATCH_TICK_S = 15           # watcher engine tick; each folder watcher polls at its own interval
 HUB_TASKS_REFRESH_S = 60
-CLIQ_RETRY_S = 300
+CONNECT_RETRY_S = 300       # the Connect outbox is tried again this often
 
 # Explorer integration (per-user, no admin)
 EXPLORER_VERB = "ProjectOpener.AddToActivity"
@@ -143,5 +143,5 @@ RESTORE_LOG_FILE = "restores.json"  # what each restore and launch actually reop
 LOCAL_TASKS_DIR = "tasks"           # tasks when no hub is configured (same format as hub tasks/)
 WATCH_STATE_DIR = "watch-state"     # watch-state/<watcher_id>.json: last folder listing
 ALERTS_FILE = "alerts.jsonl"        # alerts shown in the app (WatchEvent rows)
-CLIQ_OUTBOX_FILE = "cliq-outbox.jsonl"  # undelivered Cliq messages, retried
+CONNECT_OUTBOX_FILE = "connect-outbox.jsonl"  # notices Dexterity Connect has not taken yet, retried
 IDENTITY_CACHE_FILE = "capture-ignore.json"  # per-process/title ignore rules chosen by the user

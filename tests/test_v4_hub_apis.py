@@ -228,7 +228,7 @@ def test_folder_watcher_alert_once_and_mark_read(office, tmp_path):
     folder = tmp_path / "RevC"
     folder.mkdir()
     wid = vikram.watchers.create("folder", str(folder), ["new"], {"intervalS": 10},
-                                 {"toast": True, "mentions": ["@yokesh"], "cliqDm": False})
+                                 {"toast": True, "mentions": ["@yokesh"], "connectDm": False})
     row = vikram.watchers.watchers.get(0)
     assert row["watcherId"] == wid and row["notifyText"] == "Toast · @yokesh" and row["name"] == "Watch RevC"
     alerts: list[tuple] = []

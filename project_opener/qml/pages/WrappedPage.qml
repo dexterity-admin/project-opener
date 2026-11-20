@@ -6,7 +6,7 @@ import "../components"
 // every PC publishes through the hub folder.  No hours, no window titles.  Motion (DESIGN.md "Motion"): the
 // blocks rise once on arrival (60 ms apart; a fade in purposeful), then the numerals count up (900 ms, ease-out
 // cubic) and the streak squares pop 45 ms apart; at motion off everything is still and shows its value.  A data
-// refresh never replays it.  The one amber control is Post to Cliq.
+// refresh never replays it.  The one amber control is Post in Connect.
 Page {
     id: page
     minimumWidth: 860
@@ -14,7 +14,7 @@ Page {
     readonly property bool ready: w.week !== undefined
     readonly property bool still: app.ui.k === 0
     property bool arrived: false           // the rise and count-up ran (once per page arrival)
-    property string channel: app.settings.value("wrapped_channel") || ""
+    property string channel: app.settings.value("wrapped_space") || ""
 
     Component.onCompleted: { app.team.refresh(); if (ready) page.arrive() }
     onReadyChanged: if (ready) page.arrive()
@@ -122,32 +122,32 @@ Page {
                     height: 36
                     Txt {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width - cliqRow.width - 16
+                        width: parent.width - spaceRow.width - 16
                         text: page.ready ? page.w.name + "’s week" : "Your week"
                         font.family: page.tk.face_display
                         font.pixelSize: 26
                         font.weight: Font.Light
                     }
                     Row {
-                        id: cliqRow
+                        id: spaceRow
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 8
-                        visible: app.team.cliqReady
+                        visible: app.team.connectReady
                         Field {
                             width: 170
                             text: page.channel
-                            placeholder: "#piping-team"
+                            placeholder: "Piping team"
                             input.onEditingFinished: page.channel = text
-                            Accessible.name: "Cliq channel"
+                            Accessible.name: "Connect Space"
                         }
                         ActionButton {
-                            text: "Post to Cliq"
+                            text: "Post in Connect"
                             icon: "paper-plane-tilt"
                             kind: "primary"
                             available: page.ready && page.channel.replace("#", "").trim() !== ""
-                            tooltip: available ? "Posts these numbers to #" + page.channel.replace("#", "") : "Name a Cliq channel first"
-                            onClicked: app.team.postToCliq(page.channel)
+                            tooltip: available ? "Posts these numbers in the Space " + page.channel.replace("#", "") : "Name a Connect Space first"
+                            onClicked: app.team.postToSpace(page.channel)
                         }
                     }
                 }

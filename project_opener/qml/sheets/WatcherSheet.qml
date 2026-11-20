@@ -2,7 +2,7 @@ import QtQuick
 import "../components"
 
 // A watcher (brief 3.4): what to watch (a folder, a server's health, the hub, a date), the events, and who to
-// tell (a toast, @mentions, a Cliq message, a Cliq channel).  Folders are polled (the share is SMB).
+// tell (a toast, @mentions, a notice in Dexterity Connect, a Connect Space).  Folders are polled (the share is SMB).
 Sheet {
     id: s
     property string watcherId: ""
@@ -30,7 +30,7 @@ Sheet {
     onKindChanged: events = [eventsFor[kind][0].v]
     onAccepted: {
         var ok = Window.window.safe(function () {
-            var notify = { toast: toast.checked, mentions: tell.targets, cliqDm: dm.checked, cliqChannel: channel.text }
+            var notify = { toast: toast.checked, mentions: tell.targets, connectDm: dm.checked, connectSpace: channel.text }
             var params = { pattern: pattern.text || "*", activityId: s.activityId }
             if (s.watcherId === "") app.watchers.create(s.kind, target.text, s.events, params, notify)
             else app.watchers.edit(s.watcherId, { target: target.text, events: s.events, params: params, notify: notify })
@@ -89,6 +89,6 @@ Sheet {
     }
     SwitchRow { id: toast; label: "Tell me with a toast"; checked: true; onToggled: (v) => checked = v }
     ForField { id: tell; width: parent.width; label: "Also tell"; help: "People and groups get it in their inbox." }
-    SwitchRow { id: dm; label: "Message on Cliq"; help: "To me and the people above, when linked."; checked: app.settings.value("notify_cliq_default") === true; onToggled: (v) => checked = v }
-    Field { id: channel; width: (parent.width - 16) / 2; label: "Cliq channel"; placeholder: "A channel name"; help: "Optional: post there too." }
+    SwitchRow { id: dm; label: "Tell in Connect"; help: "Nib tells me and the people above in Dexterity Connect."; checked: app.settings.value("notify_connect") === true; onToggled: (v) => checked = v }
+    Field { id: channel; width: (parent.width - 16) / 2; label: "Connect Space"; placeholder: "A Space's name"; help: "Optional: post there too." }
 }

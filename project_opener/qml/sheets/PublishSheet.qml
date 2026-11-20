@@ -3,7 +3,7 @@ import "../components"
 
 // Publish to the Team Hub, post an announcement, or send to colleagues (board C).  mode: activity | project |
 // announce | send-activity | send-project.  Every text field knows @mentions (the picker under the caret); the
-// "For" field takes people and groups, each of whom gets it in their inbox (and a Cliq message when linked).
+// "For" field takes people and groups, each of whom gets it in their inbox (and a notice in Dexterity Connect).
 Sheet {
     id: s
     property string mode: "activity"

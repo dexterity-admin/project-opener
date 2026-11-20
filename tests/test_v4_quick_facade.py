@@ -294,7 +294,7 @@ def test_settings_coercion_and_side_effects(facade):
     assert facade.ui.dark is False
     api.setVariable("server_root", r"\\nas01\Project")
     assert facade.ctx.settings.variables == {"{SERVER_ROOT}": r"\\nas01\Project"}
-    assert api.value("cliq_token_enc") is None                  # secrets never reach QML
+    assert api.value("connect_token_enc") is None                  # secrets never reach QML
     api.setValue("github_token_enc", "x")
     assert facade.ctx.settings.github_token_enc == ""
 
@@ -404,3 +404,51 @@ def test_task_notes_are_not_titled_as_mentions(facade):
     facade.toastAction.connect(lambda *a: bodies.append((a[0], a[1])))
     facade._on_mentioned("yokesh", "Yokesh finished Back-check PO4 lot", "projectopener://task/t9")
     assert bodies[-1][0] == "Back-check PO4 lot done" and bodies[-1][1].startswith("by ")
+
+
+def test_connect_settings_are_pasted_tested_shared_and_removed(facade, tmp_path, monkeypatch):
+    """Settings > Connect and mail: what Connect copies is taken whole, the token never reaches QML,
+    the office's copy in the Team Hub serves a PC that has none of its own."""
+    import json
+    monkeypatch.setenv("PO_CONNECT_DRY_RUN", "1")               # no hub here: requests are only recorded
+    api, st = facade.settings, facade.ctx.settings
+    said: list = []
+    api.connectTested.connect(lambda ok, msg: said.append((ok, msg)))
+
+    def wait() -> tuple:
+        for _ in range(100):
+            if said:
+                break
+            pump(20)
+        return said.pop(0)
+
+    assert api.connectState["ready"] is False and api.connectState["source"] == ""
+    api.pasteConnectSettings("hello")
+    assert wait()[0] is False and st.connect_hub == ""
+    api.pasteConnectSettings(json.dumps({"connect": {"hub": "hub-pc:47900", "token": "dxc_abc"}}))
+    assert "fingerprint" in wait()[1] and st.connect_hub == ""  # an https hub without its fingerprint is refused
+    block = json.dumps({"connect": {"enabled": True, "hub": "hub-pc:47900", "fingerprint": "AB:" * 31 + "AB",
+                                    "token": "dxc_abc"}}, indent=2)
+    api.pasteConnectSettings(block.replace("\n", " "))          # a one-line field flattens what was copied
+    assert wait()[0] is True
+    assert (st.connect_hub, st.connect_fingerprint, st.connect_token) == ("https://hub-pc:47900", "ab" * 32, "dxc_abc")
+    state = api.connectState
+    assert state["ready"] and state["source"] == "pc" and "dxc_abc" not in json.dumps(state)
+    assert api.value("connect_token_enc") is None
+    api.testConnect()
+    assert wait()[0] is True
+
+    api.shareConnect(True)                                      # no Team Hub folder on this PC yet
+    assert wait() == (False, "Set a Team Hub folder first (Settings, Team Hub).")
+    root = tmp_path / "hub"
+    root.mkdir()
+    facade.ctx.hub.root = root
+    assert api.connectState["hasTeamHub"] is True and api.connectState["shared"] is False
+    api.shareConnect(True)
+    assert wait()[0] is True and json.loads((root / "connect.json").read_text(encoding="utf-8"))["token"] == "dxc_abc"
+    api.removeConnect()                                         # this PC forgets its own: the office's serve it
+    assert "Team Hub" in wait()[1] and st.connect_token == ""
+    state = api.connectState
+    assert state["ready"] and state["source"] == "office" and state["shared"] is True
+    api.shareConnect(False)
+    assert wait()[0] is True and not (root / "connect.json").exists() and api.connectState["ready"] is False

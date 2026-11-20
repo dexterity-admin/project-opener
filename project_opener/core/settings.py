@@ -87,16 +87,16 @@ class Settings:
     sendto_entry: bool = True           # Send to > Project Opener
     hide_when_fullscreen: bool = True   # full screen, presentation, remote desktop, Do not disturb
     # People and integrations (brief 3.2, 3.5, 3.6)
-    email: str = ""                     # used to look up the Cliq user id
-    cliq_user_id: str = ""
-    cliq_api_base: str = "https://cliq.zoho.in/api/v2"
-    cliq_bot: str = ""                  # bot unique name
-    cliq_token_enc: str = ""            # DPAPI blob of the office bot token (shared service account)
-    notify_cliq_default: bool = True    # DM me on mention / task / watcher hits when linked
+    email: str = ""                     # shown to colleagues (People); mail uses it
+    # Dexterity Connect, the office messenger (lan/connect_bot.py): notices arrive through Nib
+    connect_hub: str = ""               # https://<hub>:47900
+    connect_fingerprint: str = ""       # SHA-256 of the hub's certificate, 64 hex digits
+    connect_token_enc: str = ""         # DPAPI blob of the office's integration token
+    notify_connect: bool = True         # tell me in Connect on mention / task / watcher hits
     mail_client: str = "outlook"        # outlook | mailto
     spacemap_stale_months: int = 12     # Space map: a file not modified for this many months is stale
     board_show_me: bool = True          # Weekly Wrapped: my numbers on the office board (opt out here)
-    wrapped_channel: str = ""           # the Cliq channel "Post to Cliq" used last
+    wrapped_space: str = ""             # the Connect Space "Post to a Space" used last
 
     # ------------------------------------------------------------ persistence
     @classmethod
@@ -106,6 +106,12 @@ class Settings:
         s = cls()
         if isinstance(data, dict):
             valid = {f.name: f.type for f in fields(cls)}
+            # after 4.0: Zoho Cliq gave way to Dexterity Connect.  The one choice that carries over is
+            # "do not message me"; the Cliq bot's name, token and user id mean nothing to Connect.
+            if "notify_connect" not in data and isinstance(data.get("notify_cliq_default"), bool):
+                data = {**data, "notify_connect": data["notify_cliq_default"]}
+            if data.get("settings_tab") == "cliq":
+                data = {**data, "settings_tab": "connect"}
             for k, v in data.items():
                 if k in valid:
                     setattr(s, k, v)
@@ -148,18 +154,18 @@ class Settings:
         self.github_token_enc = winutil.protect(value) if value else ""
 
     @property
-    def cliq_token(self) -> str:
-        if not self.cliq_token_enc:
+    def connect_token(self) -> str:
+        if not self.connect_token_enc:
             return ""
         try:
-            return winutil.unprotect(self.cliq_token_enc)
+            return winutil.unprotect(self.connect_token_enc)
         except Exception as exc:  # pragma: no cover
-            log.warning("could not decrypt Cliq token: %s", exc)
+            log.warning("could not decrypt the Connect token: %s", exc)
             return ""
 
-    @cliq_token.setter
-    def cliq_token(self, value: str) -> None:
-        self.cliq_token_enc = winutil.protect(value) if value else ""
+    @connect_token.setter
+    def connect_token(self, value: str) -> None:
+        self.connect_token_enc = winutil.protect(value) if value else ""
 
     # ------------------------------------------------------------------ alias
     @property
@@ -174,5 +180,5 @@ class Settings:
     def to_public_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d.pop("github_token_enc", None)
-        d.pop("cliq_token_enc", None)
+        d.pop("connect_token_enc", None)
         return d

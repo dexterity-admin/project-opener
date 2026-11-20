@@ -128,17 +128,19 @@ def test_announcement_mentions(hub_root):
     assert hubs["rahul"].announcements() == []
 
 
-def test_heartbeat_v4_fields_and_cliq_ids(hub_root):
+def test_heartbeat_v4_fields_and_who_is_told_in_connect(hub_root):
     hubs = office(hub_root)
     p = hubs["priya"]
-    p.email, p.cliq_id, p.cliq_linked, p.current_activity = "priya@dex.com", "6000123", True, "Lot 7 check"
+    p.email, p.current_activity = "priya@dex.com", "Lot 7 check"
     p.heartbeat()
     y = hubs["yokesh"]
-    y.cliq_id, y.cliq_linked = "6000999", False                    # has an id but opted out
+    y.connect_notify = False                                       # turned "Tell me in Connect" off
     y.heartbeat()
     rec = hubs["vikram"].user_records()["priya"]
-    assert rec["email"] == "priya@dex.com" and rec["cliq_linked"] is True and rec["current_activity"] == "Lot 7 check"
-    assert hubs["vikram"].cliq_ids_for(["priya", "yokesh", "rahul"]) == {"priya": "6000123"}
+    assert rec["email"] == "priya@dex.com" and rec["connect_notify"] is True and rec["current_activity"] == "Lot 7 check"
+    # nobody links anything: everyone is told but those who said no (also someone the hub has never seen,
+    # and a PC still on a version that does not write the field)
+    assert hubs["vikram"].connect_logins_for(["priya", "yokesh", "rahul", "newcomer"]) == ["priya", "rahul", "newcomer"]
     assert hubs["vikram"].display_name_for("priya") == "Priya"
 
 

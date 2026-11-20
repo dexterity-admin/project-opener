@@ -3,8 +3,8 @@ import QtQuick.Controls.Basic as C
 import "../components"
 
 // Settings: every 3.2 setting plus Motion, Snapshot (capture), the pill and keys (its rest style and place,
-// the four keys with their conflict status, the Explorer entries), Cliq (the office bot's token kept with
-// DPAPI, my link), and the watchers.  One area at a time: real tabs, each showing one section only (app-screens
+// the four keys with their conflict status, the Explorer entries), Dexterity Connect (the office's settings,
+// the token kept with DPAPI), and the watchers.  One area at a time: real tabs, each showing one section only (app-screens
 // §8.2), the last tab remembered (app.settings.settingsTab); a route payload {section} opens that tab.  Labels
 // above controls; a switch row says what it does.  Values are read through app.settings.value(key) and
 // written with setValue (side effects routed in Python).
@@ -39,7 +39,7 @@ Page {
         { key: "profile", text: "Profile" }, { key: "appearance", text: "Appearance" },
         { key: "launching", text: "Opening" }, { key: "paths", text: "Paths" },
         { key: "hub", text: "Team Hub" }, { key: "snapshot", text: "Snapshot" },
-        { key: "pill", text: "Pill and keys" }, { key: "cliq", text: "Cliq and mail" },
+        { key: "pill", text: "Pill and keys" }, { key: "connect", text: "Connect and mail" },
         { key: "watchers", text: "Watchers" }, { key: "updates", text: "Updates" }
     ]
     function tabFor(key) {
@@ -91,7 +91,7 @@ Page {
             Field {
                 width: 280
                 label: "E-mail"
-                help: "The Cliq bot finds you by it."
+                help: "Colleagues see it; mail uses it."
                 text: page.v("email") || ""
                 placeholder: "Your work e-mail"
                 input.onEditingFinished: page.set("email", text)
@@ -381,42 +381,38 @@ Page {
         }
     }
 
-    // ------------------------------------------------------------ Cliq and mail
+    // ------------------------------------------------------------ Connect and mail
     SettingsSection {
-        id: secCliq
-        visible: page.tab === "cliq"
+        id: secConnect
+        visible: page.tab === "connect"
         width: page.contentW
-        line: "The office bot sends you mentions, tasks and watcher hits as Cliq messages with a link back here."
+        line: "Nib tells people about mentions, tasks and watcher hits in Dexterity Connect, with a link back here."
         property string testText: ""
         property bool testOk: false
-        Connections { target: app.settings; function onCliqTested(ok, message) { secCliq.testOk = ok; secCliq.testText = message } }
-        Row {
-            spacing: 16
-            Field { width: 220; label: "Bot"; placeholder: "The bot's unique name"; text: page.v("cliq_bot") || ""; input.onEditingFinished: page.set("cliq_bot", text) }
-            Field { width: 320; label: "Cliq address"; text: page.v("cliq_api_base") || ""; input.onEditingFinished: page.set("cliq_api_base", text) }
-        }
+        readonly property var st: page.rev >= 0 ? app.settings.connectState : ({})
+        Connections { target: app.settings; function onConnectTested(ok, message) { secConnect.testOk = ok; secConnect.testText = message } }
         Row {
             spacing: 12
             Field {
-                id: tokenField
-                width: 320
-                label: "Bot token"
-                help: app.settings.hasCliqToken ? "A token is stored for this Windows account (DPAPI). Enter a new one to replace it." : "Stored for this Windows account only (DPAPI); never shown again."
+                id: pasteField
+                width: 420
+                label: "Settings from Connect"
+                help: "In Connect: Control room, Integrations, Create token, Copy settings. Paste them here. The token is stored for this Windows account only (DPAPI) and never shown again."
                 echoMode: TextInput.Password
-                placeholder: app.settings.hasCliqToken ? "••••••••" : "Paste the office bot's token"
+                placeholder: secConnect.st.source === "pc" ? "••••••••" : "Paste the settings"
             }
             ActionButton {
                 y: 25
-                text: "Save token"
-                available: tokenField.text !== ""
-                onClicked: { app.settings.setCliqToken(tokenField.text); tokenField.text = "" }
+                text: "Save"
+                available: pasteField.text !== ""
+                onClicked: { secConnect.testText = "Asking Connect…"; app.settings.pasteConnectSettings(pasteField.text); pasteField.text = "" }
             }
             ActionButton {
                 y: 25
-                visible: app.settings.hasCliqToken
+                visible: secConnect.st.source === "pc"
                 text: "Remove"
                 kind: "ghost"
-                onClicked: app.settings.setCliqToken("")
+                onClicked: app.settings.removeConnect()
             }
         }
         Item {
@@ -427,15 +423,22 @@ Page {
                 spacing: 12
                 StatusPill {
                     anchors.verticalCenter: parent.verticalCenter
-                    status: (page.v("cliq_user_id") || "") !== "" ? "ok" : "neutral"
-                    label: (page.v("cliq_user_id") || "") !== "" ? "Linked" : "Not linked"
+                    status: secConnect.st.ready ? "ok" : "neutral"
+                    label: !secConnect.st.ready ? "Not set up" : secConnect.st.source === "office" ? "Set up for the office" : "Set up on this PC"
                 }
-                ActionButton { text: "Link and send me a test"; small: true; onClicked: { secCliq.testText = "Asking Cliq…"; app.settings.testCliq() } }
-                ActionButton { visible: (page.v("cliq_user_id") || "") !== ""; text: "Unlink"; kind: "ghost"; small: true; onClicked: app.settings.unlinkCliq() }
-                Txt { anchors.verticalCenter: parent.verticalCenter; text: secCliq.testText; tone: secCliq.testText === "" ? "muted" : secCliq.testOk ? "ok" : "bad" }
+                Txt { anchors.verticalCenter: parent.verticalCenter; visible: !!secConnect.st.hub; text: secConnect.st.hub || ""; tone: "muted" }
+                ActionButton { text: "Send me a test"; small: true; available: !!secConnect.st.ready; onClicked: { secConnect.testText = "Asking Connect…"; app.settings.testConnect() } }
+                Txt { anchors.verticalCenter: parent.verticalCenter; text: secConnect.testText; tone: secConnect.testText === "" ? "muted" : secConnect.testOk ? "ok" : "bad" }
             }
         }
-        SwitchRow { label: "Message me on Cliq by default"; help: "Mentions, tasks given to you and watcher hits. Each watcher can say otherwise."; checked: page.v("notify_cliq_default") === true; onToggled: (on) => page.set("notify_cliq_default", on) }
+        SwitchRow {
+            visible: !!secConnect.st.hasTeamHub && (secConnect.st.source === "pc" || !!secConnect.st.shared)
+            label: "Share these settings with the office"
+            help: "Kept in the Team Hub folder, so no other PC has to be set up. Anyone who can open that folder can read them; the token only posts notices as Project Opener, and an administrator can revoke it in Connect."
+            checked: !!secConnect.st.shared
+            onToggled: (on) => app.settings.shareConnect(on)
+        }
+        SwitchRow { label: "Tell me in Connect"; help: "Mentions, tasks given to you and watcher hits arrive from Nib. Each watcher can say otherwise."; checked: page.v("notify_connect") === true; onToggled: (on) => page.set("notify_connect", on) }
         Column {
             spacing: 6
             Txt { text: "Mail"; strong: true }

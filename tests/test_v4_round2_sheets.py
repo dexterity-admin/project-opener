@@ -133,7 +133,7 @@ def test_settings_remembers_its_tab(office):
     assert api.settingsTab == "pill"
     api.setSettingsTab("nonsense")
     assert api.settingsTab == "pill"
-    assert set(SETTINGS_TABS) >= {"profile", "appearance", "snapshot", "pill", "cliq", "updates"}
+    assert set(SETTINGS_TABS) >= {"profile", "appearance", "snapshot", "pill", "connect", "updates"}
     page = (QML / "pages" / "SettingsPage.qml").read_text(encoding="utf-8")
     for key in SETTINGS_TABS:
         assert f'visible: page.tab === "{key}"' in page, key

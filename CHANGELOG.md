@@ -3,6 +3,28 @@
 All notable changes to Project Opener. The version in `project_opener/__init__.py`
 is the single source of truth; CI publishes a release when a new version lands on `main`.
 
+## 4.1.0 - 2026-11-20
+
+### Changed
+- **Nib in Dexterity Connect replaces the Zoho Cliq bot.** Mentions, tasks given to you, handovers,
+  things published or sent for you and watcher hits arrive in your conversation with Nib in Dexterity
+  Connect, under the name Project Opener, with a link back here. People are found by their Windows
+  sign-in, so there is nothing to link and no Cliq user id to paste.
+- **Set up once for the office.** An administrator copies the settings in Connect (Control room >
+  Integrations > Create token > Copy settings) and pastes them in **Settings > Connect and mail**.
+  **Share these settings with the office** puts them in the Team Hub, and every other PC uses them
+  without being touched. **Send me a test** checks the hub, the token and your sign-in.
+- **Tell me in Connect** (was *Message me on Cliq by default*) keeps your earlier choice. A watcher's
+  *Message on Cliq* is now *Tell in Connect*; a watcher's Cliq channel is not carried over: name a
+  Connect Space instead. Weekly Wrapped's **Post in Connect** posts your week in a Space.
+- Notices are never shown twice (each has a key the hub delivers once), wait in an outbox while Connect
+  is away, and go only to the hub whose certificate fingerprint was pasted. Assigning a task to someone
+  on leave says when they are back and who covers.
+
+### Removed
+- The Zoho Cliq bot: its settings (bot name, address, token, user id) are ignored and can be deleted in
+  Cliq. Messages still waiting in `cliq-outbox.jsonl` are not sent.
+
 ## 4.0.0 - 2026-11-20
 
 ### Added

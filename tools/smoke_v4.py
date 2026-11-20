@@ -326,9 +326,9 @@ def seed(data_dir: Path, hub_dir: Path, demo_dir: Path) -> dict[str, str]:
 
     # ---- watchers on Lot 7 (their hits are alerts; see seed_alerts)
     w_rev = M.Watcher(name="Revision C sheets", kind="folder", target=rev_c, events=["new", "changed"],
-                      notify=M.Notify(toast=True, cliq_dm=True), activity_id=lot7.id)
+                      notify=M.Notify(toast=True, connect_dm=True), activity_id=lot7.id)
     w_nas = M.Watcher(name="nas01 health", kind="health", target=r"\\nas01", events=["down", "up"],
-                      notify=M.Notify(toast=True, cliq_dm=True), activity_id=lot7.id)
+                      notify=M.Notify(toast=True, connect_dm=True), activity_id=lot7.id)
     store.save_watcher(w_rev)
     store.save_watcher(w_nas)
 
@@ -507,7 +507,7 @@ def demo_fill(app: Any, ids: dict[str, str]) -> None:
               ("ravi", "Ravi", "Designer", True, "in Navisworks clash review", "#B4452E"),
               ("prakash", "Prakash", "Procurement", False, "away", "#0F766E")]
     if fill(hub.peers, [{"login": lg, "displayName": dn, "role": r, "host": "PC-" + lg.upper(), "online": on,
-                         "doing": d, "initials": T.initials(dn), "hue": h, "cliqLinked": lg != "prakash"}
+                         "doing": d, "initials": T.initials(dn), "hue": h, "tellInConnect": lg != "prakash"}
                         for lg, dn, r, on, d, h in people]):
         hub.peersChanged.emit()
     fill(hub.register, [
