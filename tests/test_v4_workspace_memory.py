@@ -261,7 +261,7 @@ def test_timeline_has_a_lane_per_day_and_a_tick_per_checkpoint(rig):
     assert rows[0]["activityName"] == "Lot 7 check" and rows[0]["kindWord"] == "When it started"
     assert rows[1]["note"] == "rev C next" and rows[1]["count"] == 3 and rows[1]["restorable"] == 2
     lo, hi = info["startHour"], info["endHour"]
-    h = today_10.hour + today_10.minute / 60
+    h = today_10.hour + today_10.minute / 60 + today_10.second / 3600    # before 10:00 the slot keeps its seconds
     assert rows[0]["pos"] == pytest.approx((h - lo) / (hi - lo), abs=1e-3)
     assert all(0.0 <= r["pos"] <= 1.0 for r in rows)
 
