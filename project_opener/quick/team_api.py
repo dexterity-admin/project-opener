@@ -25,7 +25,6 @@ from typing import Any
 
 from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 
-from project_opener import constants as C
 from project_opener.core import models as M
 from project_opener.core import wrapped as W
 from project_opener.core.jsonio import read_json, read_jsonl, write_json_atomic
