@@ -28,7 +28,7 @@ from typing import Any
 from project_opener import constants as C
 from project_opener.core import models as M
 from project_opener.core.jsonio import append_jsonl, read_json, read_jsonl, write_json_atomic
-from project_opener.lan.nib import message_id
+from project_opener.lan.nib import make_notice, notice_key
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ class Delivery:
     cliq_queued: bool = False
     nib_sent: bool = False
     nib_queued: bool = False
+    away: dict[str, dict[str, str]] = field(default_factory=dict)   # login -> {"back", "cover"} (Nib's leave note)
 
 
 class DeliveredLedger:
@@ -129,13 +130,13 @@ class Dispatcher:
                 out.inboxes = self._inboxes(notify.mentions, text, event.link)
         text = self._cliq_text(event.title, event.detail, event.link)
         use_nib = self._use_nib()
-        if use_nib and notify.cliq_dm:
-            to = ([self.my_login] if self.my_login else []) + [lg for lg in out.inboxes if lg != self.my_login]
+        if use_nib:
+            to = ([self.my_login] if self.my_login else []) + [lg for lg in out.inboxes if lg != self.my_login] \
+                if notify.cliq_dm else []
             if to:
-                res = self.nib.send(to, "\n".join(x for x in (event.title, event.detail) if x),  # type: ignore[union-attr]
-                                    "Open in Project Opener" if event.link else "", event.link,
-                                    message_id("watch", event.key))
-                out.nib_sent, out.nib_queued = res.ok, (not res.ok and res.retry)
+                res = self.nib.send(make_notice(to, event.title, event.detail, event.link,  # type: ignore[union-attr]
+                                                notice_key("watch", event.key), "alert"))
+                out.nib_sent, out.nib_queued, out.away = res.ok, (not res.ok and res.retry), res.away
         if self._cliq_ready():
             ids: list[str] = []
             if notify.cliq_dm and not use_nib:
@@ -191,8 +192,12 @@ class Dispatcher:
             if not inbox or hub.send_mention([lg], text, link, kind=kind, task_id=task_id, title=title):
                 out.inboxes.append(lg)
         if cliq and out.inboxes and self._use_nib():
-            res = self.nib.send(out.inboxes, text, title or ("Open in Project Opener" if link else ""), link)  # type: ignore[union-attr]
-            out.nib_sent, out.nib_queued = res.ok, (not res.ok and res.retry)
+            notice = make_notice(out.inboxes, title or text, text if title else "", link,
+                                 notice_key(kind, task_id, title, text, link, M.now_iso()),
+                                 "task" if kind == "task" else "mention" if kind == "mention" else "update",
+                                 sender=getattr(hub, "user", "") or "")
+            res = self.nib.send(notice)  # type: ignore[union-attr]
+            out.nib_sent, out.nib_queued, out.away = res.ok, (not res.ok and res.retry), res.away
         elif cliq and self._cliq_ready() and out.inboxes:
             ids = list(hub.cliq_ids_for(out.inboxes).values())
             if ids:

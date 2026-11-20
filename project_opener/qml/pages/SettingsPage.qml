@@ -405,7 +405,7 @@ Page {
                 StatusPill {
                     anchors.verticalCenter: parent.verticalCenter
                     status: app.settings.nibReady ? "ok" : "neutral"
-                    label: app.settings.nibReady ? "Nib is ready" : "Waiting for the office's Nib key"
+                    label: app.settings.nibReady ? "Nib is ready" : "Waiting for the office's Connect settings"
                 }
                 ActionButton { visible: app.settings.nibReady; text: "Send me a test"; small: true; onClicked: { secCliq.nibText = "Asking Nib…"; app.settings.testNib() } }
                 Txt {

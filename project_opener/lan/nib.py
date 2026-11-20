@@ -1,24 +1,32 @@
 """Nib, Dexterity Connect's office companion, as Project Opener's messenger and leave source.
 
-Nothing to set up per person.  An administrator makes one Nib key for Project Opener in Dexterity
-Connect (Control room > Integrations > Nib for office tools) and saves it with the hub's address and
-certificate fingerprint in the Team Hub folder as ``connect.json``::
+Connect's contract for office tools is its ``docs/TOOL-NOTICES.md``: one integration token per tool,
+notices through Nib, and (when an administrator allows it) who is on leave.
 
-    {"hub": "https://dexhub:47900", "fingerprint": "AB:CD:...", "nib_key": "nibt_..."}
+Nothing to set up per person.  An administrator, once for the office:
 
-Every Project Opener in the office reads it from there.  The key can only have Nib write to a member
-and read members' leave (dates and cover); the hub audits every message and the administrator can
-revoke it at any time.
+1. in Dexterity Connect, Control room > Integrations: creates the integration ``Project Opener``,
+   presses **Copy settings** and ticks **Reads leave** on its row;
+2. saves the copied block as ``connect.json`` in the Team Hub folder::
 
-* ``message(to, text, title, link, msg_id)``: Nib writes to those members (Windows sign-ins) in their
-  conversation with Nib, with a ``projectopener://`` link card.  ``msg_id`` makes a retry harmless:
-  the hub sends each id to each person once.
-* ``send(...)`` queues a transient failure in an outbox (``nib-outbox.jsonl``) retried by
-  ``flush_outbox`` (the same pattern as ``lan.cliq``).
+       {"connect": {"enabled": true, "hub": "dexhub:47900", "fingerprint": "AB:CD:...", "token": "dxc_..."}}
+
+   (the flat form ``{"hub", "fingerprint", "token"}`` is read too).
+
+Every Project Opener reads it from there.  The token only posts notices under this tool's name and
+reads leave dates and covers; Connect audits it and the administrator can revoke it at any time.
+
+* ``notify(to, title, text, link, key, ...)``: ``POST /api/bot/notify``; the people (Windows sign-ins)
+  are told in their conversation with Nib, under "Project Opener", with a ``projectopener://`` link;
+  ``space`` also posts in a Connect Space.  ``key`` makes a retry harmless: the hub delivers each key to
+  each person once.  The answer says who is on leave (``away``).
+* ``send(...)`` queues a notice that got no answer, 429, 5xx or "failed" in an outbox
+  (``nib-outbox.jsonl``), retried by ``flush_outbox`` (the same pattern as ``lan.cliq``).
+* ``hello()``: the Test button (``GET /api/bot/hello``).
 * ``leave(account)``: that member's leave from today on; ``leave_changes(since)``: who changed since.
 
 The hub is trusted by its certificate's SHA-256 fingerprint, never by a certificate authority, and a
-request is never sent before the certificate matches.  Standard library only.
+request (and so the token) is never sent before the certificate matches.  Standard library only.
 """
 from __future__ import annotations
 
@@ -42,10 +50,13 @@ log = logging.getLogger(__name__)
 
 CONFIG_FILE = "connect.json"     # in the Team Hub root
 OUTBOX_FILE = "nib-outbox.jsonl"
+DEFAULT_PORT = 47900
 TIMEOUT_S = 10
 OUTBOX_MAX = 500
 MAX_ATTEMPTS = 50
+MAX_RECIPIENTS = 50              # the hub's limit for one notice
 REACH_TTL_S = 60                 # how long a reachability answer is trusted
+KINDS = ("task", "mention", "alert", "reminder", "review", "update")
 
 # (method, path, body) -> (status, payload); raises OSError when the hub cannot be reached
 Transport = Callable[[str, str, "dict[str, Any] | None"], "tuple[int, Any]"]
@@ -55,29 +66,51 @@ Transport = Callable[[str, str, "dict[str, Any] | None"], "tuple[int, Any]"]
 class NibConfig:
     hub: str
     fingerprint: str
-    key: str
+    token: str
 
     @property
     def complete(self) -> bool:
-        return bool(self.hub and self.fingerprint and self.key)
+        return bool(self.hub and self.fingerprint and self.token)
 
 
 def normalise_fingerprint(fp: str) -> str:
-    """"AB:CD:..." (as Connect shows it) or plain hex -> lowercase hex."""
-    return "".join(c for c in (fp or "").lower() if c in "0123456789abcdef")
+    """"AB:CD:..." (as Connect shows it) or plain hex -> 64 lowercase hex digits ("" when it is not one)."""
+    hexes = "".join(c for c in (fp or "").lower() if c in "0123456789abcdef")
+    return hexes if len(hexes) == 64 else ""
+
+
+def normalise_hub(text: str) -> str:
+    """``https://host:47900`` from ``host``, ``host:port`` or ``https://host:port``; "" otherwise (never http)."""
+    raw = (text or "").strip().rstrip("/")
+    if not raw or any(ch.isspace() for ch in raw):
+        return ""
+    if "://" not in raw:
+        raw = "https://" + raw
+    try:
+        parts = urlsplit(raw)
+        port = parts.port
+    except ValueError:
+        return ""
+    if parts.scheme != "https" or not parts.hostname or parts.path not in ("", "/") or parts.query:
+        return ""
+    host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname
+    return f"https://{host}:{port or DEFAULT_PORT}"
 
 
 def load_config(hub_root: Path | str | None) -> NibConfig | None:
-    """``connect.json`` from the Team Hub folder, or None when it is missing or incomplete."""
+    """``connect.json`` from the Team Hub folder, or None when it is missing, off or incomplete."""
     if not hub_root:
         return None
     d = read_json(Path(hub_root) / CONFIG_FILE, None)
+    if isinstance(d, dict) and isinstance(d.get("connect"), dict):
+        d = d["connect"]
     if not isinstance(d, dict):
         return None
-    cfg = NibConfig(str(d.get("hub") or "").strip().rstrip("/"), normalise_fingerprint(str(d.get("fingerprint") or "")),
-                    str(d.get("nib_key") or "").strip())
-    if not (cfg.complete and cfg.hub.lower().startswith("https://") and len(cfg.fingerprint) == 64
-            and cfg.key.startswith("nibt_")):
+    if d.get("enabled") is False:
+        return None
+    cfg = NibConfig(normalise_hub(str(d.get("hub") or "")), normalise_fingerprint(str(d.get("fingerprint") or "")),
+                    str(d.get("token") or "").strip())
+    if not (cfg.complete and cfg.token.startswith("dxc_")):
         log.warning("%s on the Team Hub is incomplete; Nib is off", CONFIG_FILE)
         return None
     return cfg
@@ -88,9 +121,9 @@ def login_of(account: str) -> str:
     return (account or "").rsplit("\\", 1)[-1].strip()
 
 
-def message_id(*parts: str) -> str:
-    """A stable id the hub accepts (``[A-Za-z0-9._:-]{1,64}``) for the same message."""
-    return "po-" + hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()[:40]
+def notice_key(*parts: str) -> str:
+    """A stable key (up to 160 characters) for the same thing happening, never for the time it was sent."""
+    return "po:" + hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()[:40]
 
 
 class CertificateMismatch(OSError):
@@ -102,8 +135,10 @@ class NibResult:
     ok: bool
     status: int = 0
     message: str = ""
-    retry: bool = False          # transient (unreachable, 429, 5xx): worth queueing
-    delivered: list[str] = field(default_factory=list)
+    retry: bool = False          # transient (unreachable, 429, 5xx, "failed"): worth queueing
+    delivered: list[str] = field(default_factory=list)      # sign-ins told now or before (duplicates)
+    unknown: list[str] = field(default_factory=list)
+    away: dict[str, dict[str, str]] = field(default_factory=dict)  # login -> {"back", "cover"}
 
     def __bool__(self) -> bool:
         return self.ok
@@ -112,7 +147,7 @@ class NibResult:
 def pinned_transport(cfg: NibConfig, timeout: float = TIMEOUT_S) -> Transport:
     """HTTPS to the hub, trusting only the certificate with ``cfg.fingerprint``."""
     parts = urlsplit(cfg.hub)
-    host, port = parts.hostname or "", parts.port or 47900
+    host, port = parts.hostname or "", parts.port or DEFAULT_PORT
 
     def call(method: str, path: str, body: dict[str, Any] | None) -> tuple[int, Any]:
         ctx = ssl.create_default_context()
@@ -125,7 +160,7 @@ def pinned_transport(cfg: NibConfig, timeout: float = TIMEOUT_S) -> Transport:
             if not der or hashlib.sha256(der).hexdigest() != cfg.fingerprint:
                 raise CertificateMismatch("the hub's certificate does not match connect.json")
             data = json.dumps(body).encode("utf-8") if body is not None else None
-            headers = {"Authorization": f"Bearer {cfg.key}", "Accept": "application/json"}
+            headers = {"Authorization": f"Bearer {cfg.token}", "Accept": "application/json"}
             if data is not None:
                 headers["Content-Type"] = "application/json"
             conn.request(method, path, body=data, headers=headers)
@@ -140,6 +175,32 @@ def pinned_transport(cfg: NibConfig, timeout: float = TIMEOUT_S) -> Transport:
             conn.close()
 
     return call
+
+
+def make_notice(to: list[str] | None = None, title: str = "", text: str = "", link: str = "", key: str = "",
+                kind: str = "", sender: str = "", space: str = "", lines: list[str] | None = None) -> dict[str, Any]:
+    """The body of ``POST /api/bot/notify`` (only the fields that are set)."""
+    n: dict[str, Any] = {}
+    people = [t.strip().lstrip("@") for t in (to or []) if t and t.strip()]
+    if people:
+        n["to"] = people[:MAX_RECIPIENTS]
+    if space.strip():
+        n["space"] = space.strip().lstrip("#")
+    if key:
+        n["key"] = key[:160]
+    if kind in KINDS:
+        n["kind"] = kind
+    if sender:
+        n["from"] = sender
+    if title:
+        n["title"] = title[:200]
+    if text:
+        n["text"] = text[:2000]
+    if lines:
+        n["lines"] = [str(x)[:300] for x in lines[:8]]
+    if link:
+        n["link"] = {"title": "Open in Project Opener", "url": link}
+    return n
 
 
 class NibClient:
@@ -160,7 +221,7 @@ class NibClient:
     # ---------------------------------------------------------------- http
     def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> tuple[NibResult, Any]:
         if not self.configured:
-            return NibResult(False, 0, "Nib is not set up on the Team Hub"), None
+            return NibResult(False, 0, "Connect is not set up on the Team Hub"), None
         if self.dry_run:
             self.sent.append({"method": method, "path": path, "body": dict(body or {})})
             log.info("nib dry run: %s %s %s", method, path, json.dumps(body or {}, ensure_ascii=False)[:300])
@@ -178,44 +239,67 @@ class NibClient:
         payload = payload if isinstance(payload, dict) else {}
         ok = 200 <= status < 300 and payload.get("ok", True) is not False
         msg = "sent" if ok else str(payload.get("error") or f"the hub answered {status}")
-        transient = status in (429, 503) or status >= 500
-        return NibResult(ok, status, msg, transient, [str(x) for x in payload.get("delivered") or []]), payload
+        if status == 401:
+            msg = "Connect refused the token. Ask an administrator for the integration's settings again."
+        transient = status == 429 or status >= 500
+        return NibResult(ok, status, msg, transient), payload
 
     def reachable(self) -> bool:
-        """The hub answered lately (probed with a cheap read when the last answer is old)."""
+        """The hub answered lately (probed with ``/api/bot/hello`` when the last answer is old)."""
         if not self.configured:
             return False
         if self.dry_run:
             return True
         if self._reach and time.monotonic() - self._reach[0] < REACH_TTL_S:
             return self._reach[1]
-        self._request("GET", "/api/nib/leave/changes")
+        self._request("GET", "/api/bot/hello")
         return bool(self._reach and self._reach[1])
 
-    # -------------------------------------------------------------- messages
-    def message(self, to: list[str], text: str, title: str = "", link: str = "", msg_id: str = "") -> NibResult:
-        logins = [t.strip() for t in to if t and t.strip()]
-        if not logins:
-            return NibResult(False, 0, "nobody to message")
-        body: dict[str, Any] = {"id": msg_id or message_id(",".join(logins), text, title, link), "to": logins,
-                                "text": text}
-        if title or link:
-            body["card"] = {"title": title or "Open in Project Opener", "url": link} if link else {"title": title}
-        res, _ = self._request("POST", "/api/nib/message", body)
+    def hello(self) -> NibResult:
+        res, payload = self._request("GET", "/api/bot/hello")
+        if res.ok and isinstance(payload, dict):
+            name = str((payload.get("integration") or {}).get("name") or "")
+            res.message = f"Connected as {name}" if name else "Connected"
         return res
 
-    def send(self, to: list[str], text: str, title: str = "", link: str = "", msg_id: str = "") -> NibResult:
-        """``message``; a transient failure is queued (with its id) for ``flush_outbox``."""
-        mid = msg_id or message_id(",".join(to), text, title, link, M.now_iso())
-        res = self.message(to, text, title, link, mid)
-        if not res.ok and res.retry:
-            self.queue(to, text, title, link, mid)
+    # -------------------------------------------------------------- notices
+    def notify(self, notice: dict[str, Any]) -> NibResult:
+        """One notice; ``failed`` results make it worth sending again (same key: no repeats)."""
+        if not notice.get("to") and not notice.get("space"):
+            return NibResult(False, 0, "nobody to tell")
+        res, payload = self._request("POST", "/api/bot/notify", notice)
+        if not isinstance(payload, dict):
+            return res
+        for r in payload.get("results") or []:
+            if not isinstance(r, dict):
+                continue
+            who = str(r.get("to") or "")
+            status = r.get("status")
+            if status in ("delivered", "duplicate"):
+                res.delivered.append(who)
+            elif status == "unknown":
+                res.unknown.append(who)
+            elif status == "failed":
+                res.retry = True
+            away = r.get("away")
+            if isinstance(away, dict) and who and not who.startswith("space:"):
+                res.away[login_of(who)] = {"back": str(away.get("back") or ""),
+                                           "cover": login_of(str(away.get("cover") or ""))}
+        return res
+
+    def send(self, notice: dict[str, Any]) -> NibResult:
+        """``notify``; a notice that did not get through now waits in the outbox (with its key)."""
+        if "key" not in notice:
+            notice = {**notice, "key": notice_key(json.dumps(notice, sort_keys=True), M.now_iso())}
+        res = self.notify(notice)
+        if res.retry:
+            self.queue(notice)
         return res
 
     # ----------------------------------------------------------------- leave
     def leave(self, account: str) -> list[dict[str, Any]] | None:
         """That member's leave from today on (``[]`` when none); None when the hub could not say."""
-        res, payload = self._request("GET", f"/api/nib/leave?account={quote(account, safe='')}")
+        res, payload = self._request("GET", f"/api/bot/leave?account={quote(account, safe='')}")
         if res.status == 404:
             return []
         if not res.ok or not isinstance(payload, dict):
@@ -224,18 +308,17 @@ class NibClient:
         return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else None
 
     def leave_changes(self, since: int) -> tuple[int, list[str]] | None:
-        """(cursor, accounts changed since ``since``); None when the hub could not say."""
-        res, payload = self._request("GET", f"/api/nib/leave/changes?since={int(since)}")
+        """(cursor, accounts changed since ``since``); None when the hub could not say (or may not)."""
+        res, payload = self._request("GET", f"/api/bot/leave/changes?since={int(since)}")
         if not res.ok or not isinstance(payload, dict):
             return None
         return int(payload.get("cursor") or 0), [str(a) for a in payload.get("accounts") or []]
 
     # ---------------------------------------------------------------- outbox
-    def queue(self, to: list[str], text: str, title: str, link: str, msg_id: str) -> None:
-        row = {"id": msg_id, "to": list(to), "text": text, "title": title, "link": link,
-               "queued_at": M.now_iso(), "attempts": 0}
+    def queue(self, notice: dict[str, Any]) -> None:
+        row = {"notice": notice, "queued_at": M.now_iso(), "attempts": 0}
         with self._lock:
-            rows = [r for r in read_jsonl(self.outbox) if r.get("id") != msg_id]
+            rows = [r for r in read_jsonl(self.outbox) if (r.get("notice") or {}).get("key") != notice.get("key")]
             rows.append(row)
             self._write_outbox(rows[-OUTBOX_MAX:])
 
@@ -257,7 +340,7 @@ class NibClient:
         tmp.replace(self.outbox)
 
     def flush_outbox(self) -> int:
-        """Retry queued messages; returns how many went out."""
+        """Retry queued notices; returns how many went out."""
         if not self.configured:
             return 0
         with self._lock:
@@ -266,24 +349,26 @@ class NibClient:
                 return 0
             keep: list[dict[str, Any]] = []
             sent = 0
-            reachable = True
+            waiting = False
             for r in rows:
-                if not reachable:
+                notice = r.get("notice")
+                if not isinstance(notice, dict):
+                    continue
+                if waiting:                  # the hub is away or asked us to wait: do not hammer it
                     keep.append(r)
                     continue
-                res = self.message([str(x) for x in r.get("to") or []], str(r.get("text", "")),
-                                   str(r.get("title", "")), str(r.get("link", "")), str(r.get("id", "")))
-                if res.ok:
+                res = self.notify(notice)
+                if res.ok and not res.retry:
                     sent += 1
                     continue
                 if res.retry:
                     r["attempts"] = int(r.get("attempts", 0) or 0) + 1
                     if r["attempts"] < MAX_ATTEMPTS:
                         keep.append(r)
-                    if res.status == 0:
-                        reachable = False
+                    if res.status in (0, 429):
+                        waiting = True
                 else:
-                    log.warning("dropping queued Nib message (%s)", res.message)
+                    log.warning("dropping a queued Nib notice (%s)", res.message)
             self._write_outbox(keep)
             return sent
 

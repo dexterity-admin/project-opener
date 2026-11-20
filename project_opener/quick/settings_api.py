@@ -210,7 +210,7 @@ class SettingsApi(ApiBase):
 
     @Property(bool, notify=changed)
     def nibReady(self) -> bool:  # noqa: N802
-        """The Team Hub carries the office's Nib key (connect.json): messages need nothing from this person."""
+        """The Team Hub carries the office's Connect settings (connect.json): messages need nothing from this person."""
         nib = self._nib()
         return bool(nib is not None and nib.configured)
 
@@ -219,12 +219,19 @@ class SettingsApi(ApiBase):
         """Nib writes "it works" to me in Dexterity Connect; the answer comes back as ``nibTested``."""
         nib = self._nib()
         if nib is None or not nib.configured:
-            self.nibTested.emit(False, "The office has not given Project Opener a Nib key yet (Team Hub connect.json).")
+            self.nibTested.emit(False, "The office has not set up Dexterity Connect for Project Opener yet (Team Hub connect.json).")
             return
         me = self.app.ctx.user
 
         def work() -> Any:
-            return nib.message([me], "Project Opener test: Nib will bring you mentions, tasks and watcher hits here.")
+            from project_opener.core import models as M
+            from project_opener.lan.nib import make_notice, notice_key
+            hello = nib.hello()
+            if not hello.ok:
+                return hello
+            return nib.notify(make_notice([me], "Project Opener test",
+                                          "Nib will bring you mentions, tasks and watcher hits here.",
+                                          key=notice_key("test", me, M.now_iso()), kind="update"))
 
         def done(res: Any) -> None:
             ok = bool(getattr(res, "ok", False))
