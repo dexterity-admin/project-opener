@@ -92,7 +92,9 @@ class Settings:
     cliq_api_base: str = "https://cliq.zoho.in/api/v2"
     cliq_bot: str = ""                  # bot unique name
     cliq_token_enc: str = ""            # DPAPI blob of the office bot token (shared service account)
-    notify_cliq_default: bool = True    # DM me on mention / task / watcher hits when linked
+    notify_cliq_default: bool = True    # message me on mention / task / watcher hits (Nib, or Cliq when linked)
+    messages_via: str = "nib"           # nib (Dexterity Connect's Nib, nothing to set up) | cliq (Zoho Cliq instead)
+    handover_on_leave: str = "offer"    # when Nib says my leave starts: offer | auto | off
     mail_client: str = "outlook"        # outlook | mailto
     spacemap_stale_months: int = 12     # Space map: a file not modified for this many months is stale
     board_show_me: bool = True          # Weekly Wrapped: my numbers on the office board (opt out here)

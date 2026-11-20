@@ -5,13 +5,15 @@
    ``delivered.json`` in the data folder when no hub) - "nothing is sent twice";
 2. append to ``alerts.jsonl`` (the app's alert list) and the user's pulse;
 3. for ``notify.mentions``: an inbox entry (kind "mention") per expanded login;
-4. for ``notify.cliq_dm`` / ``cliq_channel``: ``lan.cliq.CliqClient`` (queued for retry when down);
+4. for ``notify.cliq_dm``: Nib, Dexterity Connect's companion (``lan.nib``), messages me and the people
+   mentioned while the Connect hub is reachable (queued for retry when down); otherwise, or when the person
+   chose "Use Zoho Cliq instead", ``lan.cliq.CliqClient``.  ``cliq_channel`` is Cliq's alone;
 5. record the key (``delivered/<user>.json`` keeps the newest 2,000 keys).
 The toast itself is raised by the caller on the GUI thread from the returned flag.
 
 ``Dispatcher.notify_people`` is the sender's side of a person-to-person note (task
-assigned, task done, mention in a publish): inbox entries plus a Cliq DM to the
-people who linked Cliq.  ``Dispatcher.receive`` is the recipient's side: an inbox
+assigned, task done, mention in a publish): inbox entries plus one Nib message (or a Cliq
+DM to the people who linked Cliq).  ``Dispatcher.receive`` is the recipient's side: an inbox
 entry is toasted once (ledger key ``inbox:<id>``) on whichever PC sees it first.
 """
 from __future__ import annotations
@@ -26,6 +28,7 @@ from typing import Any
 from project_opener import constants as C
 from project_opener.core import models as M
 from project_opener.core.jsonio import append_jsonl, read_json, read_jsonl, write_json_atomic
+from project_opener.lan.nib import message_id
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +42,8 @@ class Delivery:
     inboxes: list[str] = field(default_factory=list)
     cliq_sent: bool = False
     cliq_queued: bool = False
+    nib_sent: bool = False
+    nib_queued: bool = False
 
 
 class DeliveredLedger:
@@ -91,13 +96,17 @@ def ledger_path(hub_root: Path | None, user: str, data_dir: Path) -> Path:
 
 class Dispatcher:
     def __init__(self, hub: Any, ledger: DeliveredLedger, cliq: Any | None, alerts_path: Path,
-                 my_cliq_id: str = "", cliq_enabled: bool = True):
+                 my_cliq_id: str = "", cliq_enabled: bool = True, nib: Any | None = None, my_login: str = "",
+                 prefer_cliq: bool = False):
         self.hub = hub
         self.ledger = ledger
         self.cliq = cliq
         self.alerts_path = Path(alerts_path)
         self.my_cliq_id = my_cliq_id
         self.cliq_enabled = cliq_enabled
+        self.nib = nib
+        self.my_login = my_login            # "" when I do not want messages by default
+        self.prefer_cliq = prefer_cliq      # Settings: "Use Zoho Cliq instead"
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------- alerts
@@ -119,9 +128,17 @@ class Dispatcher:
                 text = event.title + (f" - {event.detail}" if event.detail else "")
                 out.inboxes = self._inboxes(notify.mentions, text, event.link)
         text = self._cliq_text(event.title, event.detail, event.link)
+        use_nib = self._use_nib()
+        if use_nib and notify.cliq_dm:
+            to = ([self.my_login] if self.my_login else []) + [lg for lg in out.inboxes if lg != self.my_login]
+            if to:
+                res = self.nib.send(to, "\n".join(x for x in (event.title, event.detail) if x),  # type: ignore[union-attr]
+                                    "Open in Project Opener" if event.link else "", event.link,
+                                    message_id("watch", event.key))
+                out.nib_sent, out.nib_queued = res.ok, (not res.ok and res.retry)
         if self._cliq_ready():
             ids: list[str] = []
-            if notify.cliq_dm:
+            if notify.cliq_dm and not use_nib:
                 if self.my_cliq_id:
                     ids.append(self.my_cliq_id)
                 if out.inboxes and hub is not None:
@@ -147,6 +164,15 @@ class Dispatcher:
     def _cliq_ready(self) -> bool:
         return bool(self.cliq_enabled and self.cliq is not None and getattr(self.cliq, "configured", False))
 
+    def _use_nib(self) -> bool:
+        """Nib carries the messages unless the person chose Cliq; while the Connect hub does not answer and
+        Cliq is set up, Cliq does (otherwise Nib queues them until the hub is back)."""
+        if self.prefer_cliq and self._cliq_ready():
+            return False
+        if self.nib is None or not getattr(self.nib, "configured", False):
+            return False
+        return not self._cliq_ready() or bool(self.nib.reachable())
+
     @staticmethod
     def _cliq_text(title: str, detail: str, link: str) -> str:
         return "\n".join(x for x in (title, detail, link) if x)
@@ -164,7 +190,10 @@ class Dispatcher:
         for lg in logins:
             if not inbox or hub.send_mention([lg], text, link, kind=kind, task_id=task_id, title=title):
                 out.inboxes.append(lg)
-        if cliq and self._cliq_ready() and out.inboxes:
+        if cliq and out.inboxes and self._use_nib():
+            res = self.nib.send(out.inboxes, text, title or ("Open in Project Opener" if link else ""), link)  # type: ignore[union-attr]
+            out.nib_sent, out.nib_queued = res.ok, (not res.ok and res.retry)
+        elif cliq and self._cliq_ready() and out.inboxes:
             ids = list(hub.cliq_ids_for(out.inboxes).values())
             if ids:
                 res = self.cliq.send("dm", ids, self._cliq_text(title or text, text if title else "", link))  # type: ignore[union-attr]
@@ -211,13 +240,18 @@ class Dispatcher:
         tmp.replace(self.alerts_path)
 
 
-def make_dispatcher(hub: Any, settings: Any, data_dir: Path, user: str, dry_run_cliq: bool = False) -> Dispatcher:
-    """The dispatcher for the current settings (hub, Cliq token, my Cliq id)."""
+def make_dispatcher(hub: Any, settings: Any, data_dir: Path, user: str, dry_run_cliq: bool = False,
+                    dry_run_nib: bool = False) -> Dispatcher:
+    """The dispatcher for the current settings (hub, Nib from the Team Hub's connect.json, Cliq token, my Cliq id)."""
     from project_opener.lan.cliq import CliqClient
+    from project_opener.lan.nib import make_client
     root = hub.root if hub is not None and getattr(hub, "configured", False) else None
     ledger = DeliveredLedger(ledger_path(root, user, data_dir))
-    cliq = CliqClient(settings.cliq_api_base, settings.cliq_bot, settings.cliq_token,
+    prefer_cliq = getattr(settings, "messages_via", "nib") == "cliq"
+    token = settings.cliq_token if prefer_cliq else ""        # Cliq only when chosen: no DPAPI read otherwise
+    cliq = CliqClient(settings.cliq_api_base, settings.cliq_bot, token,
                       Path(data_dir) / C.CLIQ_OUTBOX_FILE, dry_run=dry_run_cliq)
     return Dispatcher(hub, ledger, cliq, Path(data_dir) / C.ALERTS_FILE,
                       my_cliq_id=settings.cliq_user_id if settings.notify_cliq_default else "",
-                      cliq_enabled=True)
+                      cliq_enabled=prefer_cliq, nib=make_client(root, data_dir, dry_run=dry_run_nib),
+                      my_login=user if settings.notify_cliq_default else "", prefer_cliq=prefer_cliq)

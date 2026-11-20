@@ -76,6 +76,7 @@ def coerce(key: str, value: Any) -> Any:
 class SettingsApi(ApiBase):
     changed = Signal(str)
     cliqTested = Signal(bool, str)
+    nibTested = Signal(bool, str)
     updatesChanged = Signal()
     settingsTabChanged = Signal()
 
@@ -198,6 +199,39 @@ class SettingsApi(ApiBase):
         rules = [r for r in self.app.ctx.settings.capture_ignore if r.get("process") != process]
         self.setValue("capture_ignore", rules)
         return process
+
+    # -------------------------------------------------------------- Nib
+    def _nib(self) -> Any:
+        watchers = getattr(self.app, "watchers", None)
+        try:
+            return watchers.dispatcher().nib if watchers is not None else None
+        except Exception:  # noqa: BLE001
+            return None
+
+    @Property(bool, notify=changed)
+    def nibReady(self) -> bool:  # noqa: N802
+        """The Team Hub carries the office's Nib key (connect.json): messages need nothing from this person."""
+        nib = self._nib()
+        return bool(nib is not None and nib.configured)
+
+    @Slot()
+    def testNib(self) -> None:  # noqa: N802
+        """Nib writes "it works" to me in Dexterity Connect; the answer comes back as ``nibTested``."""
+        nib = self._nib()
+        if nib is None or not nib.configured:
+            self.nibTested.emit(False, "The office has not given Project Opener a Nib key yet (Team Hub connect.json).")
+            return
+        me = self.app.ctx.user
+
+        def work() -> Any:
+            return nib.message([me], "Project Opener test: Nib will bring you mentions, tasks and watcher hits here.")
+
+        def done(res: Any) -> None:
+            ok = bool(getattr(res, "ok", False))
+            self.nibTested.emit(ok, "Sent: look in your conversation with Nib." if ok
+                                else getattr(res, "message", "") or "Nib did not take the message.")
+
+        self.app.run_async(work, done, lambda e: self.nibTested.emit(False, str(e) or type(e).__name__))
 
     # ------------------------------------------------------------- Cliq
     @Property(bool, notify=changed)

@@ -89,13 +89,23 @@ def since_text(status: str, since_iso: str, seen_by: int) -> str:
     return T.join_facts(first, f"seen by {T.plural(seen_by, 'PC')}" if seen_by else "")
 
 
-def notify_text(n: M.Notify, cliq_linked: bool = True) -> str:
+def _nib_config_stamp(hub: Any) -> float:
+    """When the Team Hub's connect.json changed (0.0 when there is none): the dispatcher is rebuilt on a change."""
+    from project_opener.lan.nib import CONFIG_FILE
+    root = getattr(hub, "root", None) if getattr(hub, "configured", False) else None
+    try:
+        return (Path(root) / CONFIG_FILE).stat().st_mtime if root else 0.0
+    except OSError:
+        return 0.0
+
+
+def notify_text(n: M.Notify, cliq_linked: bool = True, nib: bool = False) -> str:
     """"Toast · @priya · Cliq DM"; while this PC has not linked Cliq, the DM is a promise for later and says
-    so, "Cliq DM once linked" (juror T3-2)."""
+    so, "Cliq DM once linked" (juror T3-2).  With Nib carrying the messages: "Nib message"."""
     parts = ["Toast"] if n.toast else []
     parts += [f"@{m.lstrip('@')}" for m in n.mentions]
     if n.cliq_dm:
-        parts.append("Cliq DM" if cliq_linked else "Cliq DM once linked")
+        parts.append("Nib message" if nib else "Cliq DM" if cliq_linked else "Cliq DM once linked")
     if n.cliq_channel:
         parts.append(f"#{n.cliq_channel.lstrip('#')}")
     return " · ".join(parts) or "Alert list only"
@@ -174,11 +184,12 @@ class WatchersApi(ApiBase):
         """The delivery dispatcher for the current hub and Cliq settings (rebuilt when they change)."""
         st, hub = self.ctx.settings, self.ctx.hub
         key = (str(hub.root or ""), st.cliq_api_base, st.cliq_bot, st.cliq_token_enc, st.cliq_user_id,
-               st.notify_cliq_default)
+               st.notify_cliq_default, getattr(st, "messages_via", "nib"), _nib_config_stamp(hub))
         if self._dispatcher is None or key != self._dispatcher_key:
             # PO_CLIQ_DRY_RUN=1 (testing): Cliq messages are logged, never sent
             self._dispatcher = make_dispatcher(hub, st, self.data_dir, self.ctx.user,
-                                               dry_run_cliq=os.environ.get("PO_CLIQ_DRY_RUN") == "1")
+                                               dry_run_cliq=os.environ.get("PO_CLIQ_DRY_RUN") == "1",
+                                               dry_run_nib=os.environ.get("PO_NIB_DRY_RUN") == "1")
             self._dispatcher_key = key
         return self._dispatcher
 
@@ -236,10 +247,11 @@ class WatchersApi(ApiBase):
     # ------------------------------------------------------------- models
     def _sync_watchers(self) -> None:
         linked = bool(getattr(self.ctx.settings, "cliq_user_id", ""))     # as Settings > Cliq's "Linked"
+        nib = getattr(self.ctx.settings, "messages_via", "nib") != "cliq" and _nib_config_stamp(self.ctx.hub) != 0.0
         rows = []
         for w in self.ctx.store.watchers:
             rows.append({"watcherId": w.id, "name": w.name, "kind": w.kind, "target": w.target,
-                         "events": list(w.events), "watcherEnabled": w.enabled, "notifyText": notify_text(w.notify, linked),
+                         "events": list(w.events), "watcherEnabled": w.enabled, "notifyText": notify_text(w.notify, linked, nib),
                          "lastHitText": when_text(self._last_hit.get(w.id, "")), "activityId": w.activity_id,
                          "projectId": w.project_id})
         self._watchers.sync(rows)
@@ -333,6 +345,8 @@ class WatchersApi(ApiBase):
         disp = self.dispatcher()
         if disp.cliq is not None and disp.cliq.configured:
             self.app.run_async(disp.cliq.flush_outbox)
+        if disp.nib is not None and disp.nib.configured and disp.nib.pending():
+            self.app.run_async(disp.nib.flush_outbox)
 
     # -------------------------------------------------------------- roots
     def _update_roots(self) -> None:

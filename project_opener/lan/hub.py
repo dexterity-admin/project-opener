@@ -20,6 +20,7 @@ layout under the hub root is::
     watch/<user>.json        office-wide path health (lan.healthboard)
     delivered/<user>.json    alert de-duplication ledger (lan.delivery)
     profiles/<id>.json       shared launch profiles
+    connect.json             the office's Nib key (Dexterity Connect), written once by an administrator (lan.nib)
 
 Every writer owns its own files (per-user names) so there is no locking.
 Shared files that several people may edit (published projects,

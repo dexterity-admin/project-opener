@@ -11,6 +11,10 @@ keeps the QML models, and does the two-sided handover steps:
   are added to their workspace and the open tasks change owner.  The leaver's "I'm back", or the first refresh
   on their PC after the end date, gives the tasks back; the colleague's PC then removes the copies it added
   that nobody changed.
+* Nib's leave note (Dexterity Connect): when I noted leave there, the page is prefilled with its cover and first
+  and last day (``nibLeave``).  When that leave starts, the handover is offered (a toast and the page) or done
+  (``handover_on_leave``: offer | auto | off); when it ends or is cancelled in Nib, the work is handed back.  With
+  no leave in Nib, or a cover who is not on the Team Hub, nothing is guessed: the page works as before.
 
 Windows reopened: HOOK for the restore log (a parallel 4.0 change).  ``SnapshotStore.windows_reopened(start,
 end) -> int`` is read when it exists; until then the number is None and the page says it is not counted yet.
@@ -30,6 +34,7 @@ from project_opener.core import wrapped as W
 from project_opener.core.jsonio import read_json, read_jsonl, write_json_atomic
 from project_opener.core.tasks import TaskStore, due_text, when_text
 from project_opener.lan import teamboard as TB
+from project_opener.lan.nib import LeaveWatch, login_of
 from project_opener.quick.base import ApiBase, ro
 from project_opener.quick.listmodel import DictListModel
 
@@ -42,6 +47,7 @@ OFFICE_ROLES = ("login", "displayName", "initials", "hue", "presence", "presence
 INCOMING_ROLES = ("handoverId", "fromLogin", "fromName", "spanText", "stateText", "accepted", "activityCount",
                   "taskCount", "taskTitles", "on")
 RECEIVED_FILE = "handovers-received.json"
+NIB_FILE = "nib-leave.json"        # {"handled": [Nib leave ids acted on], "links": {handover id: Nib leave id}}
 REFRESH_S = 120
 MIN_TICK_S = 60
 STATE_ORDER = {"active": 0, "idle": 1, "leave": 2, "away": 3}
@@ -77,6 +83,9 @@ class TeamApi(ApiBase):
         self._board_hidden: set[str] = set()
         self._handovers: list[dict[str, Any]] = []
         self._mine: dict[str, Any] = {}
+        self._nib_leave: dict[str, Any] = {}
+        self._nib_rows: list[dict[str, Any]] | None = None      # None: Nib did not answer on the last refresh
+        self._nib_watch: LeaveWatch | None = None
         self._office_counts: dict[str, int] = {}
         self._choices: dict[str, Any] = {"activities": [], "tasks": []}
         self._busy = False
@@ -110,6 +119,12 @@ class TeamApi(ApiBase):
         return self._mine
 
     @Property("QVariantMap", notify=handoverChanged)
+    def nibLeave(self) -> dict[str, Any]:  # noqa: N802
+        """My leave from Nib's leave note ({} when none): start, end, spanText, current, coverLogin (only a
+        colleague on the Team Hub, else ""), coverName."""
+        return self._nib_leave
+
+    @Property("QVariantMap", notify=handoverChanged)
     def choices(self) -> dict[str, Any]:
         """What a new handover can carry: my activities and my open tasks."""
         return self._choices
@@ -132,7 +147,7 @@ class TeamApi(ApiBase):
     @Property(bool, notify=wrappedChanged)
     def cliqReady(self) -> bool:  # noqa: N802
         s = self.ctx.settings
-        return bool(s.cliq_token_enc and s.cliq_bot)
+        return bool(getattr(s, "messages_via", "nib") == "cliq" and s.cliq_token_enc and s.cliq_bot)
 
     # ------------------------------------------------------------ helpers
     @property
@@ -232,6 +247,7 @@ class TeamApi(ApiBase):
         me = self.me
         name = (settings.display_name or "").strip() or self._name(me)
         show = bool(getattr(settings, "board_show_me", True))
+        watch = self._leave_watch()
 
         def work() -> dict[str, Any]:
             history = read_jsonl(history_path)
@@ -241,7 +257,12 @@ class TeamApi(ApiBase):
             mine = W.week_stats(history, tasks, me, day, today=today,
                                 windows_reopened=self._windows_reopened(start, start + timedelta(days=6)))
             res: dict[str, Any] = {"mine": mine, "configured": hub.configured, "reachable": False,
-                                   "board": [], "hidden": set(), "handovers": []}
+                                   "board": [], "hidden": set(), "handovers": [], "nib_leave": None}
+            if watch is not None:
+                try:
+                    res["nib_leave"] = watch.read(today.isoformat())
+                except Exception:  # noqa: BLE001 - Nib is optional: a failure only means "Nib said nothing"
+                    log.debug("Nib leave read failed", exc_info=True)
             if not hub.configured or not hub.reachable():
                 return res
             res["reachable"] = True
@@ -331,6 +352,8 @@ class TeamApi(ApiBase):
         self._board_rows = list(res.get("board") or [])
         self._board_hidden = set(res.get("hidden") or set())
         self._handovers = list(res.get("handovers") or [])
+        self._nib_rows = res.get("nib_leave")
+        self._sync_nib_leave()
         self._sync_board()
         self._set_wrapped(mine, res)
         self._sync_handovers()
@@ -487,14 +510,114 @@ class TeamApi(ApiBase):
             if str(h.get("from", "")).lower() == me and TB.is_due_back(h, today):
                 self.endHandover(str(h["id"]))
                 break
+        else:
+            self._follow_nib()
         self._clean_received()
+
+    # ---- Nib's leave note
+    def _leave_watch(self) -> LeaveWatch | None:
+        watchers = getattr(self.app, "watchers", None)
+        try:
+            client = watchers.dispatcher().nib if watchers is not None else None
+        except Exception:  # noqa: BLE001
+            client = None
+        if client is None or not getattr(client, "configured", False):
+            self._nib_watch = None
+            return None
+        if self._nib_watch is None or self._nib_watch.client is not client:
+            self._nib_watch = LeaveWatch(client, self.me)
+        return self._nib_watch
+
+    def _nib_path(self) -> Path:
+        return Path(self.ctx.store.root) / NIB_FILE
+
+    def _nib_state(self) -> dict[str, Any]:
+        d = read_json(self._nib_path(), {}) or {}
+        if not isinstance(d, dict):
+            d = {}
+        if not isinstance(d.get("handled"), list):
+            d["handled"] = []
+        if not isinstance(d.get("links"), dict):
+            d["links"] = {}
+        return d
+
+    def _known_login(self, login: str) -> str:
+        """``login`` as the Team Hub knows it, or "" (a cover who is not on the hub is never guessed)."""
+        hub = self._hub()
+        if not login or not hub.configured:
+            return ""
+        try:
+            known = hub.known_users()
+        except Exception:  # noqa: BLE001
+            return ""
+        return next((k for k in known if k.lower() == login.lower()), "")
+
+    def _sync_nib_leave(self) -> None:
+        rows = self._nib_rows
+        if rows is None:                  # Nib did not answer: keep what the page shows
+            return
+        leave = next((r for r in rows if r.get("from") and r.get("to")), None)
+        if leave is None:
+            self._nib_leave = {}
+            return
+        cover = leave.get("cover") if isinstance(leave.get("cover"), dict) else None
+        cover_login = self._known_login(login_of(str(cover.get("account", "")))) if cover else ""
+        start, end = str(leave["from"]), str(leave["to"])
+        self._nib_leave = {
+            "id": str(leave.get("id", "")), "start": start, "end": end, "spanText": span_text(start, end),
+            "current": bool(leave.get("current")), "half": leave.get("half") or "",
+            "coverLogin": cover_login, "coverName": str(cover.get("name", "")) if cover else "",
+        }
+
+    def _follow_nib(self) -> None:
+        """Nib answered this refresh: hand back what a cancelled or ended leave gave away, and offer or do the
+        handover when a leave has started."""
+        if self._nib_rows is None or self._busy:
+            return
+        state = self._nib_state()
+        live = {str(r.get("id", "")) for r in self._nib_rows}
+        mine_id = str(self._mine.get("id", ""))
+        linked = str(state["links"].get(mine_id, "")) if mine_id else ""
+        if linked and linked not in live:
+            log.info("Nib leave %s ended or was cancelled: handing back %s", linked, mine_id)
+            state["links"].pop(mine_id, None)
+            write_json_atomic(self._nib_path(), state)
+            self.endHandover(mine_id)
+            return
+        leave = self._nib_leave
+        mode = getattr(self.ctx.settings, "handover_on_leave", "offer")
+        if (mode not in ("offer", "auto") or not leave.get("current") or self._mine
+                or leave.get("id") in state["handled"]):
+            return
+        state["handled"] = (list(state["handled"]) + [leave["id"]])[-50:]
+        write_json_atomic(self._nib_path(), state)
+        cover = leave.get("coverLogin") or ""
+        if mode == "auto" and cover:
+            acts = [a["id"] for a in self._choices.get("activities", []) if a.get("recent")]
+            tasks = [t["id"] for t in self._choices.get("tasks", [])]
+            reason = self._start(cover, leave["start"], leave["end"], acts, tasks, nib_leave_id=leave["id"])
+            if reason:
+                self._toast("Handover not done", f"Nib says you are on leave {leave['spanText']}: {reason}",
+                            "warning")
+            return
+        who = f" to {leave.get('coverName') or cover}" if cover else ""
+        self._toast("You are on leave", f"Nib's leave note says {leave['spanText']}. Hand your work over{who} "
+                    "on the Handover page.", "info")
 
     # ---- handover slots
     @Slot(str, str, str, "QStringList", "QStringList", result=str)
     def startHandover(self, to: str, start: str, end: str, activity_ids: list[str],  # noqa: N802
                       task_ids: list[str]) -> str:
         """Hand my activities and open tasks to ``to`` from ``start`` to ``end``; returns "" or the reason it
-        cannot (the page shows it inline)."""
+        cannot (the page shows it inline).  On the dates of my Nib leave it follows that leave (handed back
+        when the leave is cancelled in Nib)."""
+        leave = self._nib_leave
+        same = (leave.get("start"), leave.get("end")) == ((start or "").strip(), (end or "").strip())
+        return self._start(to, start, end, list(activity_ids), list(task_ids),
+                           nib_leave_id=str(leave.get("id", "")) if same else "")
+
+    def _start(self, to: str, start: str, end: str, activity_ids: list[str], task_ids: list[str],
+               nib_leave_id: str = "") -> str:
         hub = self._hub()
         to = (to or "").strip().lstrip("@")
         if not hub.configured:
@@ -555,11 +678,16 @@ class TeamApi(ApiBase):
                                                    f"for {span_text(a.isoformat(), b.isoformat())}",
                                                    "", title="Handover", inbox=False)
                     except Exception:  # noqa: BLE001
-                        log.debug("handover Cliq note failed", exc_info=True)
+                        log.debug("handover note failed", exc_info=True)
             return hid
 
         def done(hid: str) -> None:
             self._busy = False
+            if hid and nib_leave_id:
+                state = self._nib_state()
+                state["links"][hid] = nib_leave_id
+                state["handled"] = (list(state["handled"]) + [nib_leave_id])[-50:]
+                write_json_atomic(self._nib_path(), state)
             if hid:
                 self._toast(f"Handed over to {to_name}", f"{span_text(a.isoformat(), b.isoformat())} · "
                             "they accept it from their inbox", "success")

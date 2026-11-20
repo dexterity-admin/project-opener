@@ -4,13 +4,17 @@ import "../components"
 // Handover: give my activities and open tasks to a colleague while I am on leave, through the hub.  Nothing
 // moves until they accept it (their inbox, or "Handed to you" here); the tasks come back when I say I am back,
 // or on my PC's first start after the last day.  Form grammar of DESIGN.md "Dialogs": labels above fields,
-// inline validation above the button, the confirming button named for its action.
+// inline validation above the button, the confirming button named for its action.  When Nib's leave note (Dexterity
+// Connect) has my leave, the colleague and the dates come from it (app.team.nibLeave); nothing is guessed without it.
 Page {
     id: page
     minimumWidth: 860
     readonly property var mine: app.team.handover
     readonly property bool handedOver: mine.id !== undefined
     readonly property var ch: app.team.choices
+    readonly property var nib: app.team.nibLeave
+    readonly property bool fromNib: page.nib.start !== undefined
+    property string nibSeeded: ""                   // the Nib leave the form was filled from
     property string to: ""
     property string error: ""
     property var actPicked: ({})
@@ -29,6 +33,13 @@ Page {
         page.actPicked = a
         page.taskPicked = t
         page.picksSeeded = page.ch.activities.length > 0 || page.ch.tasks.length > 0
+    }
+    function seedFromNib() {                       // once per Nib leave; the person can still change every field
+        if (!page.fromNib || page.handedOver || page.nibSeeded === page.nib.id) return
+        if (page.nib.coverLogin) page.to = page.nib.coverLogin
+        firstDay.text = page.nib.start
+        lastDay.text = page.nib.end
+        page.nibSeeded = page.nib.id
     }
     function picked(map) {
         var out = []
@@ -53,8 +64,8 @@ Page {
                                             page.picked(page.taskPicked))
     }
 
-    Component.onCompleted: { app.team.refresh(); seedPicks() }
-    Connections { target: app.team; function onHandoverChanged() { page.seedPicks() } }
+    Component.onCompleted: { app.team.refresh(); seedPicks(); seedFromNib() }
+    Connections { target: app.team; function onHandoverChanged() { page.seedPicks(); page.seedFromNib() } }
 
     PageHeader {
         title: "Handover"
@@ -110,6 +121,22 @@ Page {
             width: form.width - 2 * form.pad
             spacing: 16
             SectionHeading { title: "Going on leave"; facts: "" }
+            Row {
+                visible: page.fromNib
+                width: parent.width
+                spacing: 8
+                Icon { name: "calendar-check"; size: 16; tone: "accent"; anchors.verticalCenter: parent.verticalCenter }
+                Txt {
+                    width: parent.width - 24
+                    tone: "muted"
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideNone
+                    text: "From your leave note in Dexterity Connect: " + (page.nib.spanText || "")
+                          + (page.nib.coverName ? " · cover " + page.nib.coverName : " · no cover named")
+                          + (page.nib.coverName && !page.nib.coverLogin ? " (not on the Team Hub: pick the colleague)" : "")
+                          + (page.nib.current ? " · your leave has started" : "")
+                }
+            }
             Row {
                 spacing: 16
                 ChoiceField {

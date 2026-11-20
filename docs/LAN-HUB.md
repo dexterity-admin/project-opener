@@ -87,6 +87,7 @@ _ProjectOpenerHub/
 ├── watch/<user>.json        {"schema": 1, "user", "host", "ts", "roots": [{root, status, since, jobs[], items}]}
 ├── delivered/<user>.json    {"schema": 1, "keys": {event_key: ts}} - newest 2,000
 ├── profiles/<id>.json       shared launch profiles
+├── connect.json             the office's Nib key for Project Opener (written once by an administrator)
 ├── announcements.json       items gain "mentions" and "author_name"
 └── pulse/<user>.jsonl       rows gain "kind" (launched|published|sent|task|mention|watch), "mentions",
                              "task_id", "activity"; 3.2 still reads "event" and "detail"
@@ -148,7 +149,40 @@ pulsed, written to inboxes or sent to Cliq again - also not by my other PC. Inbo
 once under the key `inbox:<id>`; entries older than three days found on first contact are recorded
 silently.
 
-### Zoho Cliq
+### Nib (Dexterity Connect)
+
+Mentions, tasks given and watcher hits reach people through **Nib**, Dexterity Connect's companion, in their
+conversation with Nib, with a `projectopener://` link. Nobody sets anything up on their own PC.
+
+**Enable it once (an administrator):** in Dexterity Connect, Control room > Integrations > *Nib for office
+tools*, create a key named `Project Opener`, press **Copy connect.json** and save the text as `connect.json` in
+the root of this hub folder:
+
+```json
+{ "hub": "https://<connect hub>:47900", "fingerprint": "AB:CD:...", "nib_key": "nibt_..." }
+```
+
+Every Project Opener reads it within a minute (Settings > Messages and mail shows "Nib is ready" and offers
+"Send me a test"). To stop it, revoke the key in Control room and delete the file. The key can only have Nib
+write to members (headed "Project Opener") and read leave dates and covers; the Connect hub audits every
+message. The hub is trusted by the certificate fingerprint in the file, never by a certificate authority, and
+nothing is sent before the certificate matches (`lan.nib`).
+
+Requests: `POST /api/nib/message {id, to, text, card}` (each `id` reaches each person once, so retries from
+`nib-outbox.jsonl`, every 5 minutes, are harmless), `GET /api/nib/leave?account=` and
+`GET /api/nib/leave/changes?since=`. While the Connect hub does not answer, messages wait in the outbox; a
+person who chose *Use Zoho Cliq instead* in Settings gets Cliq DMs as before.
+
+**Handover follows the leave note.** A person who notes leave in Nib finds the Handover page filled in with the
+cover and the first and last day. When the leave starts, Project Opener offers the handover (a toast), does it
+(Settings: *Hand over by itself*: recent activities and every open task, only when the cover is on this hub) or
+does nothing; when the leave ends or is cancelled in Nib, the work is handed back. Which leave was acted on is
+kept in the data folder's `nib-leave.json`. Without leave in Nib the page works as before; a colleague or a
+date is never guessed.
+
+### Zoho Cliq (optional)
+
+Only when a person chooses *Use Zoho Cliq instead* in Settings > Messages and mail.
 
 One office bot under a shared service account. Its **webhook token** (Cliq: Bots & Tools > Webhook Tokens;
 it does not expire, at most 5 per user) is entered once in Settings and stored with DPAPI. Endpoints used,
