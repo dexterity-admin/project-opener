@@ -32,7 +32,7 @@ DEFAULT_ACCENT = "#1C7680"              # brand teal-ink: text, links, fills tha
 # The brand fixes the colour; kept as a list for old callers and tools/check_contrast.py.
 ACCENTS: list[tuple[str, str]] = [(DEFAULT_ACCENT, "Dexterity teal")]
 
-# Brand palette (U:\Vikram\Dexterity-Brand\tokens\dexterity.css, --dx-*).
+# Brand palette (the office brand kit, Dexterity-Brand\tokens\dexterity.css, --dx-*).
 TEAL = "#2A8C98"
 TEAL_DEEP = "#1E6066"
 INK = "#132B2E"

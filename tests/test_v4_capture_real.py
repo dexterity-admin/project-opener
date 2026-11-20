@@ -1,7 +1,7 @@
 """Opt-in end-to-end capture and restore on the real desktop (set PO_REAL_CAPTURE=1).
 
 Opens ONLY its own test files from ``PO_REAL_CAPTURE_DIR`` (default
-``U:\\Vikram\\_Claude_Work\\temp\\b2\\real``): a folder, an .xlsx, a .docx (Office through COM)
+``%TEMP%\\b2\\real``; the source files from ``PO_SPIKE_DIR``, default ``%TEMP%\\po-spike``): a folder, an .xlsx, a .docx (Office through COM)
 and a PDF (association).  Arranges those windows, captures through the real CaptureEngine
 (its own COM thread), closes ONLY those windows (by identity; Office documents through their
 own window object; the PDF viewer only when this test started its process), restores through
@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -22,8 +23,8 @@ import pytest
 pytestmark = pytest.mark.skipif(os.environ.get("PO_REAL_CAPTURE") != "1",
                                 reason="real desktop test: set PO_REAL_CAPTURE=1")
 
-WORK = Path(os.environ.get("PO_REAL_CAPTURE_DIR", r"U:\Vikram\_Claude_Work\temp\b2\real"))
-SPIKE = Path(r"U:\Vikram\_Claude_Work\temp\po-spike")
+WORK = Path(os.environ.get("PO_REAL_CAPTURE_DIR", str(Path(tempfile.gettempdir()) / "b2" / "real")))
+SPIKE = Path(os.environ.get("PO_SPIKE_DIR", str(Path(tempfile.gettempdir()) / "po-spike")))
 
 
 def _norm(p: str) -> str:

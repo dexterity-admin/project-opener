@@ -23,9 +23,17 @@ is the single source of truth; CI publishes a release when a new version lands o
   text.
 - **Team**: tasks with mentions, watchers, the Cliq bot, Weekly Wrapped with an office board (anyone can opt
   out), Office pulse and Handover for leave.
+- **Share to Dexterity Connect** (project right-click menu in the 3.2 UI, `--classic`): opens the office
+  messenger's share dialog with the project's title, client, description and a `projectopener://open/<id>`
+  link filled in. The person picks who it is for and confirms in Dexterity Connect. If Dexterity Connect is
+  not installed, a notice says so and nothing is sent (`core/connect.py`).
 
 ### Changed
 - The 3.2 widgets UI stays reachable with `--classic` for this release.
+
+### Fixed
+- Saving twice within a few milliseconds (which Windows' clock reports as the same moment) no longer
+  skips the second backup: backups on the same tick are numbered.
 
 ## 3.2.0 - 2026-11-01
 

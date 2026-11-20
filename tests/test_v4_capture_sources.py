@@ -57,9 +57,9 @@ def test_explorer_shell_failure_is_not_fatal():
 
 
 def test_location_url_paths():
-    assert path_from_location_url("file:///U:/Vikram/a%20b") == r"U:\Vikram\a b"
-    assert path_from_location_url("file://192.168.0.200/free%20exchange%20-%20updated/Vikram") == \
-        r"\\192.168.0.200\free exchange - updated\Vikram"
+    assert path_from_location_url("file:///D:/Work/a%20b") == r"D:\Work\a b"
+    assert path_from_location_url("file://nas01/project%20share%20-%20updated/work") == \
+        r"\\nas01\project share - updated\work"
     assert path_from_location_url("https://example.com") == ""
     assert path_from_location_url("") == ""
 

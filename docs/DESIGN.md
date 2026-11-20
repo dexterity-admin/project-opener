@@ -15,7 +15,7 @@ down (dialogs, launch sheet, copy, motion levels, the office's own objects) carr
   was disciplined by `taste-skill` and `impeccable`, which banned glass, gradients, eyebrows and mono labels.
 - **4.0, "Drafted Glass"** (owner, 19 Nov 2026): concept B of three boards built after the v4-plus
   interview. Two sources:
-  - **The Dexterity brand** (`U:\Vikram\Dexterity-Brand\BRAND.md`; skill `dexterity-brand`) gives the
+  - **The Dexterity brand** (the office brand kit, `Dexterity-Brand\BRAND.md`; skill `dexterity-brand`) gives the
     identity. It is drawn, not bubbly: hairlines, small radii, title-block labels, teal for structure,
     amber for the one action, and "Line of flow" motion.
   - **Cleanly** (github.com/0xCodez/cleanly; tokens read from its bundled CSS) gives the layout

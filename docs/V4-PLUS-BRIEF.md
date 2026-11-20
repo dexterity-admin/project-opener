@@ -47,7 +47,7 @@ Adopted from Cleanly (overrides the matching bans in `docs/DESIGN.md`, which mus
 | Signature motion | one easing `cubic-bezier(.2,.8,.2,1)`; `rise` entrance (opacity 0, blur 6px, +12px Y); shine sweep on the main button; breathing hero; bubble physics in Space Map |
 
 Kept from current system: Onest UI font (Cleanly uses it too), pill buttons, radius trend (Cleanly 28px cards).
-**Accent: the Dexterity brand colours** (`dexterity-brand` skill, kit at `U:\Vikram\Dexterity-Brand`), replacing aurora green and Cleanly blue.
+**Accent: the Dexterity brand colours** (`dexterity-brand` skill, the office brand kit `Dexterity-Brand`), replacing aurora green and Cleanly blue.
 
 ### Concept chosen (19 Nov 2026): **B - Drafted Glass**
 Board: `docs/concepts/v4plus-boards.html` (served by the `concept-boards` preview config; keys 1/2/3, L = old-PC tier).

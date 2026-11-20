@@ -44,6 +44,7 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -61,7 +62,7 @@ if os.environ.get("QT_QPA_PLATFORM", "").startswith("offscreen") and sys.platfor
 # 1.3 s at a fraction of real time.  The simple driver steps by the wall clock, as on a real screen.
 os.environ.setdefault("QSG_USE_SIMPLE_ANIMATION_DRIVER", "1")
 
-WORK = Path(os.environ.get("PO_SMOKE_ROOT", r"U:\Vikram\_Claude_Work\temp\b4"))
+WORK = Path(os.environ.get("PO_SMOKE_ROOT", str(Path(tempfile.gettempdir()) / "b4")))   # TEMP is off C: on office PCs
 SIZES = ((1400, 860), (1040, 660))
 HUB_TABS = ("published", "inbox", "tasks", "announcements", "activity", "groups")
 ROUTES = ("home", "activity", "activity-running", "activities", "projects", "project",

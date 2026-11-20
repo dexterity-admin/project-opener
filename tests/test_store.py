@@ -57,6 +57,23 @@ def test_backups_unique_within_one_clock_tick(store, isolated_data_dir, monkeypa
     assert pre.exists()
 
 
+def test_backups_on_the_same_clock_tick_are_all_kept(store, monkeypatch):
+    # Windows' clock can return one time for saves a few milliseconds apart
+    from datetime import datetime as real
+
+    import project_opener.core.store as store_mod
+
+    class Frozen(real):
+        @classmethod
+        def now(cls, tz=None):
+            return real(2026, 11, 14, 20, 50, 19, 403001)
+
+    monkeypatch.setattr(store_mod, "datetime", Frozen)
+    for i in range(3):
+        store.add(M.Project(name=f"tick{i}"))
+    assert len(store.backups()) >= 2
+
+
 def test_corrupt_workspace_restores_backup(store, isolated_data_dir):
     store.add(M.Project(name="keep"))
     store.add(M.Project(name="also"))
