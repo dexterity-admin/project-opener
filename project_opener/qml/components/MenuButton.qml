@@ -31,8 +31,8 @@ Item {
         focus: true
         closePolicy: C.Popup.CloseOnEscape | C.Popup.CloseOnPressOutside
         background: Item {
-            Rectangle { x: -2; y: 6; width: parent.width + 4; height: parent.height + 2; radius: 14; color: mb.tk.shadow_soft }
-            Rectangle { anchors.fill: parent; radius: 12; color: mb.tk.surface; border.width: 1; border.color: mb.tk.border_strong }
+            Rectangle { x: -2; y: 6; width: parent.width + 4; height: parent.height + 2; radius: 10; color: mb.tk.shadow_soft }
+            Rectangle { anchors.fill: parent; radius: 8; color: mb.tk.surface; border.width: 1; border.color: mb.tk.border_strong }
         }
         contentItem: Column {
             Repeater {

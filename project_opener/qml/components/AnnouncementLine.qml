@@ -12,7 +12,7 @@ Rectangle {
     property int total: 0
     visible: newest !== null
     implicitHeight: visible ? 40 : 0
-    radius: 12
+    radius: 8
     color: hov.containsMouse ? tk.surface_2 : tk.surface
     border.width: 1
     border.color: tk.border

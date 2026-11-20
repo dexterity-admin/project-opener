@@ -12,7 +12,7 @@ Rectangle {
     height: shown ? 56 : 0
     visible: height > 0
     clip: true
-    radius: 14
+    radius: 8
     color: tk.field_mint
     Behavior on height { NumberAnimation { duration: Math.round(240 * app.ui.k); easing.type: Easing.OutCubic } }
     Accessible.role: Accessible.AlertMessage

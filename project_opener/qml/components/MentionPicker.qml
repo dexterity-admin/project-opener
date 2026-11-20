@@ -28,8 +28,8 @@ C.Popup {
     }
 
     background: Item {
-        Rectangle { visible: app.ui.dark; x: -2; y: 6; width: parent.width + 4; height: parent.height + 2; radius: 14; color: pk.tk.shadow_soft }
-        Rectangle { anchors.fill: parent; radius: 12; color: pk.tk.surface; border.width: 1; border.color: pk.tk.border_strong }
+        Rectangle { visible: app.ui.dark; x: -2; y: 6; width: parent.width + 4; height: parent.height + 2; radius: 10; color: pk.tk.shadow_soft }
+        Rectangle { anchors.fill: parent; radius: 8; color: pk.tk.surface; border.width: 1; border.color: pk.tk.border_strong }
     }
     contentItem: Column {
         id: col

@@ -19,7 +19,7 @@ Flow {
             readonly property bool on: modelData.key === tabBar.current
             height: 32
             width: tabRow.implicitWidth + 28
-            radius: 16
+            radius: 5
             color: on ? tabBar.tk.surface_2 : tabMouse.containsMouse ? tabBar.tk.surface : "transparent"
             Behavior on color { ColorAnimation { duration: Math.round(140 * app.ui.k) } }
             activeFocusOnTab: true

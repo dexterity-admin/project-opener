@@ -184,7 +184,7 @@ Page {
                     width: listCol.width
                     height: 60
                     Rectangle { width: parent.width; height: 1; color: page.tk.border; visible: index > 0 }
-                    Rectangle { anchors.fill: parent; anchors.topMargin: 1; radius: 10; color: lm.containsMouse ? page.tk.surface_2 : "transparent" }
+                    Rectangle { anchors.fill: parent; anchors.topMargin: 1; radius: 5; color: lm.containsMouse ? page.tk.surface_2 : "transparent" }
                     MouseArea { id: lm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: app.ui.go("project", { projectId: model.projectId }) }
                     IconTile { id: lt; x: 4; anchors.verticalCenter: parent.verticalCenter; icon: model.icon; tint: model.dotColor; size: 30 }
                     Column {

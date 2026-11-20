@@ -9,7 +9,7 @@ Rectangle {
     property int size: 32
     width: size
     height: size
-    radius: size >= 32 ? 10 : 8
+    radius: size >= 32 ? 8 : 6
     readonly property color base: tint !== "" ? tint : tk.text_faint
     color: Qt.tint(tk.surface, Qt.rgba(base.r, base.g, base.b, tk.dark ? 0.22 : 0.14))
     border.width: 1

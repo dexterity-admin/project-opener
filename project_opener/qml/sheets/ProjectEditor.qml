@@ -82,7 +82,7 @@ Sheet {
                 model: app.activities.projectIcons
                 delegate: Rectangle {
                     required property var modelData
-                    width: 34; height: 34; radius: 10
+                    width: 34; height: 34; radius: 8
                     color: iconPick.value === modelData ? s.tk.surface_3 : ipm.containsMouse ? s.tk.surface_2 : "transparent"
                     Icon { anchors.centerIn: parent; name: parent.modelData; tone: iconPick.value === parent.modelData ? "ink" : "muted" }
                     MouseArea { id: ipm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: iconPick.value = parent.modelData }

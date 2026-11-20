@@ -45,7 +45,7 @@ Rectangle {
 
     implicitWidth: Math.max(400, buttons.implicitWidth + 32)
     implicitHeight: content.implicitHeight + 30
-    radius: 18
+    radius: 10
     color: tk.surface
     border.width: 1
     border.color: tk.border_strong

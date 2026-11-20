@@ -3,6 +3,30 @@
 All notable changes to Project Opener. The version in `project_opener/__init__.py`
 is the single source of truth; CI publishes a release when a new version lands on `main`.
 
+## 4.0.0 - 2026-11-20
+
+### Added
+- **A new Qt Quick shell** with the 4.0 look, "Drafted Glass": Dexterity's teal and amber, Archivo,
+  Instrument Sans, JetBrains Mono and Cormorant Garamond bundled, drawn radii, hairlines instead of boxes,
+  frosted glass on sheets and the palette, and motion in three levels (rich, purposeful, off) that steps
+  down by itself on a slow machine. A labelled sidebar folds to the rail below a 1100 px window.
+- **Activities** with capture and restore: the windows and files of a piece of work are kept as checkpoints
+  and reopened in one go; the desktop pill and the command palette (Ctrl+Alt+K) reach them from anywhere.
+- **Today** replaces Home: the resume after a shutdown or the last activity with its restore plan, tasks due,
+  files changed overnight, a day streak and the windows reopened this week, then Time travel, Office and
+  Drives on this PC.
+- **Time travel**: a week of checkpoints across every activity, each restorable; **Park** (Ctrl+Alt+P) saves
+  what is open with a note.
+- **Space map**: the folders on the hub's project cards as bubbles, with duplicates and stale files. It
+  reports only and never deletes.
+- **Revision diff**: two revisions of a PDF as a red/green overlay, Excel as changed cells, Word as changed
+  text.
+- **Team**: tasks with mentions, watchers, the Cliq bot, Weekly Wrapped with an office board (anyone can opt
+  out), Office pulse and Handover for leave.
+
+### Changed
+- The 3.2 widgets UI stays reachable with `--classic` for this release.
+
 ## 3.2.0 - 2026-11-01
 
 ### Added

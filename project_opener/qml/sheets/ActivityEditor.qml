@@ -102,7 +102,7 @@ Sheet {
                     model: ["stack", "checks", "compass", "ruler", "cube", "factory", "anchor", "buildings", "clipboard-text", "calendar", "magnifying-glass", "users-three", "wrench", "lightning", "flag", "star"]
                     delegate: Rectangle {
                         required property var modelData
-                        width: 34; height: 34; radius: 10
+                        width: 34; height: 34; radius: 8
                         color: iconPick.value === modelData ? s.tk.surface_3 : im.containsMouse ? s.tk.surface_2 : "transparent"
                         border.width: iconPick.value === modelData ? 1 : 0
                         border.color: s.tk.border_strong

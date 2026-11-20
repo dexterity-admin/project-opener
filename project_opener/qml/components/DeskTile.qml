@@ -39,7 +39,7 @@ Item {
         anchors.centerIn: parent
         width: desk.width
         height: desk.height
-        radius: 10
+        radius: 6
         color: "transparent"
         border.width: 1.5
         border.color: desk.edge
@@ -56,7 +56,7 @@ Item {
     Rectangle {
         id: tile
         anchors.fill: parent
-        radius: 10
+        radius: 6
         color: desk.online ? desk.tint : desk.tk.surface_2
 
         Rectangle {
@@ -65,7 +65,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: 28
             height: 28
-            radius: 14
+            radius: 8
             color: desk.tk.surface
             Text {
                 anchors.centerIn: parent

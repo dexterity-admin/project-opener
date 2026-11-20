@@ -43,14 +43,11 @@ Item {
         height: Math.min(parent.height - 160, 72 + list.contentHeight + (list.count === 0 ? 48 : 16))
         x: (parent.width - width) / 2
         y: Math.max(48, parent.height * 0.14)
-        Rectangle { x: -3; y: 8; width: parent.width + 6; height: parent.height + 4; radius: 18; color: pal.tk.shadow_soft }
-        Rectangle { x: 0; y: 4; width: parent.width; height: parent.height; radius: 16; color: pal.tk.shadow_q }
-        Rectangle {
+        Rectangle { x: -3; y: 8; width: parent.width + 6; height: parent.height + 4; radius: 12; color: pal.tk.shadow_soft }
+        Rectangle { x: 0; y: 4; width: parent.width; height: parent.height; radius: 10; color: pal.tk.shadow_q }
+        GlassBack { anchors.fill: parent; radius: 10; track: box.y + box.height }
+        Item {
             anchors.fill: parent
-            radius: 16
-            color: pal.tk.surface
-            border.width: 1
-            border.color: pal.tk.border_strong
             MouseArea { anchors.fill: parent }
 
             Icon { id: lens; x: 18; y: 18; name: "magnifying-glass"; size: 18 }
@@ -108,7 +105,7 @@ Item {
                     Rectangle {
                         visible: model.rowKind === "hit"
                         anchors.fill: parent
-                        radius: 10
+                        radius: 5
                         color: index === pal.current ? pal.tk.surface_2 : rowMouse.containsMouse ? pal.tk.surface_2 : "transparent"
                         Icon { id: g; x: 12; anchors.verticalCenter: parent.verticalCenter; name: model.glyph }
                         Dot { visible: model.dotColor !== ""; tint: model.dotColor; x: 34; anchors.verticalCenter: parent.verticalCenter }

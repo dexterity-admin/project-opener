@@ -25,7 +25,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 20
+        radius: 5
         color: rb.active ? rb.tk.surface_2 : mouse.containsMouse ? rb.tk.surface : "transparent"
         border.width: rb.activeFocus ? 2 : 0
         border.color: rb.tk.accent

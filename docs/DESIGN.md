@@ -37,7 +37,7 @@ What 4.0 reverses from the 3.x bans, and why:
 Kept from 3.x: one primary per screen, no resting shadows on cards, a border or a shadow but never
 both, tabular figures, contrast computed rather than eyeballed, and every copy and behaviour rule below.
 
-## Type *(fonts bundled and `Txt` roles built 19 Nov 2026; screens still to follow)*
+## Type *(built 19-20 Nov 2026)*
 
 Four families, all OFL, bundled under `resources/fonts/`. The brand kit ships woff2, so convert to TTF
 for Qt with fontTools. Do not link to U: at run time.
@@ -54,7 +54,7 @@ for Qt with fontTools. Do not link to U: at run time.
 
 Tabular figures on every number that lines up. Titles are never tabular (see "The office's own objects").
 
-## Colour *(tokens built 19 Nov 2026; screens still to follow)*
+## Colour *(built 19-20 Nov 2026)*
 
 Brand tokens (`--dx-*` in the kit) mapped onto the existing `build_tokens` roles. Light:
 
@@ -91,14 +91,14 @@ Settings > Appearance keeps Theme and Density only.
 ## Shape and space
 
 - 4 px base. Card padding 16-18 (comfortable) / 12 (compact). One gap value per screen: 14 on Today, 16 elsewhere.
-- **Radii, drawn family** *(to build)*: cards 8, inputs 6, nav items 5, avatars 4, sheets and the
+- **Radii, drawn family** *(built 20 Nov 2026)*: cards 8, inputs 6, nav items 5, avatars 4, sheets and the
   palette 10, window corners 10. Buttons and chips stay pills (999), as on the company site.
 - **Hairlines, not boxes**: 1 px `border` on cards and rows; controls one step stronger. A border or a
   shadow, never both. Cards have no resting shadow. Things that float (menus, toasts, the palette,
   sheets, the pill's panel) carry the floating shadow and, in rich motion, glass.
 - **Title-block rules**: Today's hero has a 2 px `accent` rule on its top edge; each stat card has a
   2 px `border_strong` top rule that turns `accent` on hover. Label (mono) over value (Archivo numeral).
-- **Glass** *(to build)*: in rich motion, a floating surface is `surface` at 94 % over a 14 px blur of
+- **Glass** *(built 20 Nov 2026, `components/GlassBack.qml`: sheets and the palette; menus and toasts stay opaque because they can float over a sheet)*: in rich motion, a floating surface is `surface` at 94 % over a 14 px blur of
   the page behind it (Qt Quick `MultiEffect`, saturation 1.3). Below rich, or on the software renderer
   (which has no blur), it is opaque `surface`. A glass surface never sits on another glass surface.
 - **Sidebar** *(built 19 Nov 2026, `components/Sidebar.qml`)*: 236 px on the page ground, with a hairline on its right edge. The brand mark

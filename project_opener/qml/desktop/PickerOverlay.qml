@@ -65,7 +65,7 @@ Window {
         y: Math.max(8, Math.min(overlay.height - height - 8, overlay.f.y + overlay.f.h - height - 30))
         width: Math.min(460, Math.max(labelText.implicitWidth, subText.implicitWidth) + 24)
         height: col.implicitHeight + 16
-        radius: 10
+        radius: 6
         color: overlay.tk.surface
         border.width: 1
         border.color: overlay.tk.border_strong

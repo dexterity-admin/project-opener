@@ -34,7 +34,7 @@ Column {
         z: 10
         Rectangle {
             anchors.fill: parent
-            radius: 10
+            radius: 6
             color: f.tk.surface
             border.width: input.activeFocus ? 2 : 1
             border.color: input.activeFocus ? f.tk.accent : f.tk.border_strong

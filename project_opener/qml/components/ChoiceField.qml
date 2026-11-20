@@ -46,7 +46,7 @@ Column {
             y: (box.height - height) / 2
         }
         background: Rectangle {
-            radius: 10
+            radius: 6
             color: box.hovered ? f.tk.surface_2 : f.tk.surface
             border.width: box.activeFocus ? 2 : 1
             border.color: box.activeFocus ? f.tk.accent : f.tk.border_strong
@@ -82,7 +82,7 @@ Column {
                 currentIndex: box.highlightedIndex
             }
             background: Rectangle {
-                radius: 10
+                radius: 5
                 color: f.tk.surface
                 border.width: 1
                 border.color: f.tk.border_strong

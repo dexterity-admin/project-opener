@@ -52,18 +52,18 @@ Item {
                 Rectangle {            // the floating shadow: two soft rings under the card, on dark only
                     visible: app.ui.dark   // (on light the card's border_strong ring alone floats it)
                     x: -2; y: 6; width: card.width + 4; height: card.height + 4
-                    radius: 14; color: toastLayer.tk.shadow_soft
+                    radius: 10; color: toastLayer.tk.shadow_soft
                 }
                 Rectangle {
                     visible: app.ui.dark
                     x: 0; y: 3; width: card.width; height: card.height
-                    radius: 12; color: toastLayer.tk.shadow_q
+                    radius: 8; color: toastLayer.tk.shadow_q
                 }
                 Rectangle {
                     id: card
                     width: parent.width
                     height: col.implicitHeight + 24
-                    radius: 12
+                    radius: 8
                     color: toastLayer.tk.surface_2
                     border.width: 1
                     border.color: toastLayer.tk.border_strong

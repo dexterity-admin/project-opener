@@ -46,7 +46,7 @@ Page {
                     Rectangle {
                         anchors.fill: parent
                         anchors.topMargin: 1
-                        radius: 10
+                        radius: 5
                         color: rowMouse.containsMouse ? page.tk.surface_2 : "transparent"
                     }
                     IconTile { id: tile; x: 4; anchors.verticalCenter: parent.verticalCenter; icon: model.icon; tint: model.dotColor; size: 32 }

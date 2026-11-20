@@ -115,14 +115,12 @@ FocusScope {
 
         // the floating shadow: offset rings on dark only (on light they read as a second, misregistered shape;
         // the surface's border_strong ring floats it there)
-        Rectangle { visible: app.ui.dark; x: -4; y: 10; width: parent.width + 8; height: parent.height + 4; radius: 20; color: sheet.tk.shadow_soft }
-        Rectangle { visible: app.ui.dark; x: 0; y: 5; width: parent.width; height: parent.height; radius: 16; color: sheet.tk.shadow_q }
-        Rectangle {
+        Rectangle { visible: app.ui.dark; x: -4; y: 10; width: parent.width + 8; height: parent.height + 4; radius: 14; color: sheet.tk.shadow_soft }
+        Rectangle { visible: app.ui.dark; x: 0; y: 5; width: parent.width; height: parent.height; radius: 10; color: sheet.tk.shadow_q }
+        GlassBack {
             anchors.fill: parent
-            radius: 16
-            color: sheet.tk.surface
-            border.width: 1
-            border.color: sheet.tk.border_strong
+            radius: 10
+            track: frame.y
             MouseArea { anchors.fill: parent }
         }
 
@@ -135,9 +133,9 @@ FocusScope {
             Text {
                 width: parent.width
                 text: sheet.title
-                font.family: sheet.tk.face
-                font.pixelSize: 21
-                font.weight: Font.DemiBold
+                font.family: sheet.tk.face_display
+                font.pixelSize: 22
+                font.weight: Font.Normal
                 color: sheet.tk.text
                 wrapMode: Text.Wrap
                 Accessible.role: Accessible.Heading

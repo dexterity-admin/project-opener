@@ -50,7 +50,7 @@ Sheet {
                 required property var modelData
                 width: parent ? parent.width : 500
                 height: 40
-                radius: 10
+                radius: 6
                 color: pathField.text === modelData ? s.tk.accent_soft : cm.containsMouse ? s.tk.surface_2 : "transparent"
                 Icon { id: ci; x: 12; anchors.verticalCenter: parent.verticalCenter; name: "file" }
                 Txt { anchors.left: ci.right; anchors.leftMargin: 10; anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: parent.modelData; elide: Text.ElideMiddle }

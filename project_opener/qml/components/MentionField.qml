@@ -54,7 +54,7 @@ Column {
                 padding: 10
                 Accessible.name: f.label
                 background: Rectangle {
-                    radius: 10
+                    radius: 6
                     color: f.tk.surface
                     border.width: area.activeFocus ? 2 : 1
                     border.color: area.activeFocus ? f.tk.accent : f.tk.border_strong

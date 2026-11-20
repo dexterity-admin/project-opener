@@ -71,7 +71,7 @@ Sheet {
                 readonly property bool on: s.chosen === model.activityId
                 width: parent ? parent.width : 500
                 height: 46
-                radius: 10
+                radius: 6
                 color: on ? s.tk.accent_soft : am.containsMouse ? s.tk.surface_2 : "transparent"
                 Radio { id: rb; x: 12; anchors.verticalCenter: parent.verticalCenter; on: parent.on }
                 IconTile { id: t; anchors.left: rb.right; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter; icon: model.icon; tint: model.dotColor; size: 26 }
@@ -87,7 +87,7 @@ Sheet {
             readonly property bool on: s.chosen === "__new"
             width: parent.width
             height: 46
-            radius: 10
+            radius: 6
             color: on ? s.tk.accent_soft : nm.containsMouse ? s.tk.surface_2 : "transparent"
             Radio { id: nr; x: 12; anchors.verticalCenter: parent.verticalCenter; on: parent.on }
             Icon { id: ni; anchors.left: nr.right; anchors.leftMargin: 17; anchors.verticalCenter: parent.verticalCenter; name: "plus" }

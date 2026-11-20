@@ -51,7 +51,8 @@ a = Analysis(
         "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtWebEngineQuick",
         "PySide6.QtQuick3D", "PySide6.QtQuickWidgets", "PySide6.QtMultimedia",
         "PySide6.QtMultimediaWidgets", "PySide6.QtCharts", "PySide6.QtDataVisualization", "PySide6.Qt3DCore",
-        "PySide6.Qt3DRender", "PySide6.QtPdfWidgets",   # not QtPdf: the revision diff renders PDFs with it "PySide6.QtBluetooth", "PySide6.QtNfc",
+        "PySide6.Qt3DRender", "PySide6.QtPdfWidgets",   # not QtPdf: the revision diff renders PDFs with it
+        "PySide6.QtBluetooth", "PySide6.QtNfc",
         "PySide6.QtSerialPort", "PySide6.QtSensors", "PySide6.QtPositioning", "PySide6.QtLocation",
         "PySide6.QtRemoteObjects", "PySide6.QtScxml", "PySide6.QtStateMachine", "PySide6.QtTextToSpeech",
         "PySide6.QtWebSockets", "PySide6.QtWebChannel", "PySide6.QtHttpServer", "PySide6.QtGraphs",
@@ -69,7 +70,8 @@ a = Analysis(
 # Excluding a PySide6 Python module above does not stop PySide6's hooks from collecting every QML module
 # (qml/QtWebEngine, qml/Qt3D, ...) and, through them, their DLLs: Qt6WebEngineCore.dll alone is 195 MB and
 # the 4.0 build was 469 MB.  Nothing in the app imports them (QML: QtQuick, QtQuick.Window,
-# QtQuick.Controls.Basic; Python: QtCore, QtGui, QtWidgets, QtSvg, QtNetwork, QtQml, QtQuick), so drop
+# QtQuick.Controls.Basic, QtQuick.Effects (the glass); Python: QtCore, QtGui, QtWidgets, QtSvg, QtNetwork,
+# QtQml, QtQuick, QtPdf (the revision diff)), so drop
 # their binaries and data here.  Kept on purpose: Qt6OpenGL (Qt6Quick links it), Qt6ShaderTools,
 # opengl32sw.dll (the software OpenGL fallback) and the Basic Controls style.
 import re  # noqa: E402
@@ -77,7 +79,7 @@ import re  # noqa: E402
 _UNUSED_QT = re.compile(
     r"(^|[/\\])("
     r"qt6(webengine\w*|3d\w*|quick3d\w*|multimedia\w*|spatialaudio|charts\w*|datavisualization\w*|graphs\w*"
-    r"|pdf\w*|positioning\w*|location|webchannel\w*|websockets|webview\w*|sensors\w*|texttospeech"
+    r"|pdf(quick|widgets)\w*|positioning\w*|location|webchannel\w*|websockets|webview\w*|sensors\w*|texttospeech"
     r"|remoteobjects\w*|scxml\w*|statemachine\w*|designer\w*|bluetooth|nfc|serialport|serialbus|httpserver"
     r"|quicktest|test|virtualkeyboard\w*|labsstylekit\w*|quickcontrols2(material|universal|imagine|fluentwinui3"
     r"|fusion|windowsstyle)\w*|quickdialogs2\w*|quicktimeline\w*|quickparticles|quickvectorimage\w*"
@@ -89,7 +91,7 @@ _UNUSED_QT = re.compile(
     r"|qtremoteobjects|qtscxml|qtsensors|qttest|qttexttospeech|qtwebchannel|qtwebengine|qtwebsockets|qtwebview"
     r"|qt5compat)[/\\]"
     r"|[/\\]qml[/\\]qtquick[/\\](controls[/\\](material|universal|imagine|fluentwinui3|fusion|windows)"
-    r"|scene2d|scene3d|pdf|virtualkeyboard|dialogs|timeline|particles|vectorimage|effects)[/\\]"
+    r"|scene2d|scene3d|pdf|virtualkeyboard|dialogs|timeline|particles|vectorimage)[/\\]"
     r"|[/\\]plugins[/\\](multimedia|position|geoservices|sensors|texttospeech|webview|sceneparsers|renderers"
     r"|geometryloaders|renderplugins|sqldrivers|designer|qmltooling|canbus|assetimporters)[/\\]"
     r"|[/\\]translations[/\\]qtwebengine"

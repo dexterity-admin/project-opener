@@ -102,6 +102,11 @@ Window {
     // ---------------------------------------------------------------- layout
     // The 4.0 sidebar (docs/DESIGN.md): 236 px labelled, folding to the 68 px rail below a 1100 px window.
     readonly property int navWidth: rail.width
+    readonly property Item ground: groundItem       // what floating glass blurs (components/GlassBack.qml)
+    Item {
+    id: groundItem
+    anchors.fill: parent
+    Rectangle { anchors.fill: parent; color: app.ui.tokens.bg }   // opaque, so the glass samples the page ground
     Sidebar {
         id: rail
         anchors.left: parent.left
@@ -164,6 +169,8 @@ Window {
             NumberAnimation { target: root.onActivity ? activityLoader : pageLoader; property: "opacity"; from: 0; to: 1; duration: Math.round(220 * app.ui.k); easing.type: Easing.OutCubic }
             NumberAnimation { target: root.onActivity ? activityLoader : pageLoader; property: "y"; from: 8; to: 0; duration: Math.round(260 * app.ui.k); easing.type: Easing.OutCubic }
         }
+    }
+
     }
 
     // ---------------------------------------------------------------- floating layers
