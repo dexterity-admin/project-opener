@@ -3,7 +3,7 @@
 All notable changes to Project Opener. The version in `project_opener/__init__.py`
 is the single source of truth; CI publishes a release when a new version lands on `main`.
 
-## Unreleased
+## 4.1.0 - 2026-11-20
 
 ### Changed
 - **Nib in Dexterity Connect replaces the Zoho Cliq bot.** Mentions, tasks given to you, handovers,
