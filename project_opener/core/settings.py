@@ -93,6 +93,8 @@ class Settings:
     cliq_bot: str = ""                  # bot unique name
     cliq_token_enc: str = ""            # DPAPI blob of the office bot token (shared service account)
     notify_cliq_default: bool = True    # DM me on mention / task / watcher hits when linked
+    auto_watchers: bool = True          # make watchers for my cards' folders and servers without asking
+    auto_watchers_dismissed: list[str] = field(default_factory=list)  # auto keys the user deleted: not remade
     mail_client: str = "outlook"        # outlook | mailto
     spacemap_stale_months: int = 12     # Space map: a file not modified for this many months is stale
     board_show_me: bool = True          # Weekly Wrapped: my numbers on the office board (opt out here)
@@ -122,6 +124,8 @@ class Settings:
             if "park" not in stored and stored.get("panel", "").replace(" ", "").lower() == "ctrl+alt+p":
                 stored["panel"] = C.HOTKEY_DEFAULTS["panel"]
             s.hotkeys = {**C.HOTKEY_DEFAULTS, **stored}
+        if not isinstance(s.auto_watchers_dismissed, list):
+            s.auto_watchers_dismissed = []
         if not isinstance(s.capture_ignore, list) or s.capture_ignore == _IGNORE_DEFAULT_BETA:
             s.capture_ignore = cls().capture_ignore
         s.accent = cls.accent                    # 4.0: brand colours, no picker (docs/DESIGN.md "Colour")

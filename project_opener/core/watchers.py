@@ -16,6 +16,11 @@ Pure Python, no Qt: ``tick(now)`` is called on a pool thread every
 * time: due dates of my tasks (the day it is due, and once when overdue), "activity not
   opened for ``stale_days``", reminders at ``at`` / every ``every_days``.
 
+Automatic watchers (``auto_watcher_specs`` + ``reconcile_auto_watchers``): every folder item on a card
+gets a "new file" watcher, and every server or path variable a card's items live on gets a health watcher.
+Only what the cards already hold is used: no path, root or date is made up.  Cards carry no dates, so no
+time watcher is derived.
+
 Every event carries a stable ``key`` (no timestamp of the tick in it), so the
 delivery ledger can drop repeats across ticks, restarts and the user's other PCs.
 """
@@ -32,6 +37,7 @@ from pathlib import Path
 
 from project_opener import constants as C
 from project_opener.core import models as M
+from project_opener.core.health import path_root, root_key
 from project_opener.core.jsonio import read_json, write_json_atomic
 from project_opener.core.pathvars import PathResolver
 from project_opener.core.tasks import local_date, parse_due
@@ -343,3 +349,82 @@ def diff_listing(old: FolderState, new: FolderState) -> tuple[list[str], list[st
     gone = sorted(n for n in old.files if n not in new.files)
     changed = sorted(n for n in new.files if n in old.files and tuple(new.files[n]) != tuple(old.files[n]))
     return added, changed, gone
+
+
+# ------------------------------------------------------------- automatic watchers
+def _norm(path: str) -> str:
+    return (path or "").strip().rstrip("\\/").lower()
+
+
+def _tail(path: str) -> str:
+    p = (path or "").strip().rstrip("\\/")
+    return p.rsplit("\\", 1)[-1].rsplit("/", 1)[-1] or p
+
+
+def auto_watcher_specs(activities: list[M.Activity], projects: list[M.Project],
+                       drive_map: dict[str, str] | None = None) -> dict[str, dict[str, str]]:
+    """Pure: the watchers the cards' own items call for, ``auto_key`` -> {kind, target, name, activity_id,
+    project_id}.  A folder item -> "folder:<path>" (a file lands there); the server or ``{VARIABLE}`` an item
+    lives on -> "health:<root>" (it goes down).  A mapped letter is folded into its server, as the health
+    rows are; an unmapped letter is a local disk and gets none.  One watcher per folder however many cards
+    hold it: an activity's link wins over a project's."""
+    specs: dict[str, dict[str, str]] = {}
+    pairs = [(a.id, i.project_id, i) for a in activities for i in a.items]
+    pairs += [("", p.id, i) for p in projects for i in p.items]
+    for activity_id, project_id, item in pairs:
+        path = (item.path or "").strip()
+        if not path:
+            continue
+        if item.kind == "folder":
+            spec = specs.setdefault(f"folder:{_norm(path)}", {
+                "kind": "folder", "target": path, "name": f"Watch {_tail(path)}",
+                "activity_id": activity_id, "project_id": project_id})
+            if not spec["project_id"]:
+                spec["project_id"] = project_id
+        root = path_root(path)
+        if root:
+            root, _share = root_key(root, drive_map)
+            if root.startswith(("\\\\", "{")):
+                specs.setdefault(f"health:{root.lower()}", {
+                    "kind": "health", "target": root, "name": f"{root} health", "activity_id": "",
+                    "project_id": ""})
+    return specs
+
+
+AUTO_EVENTS = {"folder": ["new"], "health": ["down", "up"]}
+
+
+def reconcile_auto_watchers(watchers: list[M.Watcher], specs: dict[str, dict[str, str]], dismissed: set[str],
+                            create: bool = True, user: str = "") -> tuple[list[M.Watcher], list[str]]:
+    """Pure: (the new watcher list, ids of automatic watchers removed).
+
+    An automatic watcher whose source is gone is removed; one whose card link moved follows it (the user's
+    own edits to it stay).  With ``create``, a spec with no watcher yet gets one, unless the user deleted
+    it before (``dismissed``) or a hand-made watcher already covers the same folder or root."""
+    out: list[M.Watcher] = []
+    removed: list[str] = []
+    have: set[str] = set()
+    manual: set[tuple[str, str]] = set()
+    for w in watchers:
+        if not w.auto_key:
+            manual.add((w.kind, _norm(w.target)))
+            out.append(w)
+            continue
+        spec = specs.get(w.auto_key)
+        if spec is None or w.auto_key in have:
+            removed.append(w.id)
+            continue
+        have.add(w.auto_key)
+        if (w.activity_id, w.project_id) != (spec["activity_id"], spec["project_id"]):
+            w = M.Watcher.from_dict({**w.to_dict(), "activity_id": spec["activity_id"],
+                                     "project_id": spec["project_id"]})
+        out.append(w)
+    if create:
+        for key, spec in specs.items():
+            if key in have or key in dismissed or (spec["kind"], _norm(spec["target"])) in manual:
+                continue
+            out.append(M.Watcher(spec["name"], kind=spec["kind"], target=spec["target"],
+                                 events=list(AUTO_EVENTS[spec["kind"]]), activity_id=spec["activity_id"],
+                                 project_id=spec["project_id"], auto_key=key,
+                                 **({"created_by": user} if user else {})))
+    return out, removed
