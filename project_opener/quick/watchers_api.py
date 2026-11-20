@@ -25,7 +25,7 @@ from project_opener import constants as C
 from project_opener.core import health as H
 from project_opener.core import models as M
 from project_opener.core.tasks import when_text
-from project_opener.core.watchers import HubEvents, WatcherEngine
+from project_opener.core.watchers import HubEvents, WatcherEngine, auto_watcher_specs, reconcile_auto_watchers
 from project_opener.lan.delivery import Dispatcher, make_dispatcher
 from project_opener.lan.healthboard import HealthBoard, OfficeRoot, observe
 from project_opener.quick.base import ApiBase
@@ -35,7 +35,9 @@ from project_opener.ui import text as T
 log = logging.getLogger(__name__)
 
 WATCHER_ROLES = ("watcherId", "name", "kind", "target", "events", "watcherEnabled", "notifyText", "lastHitText",
-                 "activityId", "projectId")
+                 "activityId", "projectId", "auto")
+CARD_EVENTS = ("added", "updated", "removed", "activity_added", "activity_updated", "activity_removed", "changed",
+               "imported")
 ALERT_ROLES = ("alertKey", "ts", "tsText", "title", "detail", "level", "link", "unread", "watcherId")
 ROOT_ROLES = ("rootName", "status", "statusLabel", "mapping", "uses", "seenBy", "since", "sinceText", "jobsAffected")
 
@@ -216,7 +218,8 @@ class WatchersApi(ApiBase):
         self.ctx.store.subscribe(self._on_store)
         changed = getattr(getattr(self.app, "settings", None), "changed", None)
         if changed is not None:                      # linking Cliq changes what the watcher rows promise
-            changed.connect(lambda _key: self._sync_watchers())
+            changed.connect(self._on_setting)
+        self.reconcile_auto()
         self._sync_watchers()
         self._load_alerts()
         self._timer = QTimer(self)
@@ -241,8 +244,34 @@ class WatchersApi(ApiBase):
                 t.stop()
 
     def _on_store(self, event: str, _payload: Any) -> None:
+        if event in CARD_EVENTS:
+            self.reconcile_auto()
         if event in ("watchers_changed", "changed"):
             self._sync_watchers()
+
+    def _on_setting(self, key: str) -> None:
+        if key == "auto_watchers":
+            self.reconcile_auto()
+        self._sync_watchers()
+
+    def reconcile_auto(self) -> None:
+        """Automatic watchers follow the cards: made for new folders and servers (while Settings > Watchers
+        allows it), relinked when a card changes, removed when their folder or server leaves every card."""
+        store, st = self.ctx.store, self.ctx.settings
+        drive_map = getattr(self.ctx.resolver, "drive_map", None)
+        specs = auto_watcher_specs(list(store.activities), list(store.projects), drive_map)
+        dismissed = [k for k in (getattr(st, "auto_watchers_dismissed", None) or []) if isinstance(k, str)]
+        watchers, removed = reconcile_auto_watchers(list(store.watchers), specs, set(dismissed),
+                                                    bool(getattr(st, "auto_watchers", True)), self.ctx.user)
+        kept = [k for k in dismissed if k in specs]      # a folder removed and added again is watched again
+        if kept != dismissed:
+            st.auto_watchers_dismissed = kept
+            st.save()
+        if watchers == list(store.watchers):
+            return
+        for wid in removed:
+            self.engine().forget(wid)
+        store.replace_watchers(watchers)
 
     # ------------------------------------------------------------- models
     def _sync_watchers(self) -> None:
@@ -253,7 +282,7 @@ class WatchersApi(ApiBase):
             rows.append({"watcherId": w.id, "name": w.name, "kind": w.kind, "target": w.target,
                          "events": list(w.events), "watcherEnabled": w.enabled, "notifyText": notify_text(w.notify, linked, nib),
                          "lastHitText": when_text(self._last_hit.get(w.id, "")), "activityId": w.activity_id,
-                         "projectId": w.project_id})
+                         "projectId": w.project_id, "auto": bool(w.auto_key)})
         self._watchers.sync(rows)
         self.watchersChanged.emit()
 
@@ -489,6 +518,11 @@ class WatchersApi(ApiBase):
 
     @Slot(str)
     def remove(self, watcher_id: str) -> None:
+        w = self.ctx.store.watcher(watcher_id)
+        st = self.ctx.settings
+        if w is not None and w.auto_key and w.auto_key not in st.auto_watchers_dismissed:
+            st.auto_watchers_dismissed = [*st.auto_watchers_dismissed, w.auto_key]   # deleted stays deleted
+            st.save()
         self.engine().forget(watcher_id)
         self.ctx.store.remove_watcher(watcher_id)
         self._sync_watchers()
