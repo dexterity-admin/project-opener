@@ -256,6 +256,114 @@ def sendto_installed(folder: Path | None = None) -> bool:
     return (folder or sendto_dir()).joinpath(C.SENDTO_NAME).exists()
 
 
+# ------------------------------------------------- taskbar identity on shortcuts
+def shortcut_dirs() -> list[Path]:
+    """Where a Project Opener shortcut can live for this user: Start menu, desktop, taskbar pins."""
+    appdata = Path(os.environ.get("APPDATA", ""))
+    return [appdata / "Microsoft" / "Windows" / "Start Menu" / "Programs",
+            Path(os.environ.get("USERPROFILE", "")) / "Desktop",
+            appdata / "Microsoft" / "Internet Explorer" / "Quick Launch" / "User Pinned" / "TaskBar"]
+
+
+def plan_shortcut_repair(links: list[tuple[Path, str, str]], exe: str, app_id: str,
+                         start_menu: Path) -> list[tuple[str, Path]]:
+    """What to do with each shortcut, from (path, target, app id) - pure, so the tests need no shell.
+
+    * ``stamp``: it starts the installed exe but lacks our app id, so Windows files the window under a
+      blank or foreign taskbar identity -> write our id.
+    * ``delete``: a Start-menu link carries our id but starts something else (a source run's python.exe)
+      -> Windows takes the name and icon from it; remove it.
+    * ``repoint``: the same in a taskbar pin or on the desktop -> point it at the exe, rename it."""
+    exe_n = os.path.normcase(os.path.abspath(exe))
+    plan: list[tuple[str, Path]] = []
+    for path, target, aumid in links:
+        starts_exe = bool(target) and os.path.normcase(os.path.abspath(target)) == exe_n
+        if starts_exe:
+            if aumid != app_id:
+                plan.append(("stamp", path))
+        elif aumid == app_id:
+            under_start = os.path.normcase(str(path)).startswith(os.path.normcase(str(start_menu)))
+            plan.append(("delete" if under_start else "repoint", path))
+    return plan
+
+
+def _open_link(path: Path, write: bool):  # noqa: ANN202 - pywin32 COM objects
+    import pythoncom
+    from win32com.shell import shell
+    link = pythoncom.CoCreateInstance(shell.CLSID_ShellLink, None, pythoncom.CLSCTX_INPROC_SERVER,
+                                      shell.IID_IShellLink)
+    link.QueryInterface(pythoncom.IID_IPersistFile).Load(str(path), 2 if write else 0)  # STGM_READWRITE
+    return link
+
+
+def _read_link(path: Path) -> tuple[str, str]:
+    from win32com.propsys import propsys, pscon
+    from win32com.shell import shell
+    link = _open_link(path, False)
+    target = link.GetPath(shell.SLGP_RAWPATH)[0]
+    store = link.QueryInterface(propsys.IID_IPropertyStore)
+    aumid = store.GetValue(pscon.PKEY_AppUserModel_ID).GetValue() or ""
+    return target, str(aumid)
+
+
+def _write_link(path: Path, app_id: str, exe: str | None) -> None:
+    import pythoncom
+    from win32com.propsys import propsys, pscon
+    link = _open_link(path, True)
+    if exe:
+        link.SetPath(exe)
+        link.SetArguments("")
+        link.SetWorkingDirectory(str(Path(exe).parent))
+        link.SetIconLocation(exe, 0)
+    store = link.QueryInterface(propsys.IID_IPropertyStore)
+    store.SetValue(pscon.PKEY_AppUserModel_ID, propsys.PROPVARIANTType(app_id, pythoncom.VT_LPWSTR))
+    store.Commit()
+    link.QueryInterface(pythoncom.IID_IPersistFile).Save(str(path), True)
+
+
+def repair_shortcuts(exe: str | None = None, app_id: str | None = None,
+                     dirs: list[Path] | None = None) -> list[tuple[str, Path]]:
+    """Installed app only, once per start: give every Project Opener shortcut our taskbar identity so the
+    taskbar shows the app's name and icon (see ``plan_shortcut_repair``).  Returns what it did."""
+    if sys.platform != "win32" or not (exe or C.is_frozen()):
+        return []
+    exe = exe or sys.executable
+    app_id = app_id or C.app_user_model_id(True)
+    dirs = dirs or shortcut_dirs()
+    import pythoncom
+    pythoncom.CoInitialize()
+    done: list[tuple[str, Path]] = []
+    try:
+        links: list[tuple[Path, str, str]] = []
+        for d in dirs:
+            if not d.is_dir():
+                continue
+            for lnk in d.rglob("*.lnk"):
+                try:
+                    links.append((lnk, *_read_link(lnk)))
+                except Exception:  # noqa: BLE001 - a broken or locked link is not ours to fix
+                    continue
+        for action, lnk in plan_shortcut_repair(links, exe, app_id, dirs[0]):
+            try:
+                if action == "delete":
+                    lnk.unlink()
+                elif action == "stamp":
+                    _write_link(lnk, app_id, None)
+                else:
+                    _write_link(lnk, app_id, exe)
+                    named = lnk.with_name(f"{C.APP_NAME}.lnk")
+                    if named != lnk and not named.exists():
+                        lnk.rename(named)
+                        lnk = named
+                done.append((action, lnk))
+                log.info("taskbar identity: %s %s", action, lnk)
+            except Exception:  # noqa: BLE001
+                log.exception("could not %s %s", action, lnk)
+    finally:
+        pythoncom.CoUninitialize()
+    return done
+
+
 # ----------------------------------------------------------------- both
 def set_entries(verb: bool, sendto: bool, reg: Registry | None = None, folder: Path | None = None,
                 writer: ShortcutWriter | None = None, frozen: bool | None = None,

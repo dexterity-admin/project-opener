@@ -82,3 +82,39 @@ def test_real_shortcut_writer_in_temp(tmp_path):
     """The WScript.Shell writer makes a real .lnk (in pytest's temp folder, not in SendTo)."""
     assert S.install_sendto(tmp_path, frozen=True, executable=EXE)
     assert (tmp_path / C.SENDTO_NAME).stat().st_size > 0
+
+
+# ------------------------------------------------- taskbar identity on shortcuts
+def test_source_runs_get_their_own_taskbar_identity():
+    assert C.app_user_model_id(True) == "DexterityDesign.ProjectOpener"
+    assert C.app_user_model_id(False) == "DexterityDesign.ProjectOpener.Dev"
+
+
+def test_installer_shortcuts_carry_the_app_id():
+    from pathlib import Path
+    iss = (Path(__file__).resolve().parents[1] / "installer" / "ProjectOpener.iss").read_text(encoding="utf-8")
+    assert iss.count(f'AppUserModelID: "{C.APP_USER_MODEL_ID}"') == 2
+
+
+def test_shortcut_repair_plan():
+    from pathlib import Path
+    start = Path(r"C:\U\Start Menu\Programs")
+    pins = Path(r"C:\U\TaskBar")
+    aid = C.APP_USER_MODEL_ID
+    links = [
+        (start / "Project Opener" / "Project Opener.lnk", EXE, ""),              # installed, no id -> stamp
+        (Path(r"C:\U\Desktop\Project Opener.lnk"), EXE.upper(), aid),          # already right -> nothing
+        (start / "python.lnk", r"C:\Python314\pythonw.exe", aid),              # dev link in Start -> delete
+        (pins / "pythonw.lnk", r"C:\Python314\pythonw.exe", aid),              # dev pin -> repoint
+        (start / "Other.lnk", r"C:\Other\other.exe", "other.app"),             # not ours -> nothing
+        (start / "Uninstall Project Opener.lnk", r"C:\x\unins001.exe", ""),    # not ours -> nothing
+    ]
+    assert S.plan_shortcut_repair(links, EXE, aid, start) == [
+        ("stamp", start / "Project Opener" / "Project Opener.lnk"),
+        ("delete", start / "python.lnk"),
+        ("repoint", pins / "pythonw.lnk"),
+    ]
+
+
+def test_shortcut_repair_skips_source_runs():
+    assert S.repair_shortcuts() == []

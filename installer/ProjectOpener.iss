@@ -62,9 +62,10 @@ Name: "explorer"; Description: "Add ""Add to running activity"" and ""Send to > 
 Source: "..\dist\ProjectOpener\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
+; AppUserModelID = constants.APP_USER_MODEL_ID: the taskbar takes the app's name and icon from these.
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; AppUserModelID: "DexterityDesign.ProjectOpener"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; AppUserModelID: "DexterityDesign.ProjectOpener"; Tasks: desktopicon
 ; Send to > Project Opener (Windows appends the selected paths after --sendto). {usersendto} is per user.
 Name: "{usersendto}\Project Opener"; Filename: "{app}\{#AppExeName}"; Parameters: "--sendto"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppExeName}"; Comment: "Add the selected files to the running activity in Project Opener"; Tasks: explorer
 

@@ -130,7 +130,7 @@ def _main_classic(args: argparse.Namespace) -> int:
     log.info("%s %s starting (frozen=%s)", C.APP_NAME, C.VERSION, C.is_frozen())
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    winutil.set_app_user_model_id(f"DexterityDesign.{C.APP_ID}")
+    winutil.set_app_user_model_id(C.app_user_model_id())
     app = QApplication(sys.argv)
     app.setApplicationName(C.APP_NAME)
     app.setOrganizationName(C.COMPANY_SHORT)

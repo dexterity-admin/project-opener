@@ -151,8 +151,12 @@ def main(args: Any) -> int:
     from project_opener.core import winutil
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    winutil.set_app_user_model_id(f"DexterityDesign.{C.APP_ID}")
+    winutil.set_app_user_model_id(C.app_user_model_id())
     app = QApplication.instance() or QApplication(sys.argv)
+    # Every QML window (main, pill, picker) takes this icon; without it the taskbar button falls back to a
+    # blank window icon while the jump list (from the exe) still shows the real one.
+    from project_opener.ui import icons
+    app.setWindowIcon(icons.app_icon())
     app.setApplicationName(C.APP_NAME)
     app.setOrganizationName(C.COMPANY_SHORT)
     app.setApplicationVersion(C.VERSION)

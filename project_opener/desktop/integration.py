@@ -210,6 +210,11 @@ class DesktopIntegration(QObject):
             return
         self._started = True
         self.refresh_shell_state()
+        try:
+            from project_opener.desktop import shellext
+            shellext.repair_shortcuts()
+        except Exception:  # noqa: BLE001 - a shortcut is cosmetic, never a reason not to start
+            log.exception("shortcut repair failed")
         if os.environ.get("PO_DESKTOP", "").lower() == "off" or sys.platform != "win32":
             log.info("desktop integration: native pieces off (PO_DESKTOP=off or not Windows)")
             return

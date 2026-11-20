@@ -97,6 +97,16 @@ def is_frozen() -> bool:
     return getattr(sys, "frozen", False) is True
 
 
+APP_USER_MODEL_ID = f"DexterityDesign.{APP_ID}"   # also in installer\ProjectOpener.iss [Icons]
+
+
+def app_user_model_id(frozen: bool | None = None) -> str:
+    """The taskbar identity.  A source run gets its own, so Windows never files a python.exe pin or
+    shortcut under the installed app's name and icon (the Hopper "Electron" taskbar fault)."""
+    frozen = is_frozen() if frozen is None else frozen
+    return APP_USER_MODEL_ID if frozen else f"{APP_USER_MODEL_ID}.Dev"
+
+
 def bundle_dir() -> Path:
     """Directory holding bundled resources (PyInstaller or source tree)."""
     if is_frozen():

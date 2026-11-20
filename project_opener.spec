@@ -40,7 +40,8 @@ a = Analysis(
         "win32com", "win32com.client", "pythoncom", "pywintypes", "win32gui", "win32con", "win32api",
         "win32process", "comtypes", "comtypes.client", "psutil",
         # v4 desktop: the Send to shortcut (IShellLink) and the native pieces under ctypes
-        "win32com.shell", "win32com.shell.shell", "winreg",
+        "win32com.shell", "win32com.shell.shell", "win32com.propsys", "win32com.propsys.propsys",
+        "win32com.propsys.pscon", "winreg",
         *_comtypes_gen,
     ],
     hookspath=[],
