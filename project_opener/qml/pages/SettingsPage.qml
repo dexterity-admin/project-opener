@@ -454,6 +454,7 @@ Page {
         visible: page.tab === "watchers"
         width: page.contentW
         line: "Rules that tell you when a file lands, a server goes down, a colleague finishes, or a date comes."
+        SwitchRow { label: "Make watchers for my cards"; help: "Each folder on your projects and activities tells you when a file lands; each server they use tells you when it goes down. Edit, pause or delete them like any other; a deleted one is not made again."; checked: page.v("auto_watchers") === true; onToggled: (on) => page.set("auto_watchers", on) }
         Column {
             width: parent.width
             Repeater {
@@ -471,7 +472,7 @@ Page {
                         anchors.rightMargin: 16
                         y: 9
                         Txt { width: parent.width; text: model.name + (model.lastHitText !== "" ? " · " + model.lastHitText : ""); strong: true; figures: true }
-                        Txt { width: parent.width; text: model.target + " · " + model.notifyText; role: "small"; tone: "faint"; elide: Text.ElideMiddle }
+                        Txt { width: parent.width; text: (model.auto ? "Automatic · " : "") + model.target + " · " + model.notifyText; role: "small"; tone: "faint"; elide: Text.ElideMiddle }
                     }
                     Row {
                         id: wAct

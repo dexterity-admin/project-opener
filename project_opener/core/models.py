@@ -929,6 +929,7 @@ class Watcher:
     enabled: bool = True
     created_by: str = field(default_factory=current_user)
     created_at: str = field(default_factory=now_iso)
+    auto_key: str = ""                 # "" = made by hand; else what it was derived from ("folder:<path>")
 
     def __post_init__(self) -> None:
         if not self.events:
@@ -938,7 +939,8 @@ class Watcher:
         return {"id": self.id, "name": self.name, "kind": self.kind, "target": self.target,
                 "events": list(self.events), "interval_s": self.interval_s, "params": dict(self.params),
                 "notify": self.notify.to_dict(), "activity_id": self.activity_id, "project_id": self.project_id,
-                "enabled": self.enabled, "created_by": self.created_by, "created_at": self.created_at}
+                "enabled": self.enabled, "created_by": self.created_by, "created_at": self.created_at,
+                "auto_key": self.auto_key}
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Watcher:
@@ -953,7 +955,7 @@ class Watcher:
                    params=dict(_dict(d.get("params"))), notify=Notify.from_dict(d.get("notify")),
                    activity_id=_s(d, "activity_id"), project_id=_s(d, "project_id"),
                    enabled=bool(d.get("enabled", True)), created_by=_s(d, "created_by"),
-                   created_at=_s(d, "created_at") or now_iso())
+                   created_at=_s(d, "created_at") or now_iso(), auto_key=_s(d, "auto_key"))
 
 
 @dataclass

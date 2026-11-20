@@ -488,6 +488,12 @@ class WorkspaceStore:
         self.save()
         self._emit("watchers_changed", watcher)
 
+    def replace_watchers(self, watchers: list[M.Watcher]) -> None:
+        """The whole list at once (automatic watchers reconciled): one save, one event."""
+        self.watchers = list(watchers)
+        self.save()
+        self._emit("watchers_changed", None)
+
     def remove_watcher(self, watcher_id: str) -> None:
         self.watchers = [w for w in self.watchers if w.id != watcher_id]
         self.save()
