@@ -6,7 +6,7 @@ four builders work to in parallel:
 
 | # | Builder | Owns |
 |---|---|---|
-| 1 | CORE+HUB | data model, migration, store, tasks, watchers, hub extensions, Cliq, Outlook, CAD profiles, and the facade's hub/tasks/watchers APIs |
+| 1 | CORE+HUB | data model, migration, store, tasks, watchers, hub extensions, Dexterity Connect notices (Cliq until 4.0), Outlook, CAD profiles, and the facade's hub/tasks/watchers APIs |
 | 2 | CAPTURE | the capture/restore engine, add-a-window, start-from-what's-open, snapshot persistence, and the facade's capture API |
 | 3 | DESKTOP | the pill and its panel, global hotkeys, the window picker, the tray, quiet-time detection, Explorer verb and Send to, single-instance IPC, packaging and installer |
 | 4 | SHELL | the Qt Quick application (Stage), the facade root and its activities/settings/ui APIs, motion, theme bridge, bootstrap |
@@ -44,7 +44,7 @@ project_opener/
 │   │                         LaunchProfile, RootObservation, HealthObservation, Workspace; Item.profile_id
 │   ├── migrate.py         N  schema 3 -> 4 (launch sets -> activities), pure
 │   ├── store.py           C  schema 4 load/save + migration, activities/profiles/watchers CRUD, item sync
-│   ├── settings.py        C  v4 settings (motion, capture, pill, hotkeys, Explorer, Cliq token via DPAPI)
+│   ├── settings.py        C  v4 settings (motion, capture, pill, hotkeys, Explorer, Connect token via DPAPI)
 │   ├── snapshots.py       N  SnapshotStore: snapshots/<activity>.json (live + 10 checkpoints), running.json
 │   ├── mentions.py        N  @mention parsing, expansion through groups, the @ picker's caret logic
 │   ├── tasks.py           N  TaskStore over a tasks/ folder (hub or local), due text
@@ -57,8 +57,8 @@ project_opener/
 │   ├── hub.py             C  published activities, "for" targets, mention/task inbox entries, v4 dirs
 │   ├── groups.py          N  groups.json (GroupBook)
 │   ├── healthboard.py     N  watch/<user>.json write + office-wide merge
-│   ├── delivery.py        N  Dispatcher + DeliveredLedger: every alert exactly once (toast, pulse, inbox, Cliq)
-│   └── cliq.py            N  Zoho Cliq bot client + outbox retry
+│   ├── delivery.py        N  Dispatcher + DeliveredLedger: every alert exactly once (toast, pulse, inbox, Connect)
+│   └── connect_bot.py     N  Dexterity Connect notices through Nib + outbox retry (replaced cliq.py)
 ├── capture/               N  (builder 2) all COM on one thread
 │   ├── win32.py              EnumWindows, placement, monitors, processes, foreground, GA_ROOT
 │   ├── sources/              explorer.py (Shell), office.py (Excel/Word per window; open via COM),
@@ -150,7 +150,7 @@ from its job's paths.
 ({VARIABLES} and {ITEM}), cwd, env {}, description, author, published_id, updated_at`.
 
 `Watcher`: `id, name, kind (folder|health|hub|time), target, events[], interval_s (>= 10),
-params {}, notify {toast, mentions[], cliq_dm, cliq_channel}, activity_id, project_id, enabled,
+params {}, notify {toast, mentions[], connect_dm, connect_space}, activity_id, project_id, enabled,
 created_by, created_at`. Events per kind: folder `new|changed|gone`; health `down|up`; hub
 `published|task_assigned|task_done|mention`; time `due|stale|reminder`. Folder params: `pattern`
 (glob, "*"), `recursive`; time params: `at`, `every_days`, `stale_days`, `task_id`.
@@ -164,7 +164,7 @@ created_by, created_at`. Events per kind: folder `new|changed|gone`; health `dow
 | `tasks/<id>.json` | Task (only when no hub is configured) | `TaskStore` |
 | `watch-state/<watcher_id>.json` | `{"files": {name: [size, mtime]}, "listed_at"}` | `WatcherEngine` |
 | `alerts.jsonl` | one WatchEvent per line + `"read"` | `Dispatcher` |
-| `cliq-outbox.jsonl` | queued Cliq messages | `CliqClient` |
+| `connect-outbox.jsonl` | notices Connect has not taken yet | `ConnectClient` |
 | `backups/pre-v4-workspace-<stamp>.json` | the schema-3 file as it was before migration; never rotated | `WorkspaceStore` |
 | `history.jsonl` | as 3.x, v4 rows add `activity_id`, `activity` | `WorkspaceStore.record_activity_launch` |
 
@@ -194,7 +194,7 @@ exactly this time, so `first_seen > session_start` means "opened while the activ
 
 ```
 hub.json                   + "schema": 2 once a 4.x PC initialises it (3.2 ignores the number)
-users/<user>.json          + "email", "cliq_linked": bool, "current_activity"   (heartbeat as 3.x)
+users/<user>.json          + "email", "connect_notify": bool, "current_activity"   (heartbeat as 3.x)
 groups.json                {"schema": 1, "groups": [Group{name, members[], color, created_by, updated_by, updated_at}]}
 published/<id>.json        project:  as 3.x + "type": "project", "for": ["yokesh", "checkers"]
                            activity: {"schema": 2, "type": "activity", "published_id", "author", "author_name",
@@ -284,7 +284,7 @@ From the spike, adopted as design rules:
 |---|---|---|
 | QML, every facade property/model/signal | GUI thread | - |
 | Launching items, path health, hub heartbeat/refresh, update check (3.2) | global `QThreadPool` (2-6) via `app.run_async` | `done` callback on the GUI thread |
-| Hub v4 refresh (groups, tasks, mentions, published activities), Cliq sends, Outlook drafts | pool via `run_async`; Outlook/Office jobs `CoInitialize`/`CoUninitialize` around their COM | callbacks |
+| Hub v4 refresh (groups, tasks, mentions, published activities), Connect notices, Outlook drafts | pool via `run_async`; Outlook/Office jobs `CoInitialize`/`CoUninitialize` around their COM | callbacks |
 | Capture passes, add-a-window identification, start-from-open enumeration, restore | the single `po-capture` thread (`CaptureEngine`), `CoInitializeEx(COINIT_APARTMENTTHREADED)`; requests through a `queue.Queue`; restore pauses passes | `EngineCallbacks` wrapped with `app.run_on_gui` |
 | Watchers | a `QTimer` every `WATCH_TICK_S` (15 s) in `WatchersApi` schedules `WatcherEngine.tick` on the pool (one tick at a time) | events -> `Dispatcher` (pool) -> toast on the GUI thread |
 | Hotkeys | GUI thread: `WM_HOTKEY` arrives in the native event filter | direct calls |
@@ -376,7 +376,7 @@ projects, project, hub, updates, settings`.
 
 ### 7.5 `app.hub` (HubApi, builder 1)
 
-- Models: `peers` (login, displayName, role, host, online, doing, initials, hue, cliqLinked);
+- Models: `peers` (login, displayName, role, host, online, doing, initials, hue, tellInConnect);
   `published` (publishedId, type, title, spine, author, authorName, revision, publishedAt,
   publishedText, forText, description, isMine, cloned, itemCount); `inbox` (messageId, kind,
   sender, senderName, sentAt, sentText, message, title, mentionsMe, link); `announcements`
@@ -413,9 +413,11 @@ edit(id, fields), remove(id), setEnabled(id, on), markRead(alertKey), recheckRoo
 
 ### 7.8 `app.settings` (SettingsApi, builder 4)
 
-Slots `value(key) -> var`, `setValue(key, value)`, `setCliqToken(token)`, `testCliq()`,
+Slots `value(key) -> var`, `setValue(key, value)`, `pasteConnectSettings(text)`, `testConnect()`,
+`removeConnect()`, `shareConnect(on)`,
 `browseFolder(title, start) -> path`, `browseFile(title, start, filters) -> path`, `variables() ->
-map`. Property `hasCliqToken`. Signals `changed(key)`, `cliqTested(ok, message)`. Keys are
+map`. Property `connectState` (`ready`, `hub`, `source`, `hasTeamHub`, `shared`; never the token). Signals
+`changed(key)`, `connectTested(ok, message)`. Keys are
 `core.settings.Settings` field names; `setValue` routes side effects (hub/variables/updates ->
 `ctx.apply_settings`; capture keys -> `app.capture`; pill/hotkey/Explorer keys -> `app.desktop`).
 
@@ -446,7 +448,7 @@ the context properties `app` and `pill`; it reads `app.capture` for everything i
 | `projectopener://activity/<id or name>` | open the activity's page |
 | `projectopener://task/<id>` | the hub's Tasks tab at that task |
 | `--quit-after MS` | hidden; quit after MS (smoke tests) |
-| env `PO_UI=quick` / `PO_UI=classic` | force the shell / the 3.2 UI; `PO_CLIQ_DRY_RUN=1` logs Cliq messages instead of sending them (testing) |
+| env `PO_UI=quick` / `PO_UI=classic` | force the shell / the 3.2 UI; `PO_CONNECT_DRY_RUN=1` logs Connect notices instead of sending them (testing) |
 
 ### 8.2 Single-instance socket (`ipc.py`)
 
@@ -540,7 +542,7 @@ corrupt-file recovery and 1.x/2.x migration.
 | `project_opener/lan/groups.py` | 1 | stub |
 | `project_opener/lan/healthboard.py` | 1 | stub |
 | `project_opener/lan/delivery.py` | 1 | stub |
-| `project_opener/lan/cliq.py` | 1 | stub |
+| `project_opener/lan/connect_bot.py` (was `cliq.py`) | 1 | stub |
 | `project_opener/quick/hub_api.py` | 1 | stub (contract fixed) |
 | `project_opener/quick/tasks_api.py` | 1 | stub (contract fixed) |
 | `project_opener/quick/watchers_api.py` | 1 | stub (contract fixed) |

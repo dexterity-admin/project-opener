@@ -29,7 +29,7 @@ from project_opener.quick.listmodel import DictListModel
 
 log = logging.getLogger(__name__)
 
-PEER_ROLES = ("login", "displayName", "role", "host", "online", "doing", "initials", "hue", "cliqLinked")
+PEER_ROLES = ("login", "displayName", "role", "host", "online", "doing", "initials", "hue", "tellInConnect")
 PUBLISHED_ROLES = (
     "publishedId", "type", "title", "spine", "author", "authorName", "revision", "publishedAt", "publishedText",
     "forText", "forTip", "description", "isMine", "cloned", "itemCount",
@@ -98,8 +98,8 @@ class HubApi(ApiBase):
         self._refreshing = False
         self._last_refresh = 0.0
         self._timer: QTimer | None = None
-        # The v4 presence fields (e-mail, Cliq id) ride on every heartbeat, including the first one
-        # ctx.start writes before any hub call: without them colleagues cannot DM this user for a minute.
+        # The v4 presence fields (e-mail, "tell me in Connect") ride on every heartbeat, including the first one
+        # ctx.start writes before any hub call: without them colleagues' notices could ignore this user's choice for a minute.
         self._hub()
 
     # ------------------------------------------------------------- models
@@ -161,8 +161,7 @@ class HubApi(ApiBase):
         hub = self.ctx.hub
         st = self.ctx.settings
         hub.email = st.email
-        hub.cliq_id = st.cliq_user_id
-        hub.cliq_linked = bool(st.cliq_user_id and st.notify_cliq_default)
+        hub.connect_notify = bool(st.notify_connect)
         # (an app without a capture API, as in the hub tests, simply has no current activity)
         hub.current_activity = str(getattr(getattr(self.app, "capture", None), "runningName", "") or "")
         return hub
@@ -221,7 +220,7 @@ class HubApi(ApiBase):
         self.ctx.hub_changed.connect(lambda _s: self.refresh())
         changed = getattr(getattr(self.app, "settings", None), "changed", None)
         if changed is not None:
-            changed.connect(lambda _key: self._hub())                    # e-mail / Cliq id / hub path edits
+            changed.connect(lambda _key: self._hub())                    # e-mail / "tell me in Connect" / hub path edits
         self.ctx.peers_changed.connect(lambda _p: self._sync_peers())
         self._timer = QTimer(self)
         self._timer.setInterval(C.HUB_TASKS_REFRESH_S * 1000)
@@ -331,7 +330,7 @@ class HubApi(ApiBase):
                 online += 1
             rows.append({"login": p.user, "displayName": p.label, "role": p.role, "host": p.host, "online": p.online,
                          "doing": doing, "initials": initials(p.label), "hue": hue(p.user),
-                         "cliqLinked": bool(rec.get("cliq_linked"))})
+                         "tellInConnect": rec.get("connect_notify", True) is not False})
         self._peers.sync(rows)
         if self._peers_online != online:
             self._peers_online = online

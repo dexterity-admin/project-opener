@@ -146,8 +146,7 @@ class TeamHub:
         self._last_error = ""
         # v4 presence fields written by ``heartbeat`` (set by quick.hub_api from Settings)
         self.email = ""
-        self.cliq_id = ""
-        self.cliq_linked = False
+        self.connect_notify = True      # False: this person turned "Tell me in Connect" off
         self.current_activity = ""
 
     # --------------------------------------------------------------- basics
@@ -216,8 +215,7 @@ class TeamHub:
                 "user": self.user, "display_name": self.display_name, "role": self.role, "host": self.host,
                 "version": C.VERSION, "ts": time.time(), "iso": M.now_iso(),
                 "current_project": current_project, "status": status,
-                "email": self.email, "cliq_id": self.cliq_id if self.cliq_linked else "",
-                "cliq_linked": bool(self.cliq_linked and self.cliq_id),
+                "email": self.email, "connect_notify": bool(self.connect_notify),
                 "current_activity": self.current_activity if current_activity is None else current_activity,
             })
         except OSError as exc:
@@ -519,15 +517,14 @@ class TeamHub:
         logins = MN.expand(targets, self.groups(), known or None, exclude="" if include_self else self.user)
         return [lg for lg in logins if safe_name(lg)]
 
-    def cliq_ids_for(self, logins: list[str]) -> dict[str, str]:
-        """login -> Cliq user id, for the people who linked Cliq (``cliq_linked`` in their heartbeat)."""
+    def connect_logins_for(self, logins: list[str]) -> list[str]:
+        """The logins to tell in Dexterity Connect: everyone but those who turned it off.
+
+        Connect knows people by their Windows sign-in, so nobody links anything; a person opts
+        out with Settings > Connect and mail > "Tell me in Connect" (``connect_notify`` in their
+        heartbeat).  Someone the hub has never seen (no Project Opener yet) is still told."""
         recs = self.user_records()
-        out = {}
-        for lg in logins:
-            d = recs.get(lg.lower(), {})
-            if d.get("cliq_linked") and d.get("cliq_id"):
-                out[lg] = str(d["cliq_id"])
-        return out
+        return [lg for lg in logins if recs.get(lg.lower(), {}).get("connect_notify", True) is not False]
 
     # ---- inbox entries of every kind
     def _write_inbox(self, to_user: str, fields: dict[str, Any], schema: int = HUB_SCHEMA_V4) -> str:

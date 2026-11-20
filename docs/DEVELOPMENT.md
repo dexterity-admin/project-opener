@@ -18,8 +18,8 @@ python run.py            # or: python -m project_opener   (the 4.0 Qt Quick shel
 From source without `--data-dir` the app uses `%APPDATA%\DexterityDesign\ProjectOpener-v4dev` (seeded once
 from the real folder), so an installed 3.2 keeps its own workspace. Useful flags: `--data-dir
 U:\path\po-dev` (separate workspace and its own single-instance key; never a folder on C:),
-`--minimised`, `--classic` (the 3.2 widgets UI, until 4.0 ships), `--version`. `PO_CLIQ_DRY_RUN=1` logs
-Cliq messages instead of sending them.
+`--minimised`, `--classic` (the 3.2 widgets UI, until 4.0 ships), `--version`. `PO_CONNECT_DRY_RUN=1` logs
+Dexterity Connect notices instead of sending them.
 
 ## Tests
 

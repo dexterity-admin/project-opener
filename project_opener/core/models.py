@@ -893,18 +893,20 @@ class Notify:
     """Who hears about a watcher hit.  A toast shows whenever ``toast`` is on."""
     toast: bool = True
     mentions: list[str] = field(default_factory=list)  # "@priya", "@checkers": written to their inboxes
-    cliq_dm: bool = False              # DM the watcher's owner (and mentioned people who linked Cliq)
-    cliq_channel: str = ""             # also post to this channel ("" = no)
+    connect_dm: bool = False           # tell the watcher's owner (and the people mentioned) in Dexterity Connect
+    connect_space: str = ""            # also post in this Connect Space ("" = no)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"toast": self.toast, "mentions": list(self.mentions), "cliq_dm": self.cliq_dm,
-                "cliq_channel": self.cliq_channel}
+        return {"toast": self.toast, "mentions": list(self.mentions), "connect_dm": self.connect_dm,
+                "connect_space": self.connect_space}
 
     @classmethod
     def from_dict(cls, d: dict[str, Any] | None) -> Notify:
         d = _dict(d)
-        return cls(bool(d.get("toast", True)), _strs(d.get("mentions")), bool(d.get("cliq_dm", False)),
-                   _s(d, "cliq_channel"))
+        # watchers saved up to 4.0 said "cliq_dm": the wish (message me) is the same.  A Cliq channel
+        # is not a Connect Space, so "cliq_channel" is not carried over: the owner names a Space.
+        dm = d.get("connect_dm", d.get("cliq_dm", False))
+        return cls(bool(d.get("toast", True)), _strs(d.get("mentions")), bool(dm), _s(d, "connect_space"))
 
 
 @dataclass

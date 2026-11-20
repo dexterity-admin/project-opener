@@ -3,7 +3,7 @@ Owner: builder 1 (CORE+HUB).
 
 Runs ``core.watchers.WatcherEngine.tick`` on the pool every ``WATCH_TICK_S``;
 hits go through ``lan.delivery.Dispatcher`` (toast via the facade, pulse,
-inbox for mentions, Cliq) exactly once per event key.
+inbox for mentions, Dexterity Connect) exactly once per event key.
 
 Threading (docs/V4-ARCHITECTURE.md section 6): a GUI ``QTimer`` gathers the
 inputs (copies) and starts one tick on the pool; a tick still running skips the
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,7 @@ from project_opener.core import health as H
 from project_opener.core import models as M
 from project_opener.core.tasks import when_text
 from project_opener.core.watchers import HubEvents, WatcherEngine
+from project_opener.lan.connect_bot import OFFICE_FILE
 from project_opener.lan.delivery import Dispatcher, make_dispatcher
 from project_opener.lan.healthboard import HealthBoard, OfficeRoot, observe
 from project_opener.quick.base import ApiBase
@@ -89,24 +91,24 @@ def since_text(status: str, since_iso: str, seen_by: int) -> str:
     return T.join_facts(first, f"seen by {T.plural(seen_by, 'PC')}" if seen_by else "")
 
 
-def notify_text(n: M.Notify, cliq_linked: bool = True) -> str:
-    """"Toast · @priya · Cliq DM"; while this PC has not linked Cliq, the DM is a promise for later and says
-    so, "Cliq DM once linked" (juror T3-2)."""
+def notify_text(n: M.Notify, connect_ready: bool = True) -> str:
+    """"Toast · @priya · Connect"; while Connect is not set up the notice is a promise for later and says
+    so, "Connect once set up" (juror T3-2)."""
     parts = ["Toast"] if n.toast else []
     parts += [f"@{m.lstrip('@')}" for m in n.mentions]
-    if n.cliq_dm:
-        parts.append("Cliq DM" if cliq_linked else "Cliq DM once linked")
-    if n.cliq_channel:
-        parts.append(f"#{n.cliq_channel.lstrip('#')}")
+    if n.connect_dm:
+        parts.append("Connect" if connect_ready else "Connect once set up")
+    if n.connect_space:
+        parts.append(f"Space {n.connect_space.lstrip('#')}")
     return " · ".join(parts) or "Alert list only"
 
 
 def notify_from(d: dict[str, Any] | None) -> M.Notify:
-    """QML's {toast, mentions, cliqDm, cliqChannel} (or the snake_case form) -> Notify."""
+    """QML's {toast, mentions, connectDm, connectSpace} (or the snake_case form) -> Notify."""
     d = d or {}
     return M.Notify.from_dict({"toast": d.get("toast", True), "mentions": d.get("mentions", []),
-                               "cliq_dm": d.get("cliqDm", d.get("cliq_dm", False)),
-                               "cliq_channel": d.get("cliqChannel", d.get("cliq_channel", ""))})
+                               "connect_dm": d.get("connectDm", d.get("connect_dm", False)),
+                               "connect_space": d.get("connectSpace", d.get("connect_space", ""))})
 
 
 class WatchersApi(ApiBase):
@@ -123,6 +125,8 @@ class WatchersApi(ApiBase):
         self._engine: WatcherEngine | None = None
         self._dispatcher: Dispatcher | None = None
         self._dispatcher_key: tuple[Any, ...] | None = None
+        self._office_checked = 0.0          # when the Team Hub was last asked for the office's Connect settings
+        self._office_stamp = 0.0
         self._pending = HubEvents()
         self._ticking = False
         self._roots_busy = False
@@ -171,16 +175,36 @@ class WatchersApi(ApiBase):
         return self._engine
 
     def dispatcher(self) -> Dispatcher:
-        """The delivery dispatcher for the current hub and Cliq settings (rebuilt when they change)."""
+        """The delivery dispatcher for the current hub and Connect settings (rebuilt when they change)."""
         st, hub = self.ctx.settings, self.ctx.hub
-        key = (str(hub.root or ""), st.cliq_api_base, st.cliq_bot, st.cliq_token_enc, st.cliq_user_id,
-               st.notify_cliq_default)
+        key = (str(hub.root or ""), st.connect_hub, st.connect_fingerprint, st.connect_token_enc, st.notify_connect,
+               self._office_connect_stamp())
         if self._dispatcher is None or key != self._dispatcher_key:
-            # PO_CLIQ_DRY_RUN=1 (testing): Cliq messages are logged, never sent
+            # PO_CONNECT_DRY_RUN=1 (testing): Connect notices are logged, never sent
             self._dispatcher = make_dispatcher(hub, st, self.data_dir, self.ctx.user,
-                                               dry_run_cliq=os.environ.get("PO_CLIQ_DRY_RUN") == "1")
+                                               dry_run_connect=os.environ.get("PO_CONNECT_DRY_RUN") == "1")
             self._dispatcher_key = key
         return self._dispatcher
+
+    def _office_connect_stamp(self) -> float:
+        """When the office's Connect settings in the Team Hub last changed (0 when there are none), so a
+        PC picks them up without a restart.  The share is asked at most once a minute."""
+        now = time.monotonic()
+        if now - self._office_checked < 60 and self._office_checked:
+            return self._office_stamp
+        self._office_checked = now
+        hub = self.ctx.hub
+        try:
+            root = hub.root if getattr(hub, "configured", False) else None
+            self._office_stamp = (Path(root) / OFFICE_FILE).stat().st_mtime if root else 0.0
+        except OSError:
+            self._office_stamp = 0.0
+        return self._office_stamp
+
+    @property
+    def connect_ready(self) -> bool:
+        connect = self.dispatcher().connect
+        return bool(connect is not None and connect.configured)
 
     def push_hub_events(self, published: list[dict] | None = None, tasks_assigned: list[M.Task] | None = None,
                         tasks_done: list[M.Task] | None = None, mentions: list[dict] | None = None) -> None:
@@ -204,7 +228,7 @@ class WatchersApi(ApiBase):
         launcher_mod.set_profile_lookup(self.ctx.store.profile)
         self.ctx.store.subscribe(self._on_store)
         changed = getattr(getattr(self.app, "settings", None), "changed", None)
-        if changed is not None:                      # linking Cliq changes what the watcher rows promise
+        if changed is not None:                      # setting Connect up changes what the watcher rows promise
             changed.connect(lambda _key: self._sync_watchers())
         self._sync_watchers()
         self._load_alerts()
@@ -213,8 +237,8 @@ class WatchersApi(ApiBase):
         self._timer.timeout.connect(self.tick)
         self._timer.start()
         self._retry_timer = QTimer(self)
-        self._retry_timer.setInterval(C.CLIQ_RETRY_S * 1000)
-        self._retry_timer.timeout.connect(self._flush_cliq)
+        self._retry_timer.setInterval(C.CONNECT_RETRY_S * 1000)
+        self._retry_timer.timeout.connect(self._flush_connect)
         self._retry_timer.start()
         self._roots_timer = QTimer(self)
         self._roots_timer.setSingleShot(True)
@@ -235,7 +259,7 @@ class WatchersApi(ApiBase):
 
     # ------------------------------------------------------------- models
     def _sync_watchers(self) -> None:
-        linked = bool(getattr(self.ctx.settings, "cliq_user_id", ""))     # as Settings > Cliq's "Linked"
+        linked = self.connect_ready                  # as Settings > Connect and mail's "Set up"
         rows = []
         for w in self.ctx.store.watchers:
             rows.append({"watcherId": w.id, "name": w.name, "kind": w.kind, "target": w.target,
@@ -329,10 +353,10 @@ class WatchersApi(ApiBase):
         rows += [r for r in self._alerts.rows if r["alertKey"] != ev.key]
         self._alerts.sync(rows[:200])
 
-    def _flush_cliq(self) -> None:
+    def _flush_connect(self) -> None:
         disp = self.dispatcher()
-        if disp.cliq is not None and disp.cliq.configured:
-            self.app.run_async(disp.cliq.flush_outbox)
+        if disp.connect is not None and disp.connect.configured:
+            self.app.run_async(disp.connect.flush_outbox)
 
     # -------------------------------------------------------------- roots
     def _update_roots(self) -> None:
@@ -430,7 +454,7 @@ class WatchersApi(ApiBase):
     @Slot(str, str, "QStringList", "QVariantMap", "QVariantMap", result=str)
     def create(self, kind: str, target: str, events: list[str], params: dict[str, Any],
                notify: dict[str, Any]) -> str:
-        """notify: {toast, mentions, cliqDm, cliqChannel}; params may carry activityId/projectId."""
+        """notify: {toast, mentions, connectDm, connectSpace}; params may carry activityId/projectId."""
         p = dict(params or {})
         activity_id = str(p.pop("activityId", p.pop("activity_id", "")) or "")
         project_id = str(p.pop("projectId", p.pop("project_id", "")) or "")

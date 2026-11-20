@@ -91,8 +91,8 @@ Used for the dashboard's recent activity and stats; safe to delete.
                    owner, created_by, pinned_at, favorite, capture_enabled, resume_on_start, created_at,
                    updated_at, last_opened, open_count, origin} ],
   "profiles":   [ {id, name, app, exe, args, cwd, env{}, description, author, published_id, updated_at} ],
-  "watchers":   [ {id, name, kind, target, events[], interval_s, params{}, notify{toast, mentions[], cliq_dm,
-                   cliq_channel}, activity_id, project_id, enabled, created_by, created_at} ],
+  "watchers":   [ {id, name, kind, target, events[], interval_s, params{}, notify{toast, mentions[], connect_dm,
+                   connect_space}, activity_id, project_id, enabled, created_by, created_at} ],
   "migration":  { from_schema, to_schema, at, counts ... }
 }
 ```
@@ -119,10 +119,17 @@ mode replaces them rather than duplicating), and the 1.x/2.x forms as before.
 | `watch-state/<watcher_id>.json` | `{"files": {relative name: [size, mtime]}, "listed_at"}` - the last folder listing |
 | `alerts.jsonl` | one WatchEvent per line `{watcher_id, event, title, detail, path, link, level, ts, key, read}`; `{"read_key", "ts"}` rows mark alerts read; compacted to the newest 500 |
 | `delivered.json` | the delivery ledger when no hub is set (`{"schema": 1, "keys": {key: ts}}`); with a hub it is `delivered/<me>.json` there |
-| `cliq-outbox.jsonl` | queued Cliq messages `{id, kind: dm or channel, target, text, queued_at, attempts}`; dropped after 50 attempts |
+| `connect-outbox.jsonl` | notices Dexterity Connect has not taken yet `{id, notice{key, to[], space, title, text, lines[], link{title, url}, kind, from}, queued_at, attempts}`; dropped after 50 attempts |
 
 ### Settings (4.0 keys used by the core)
 
-`email`, `cliq_user_id`, `cliq_api_base` (default `https://cliq.zoho.in/api/v2`), `cliq_bot` (the bot's
-unique name), `cliq_token_enc` (DPAPI blob of the office bot's webhook token), `notify_cliq_default`
-(DM me, and show me as Cliq-linked on the hub), `mail_client` (`outlook` or `mailto`).
+`email`, `connect_hub` (`https://<hub>:47900`), `connect_fingerprint` (SHA-256 of the hub's certificate,
+64 hex digits), `connect_token_enc` (DPAPI blob of the office's integration token), `notify_connect`
+(tell me in Connect; published on the hub as `connect_notify`), `wrapped_space` (the Space *Post in
+Connect* used last), `mail_client` (`outlook` or `mailto`). A PC without its own `connect_*` settings
+uses the office's from `connect.json` in the Team Hub folder (`{schema, hub, fingerprint, token,
+shared_by, shared_at}`).
+
+Up to 4.0 these were `cliq_*` keys for a Zoho Cliq bot. They are ignored on load; only
+`notify_cliq_default` carries over, as `notify_connect`. A watcher's `cliq_dm` is read as `connect_dm`;
+`cliq_channel` is not carried over (a Cliq channel is not a Connect Space).

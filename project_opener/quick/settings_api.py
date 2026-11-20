@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -45,8 +46,8 @@ CAPTURE_KEYS = {"capture_enabled", "capture_interval_s", "capture_browser_urls",
 HOTKEY_KEYS = {"hotkeys", "hotkeys_enabled"}
 SHELL_KEYS = {"explorer_verb", "sendto_entry"}
 PILL_KEYS = {"pill_enabled", "pill_rest_style", "pill_positions", "hide_when_fullscreen"}
-SECRET_KEYS = {"github_token_enc", "cliq_token_enc"}
-SETTINGS_TABS = ("profile", "appearance", "launching", "paths", "hub", "snapshot", "pill", "cliq", "watchers",
+SECRET_KEYS = {"github_token_enc", "connect_token_enc"}
+SETTINGS_TABS = ("profile", "appearance", "launching", "paths", "hub", "snapshot", "pill", "connect", "watchers",
                  "updates")
 FIELD_TYPES = {f.name: f.default if f.default is not dataclasses.MISSING else f.default_factory()  # type: ignore[misc]
                for f in dataclasses.fields(Settings)}
@@ -75,7 +76,7 @@ def coerce(key: str, value: Any) -> Any:
 
 class SettingsApi(ApiBase):
     changed = Signal(str)
-    cliqTested = Signal(bool, str)
+    connectTested = Signal(bool, str)
     updatesChanged = Signal()
     settingsTabChanged = Signal()
 
@@ -199,63 +200,115 @@ class SettingsApi(ApiBase):
         self.setValue("capture_ignore", rules)
         return process
 
-    # ------------------------------------------------------------- Cliq
-    @Property(bool, notify=changed)
-    def hasCliqToken(self) -> bool:  # noqa: N802
-        return bool(self.app.ctx.settings.cliq_token_enc)
+    # ---------------------------------------------------- Dexterity Connect
+    def _hub_root(self) -> Path | None:
+        hub = getattr(self.app.ctx, "hub", None)
+        return Path(hub.root) if hub is not None and getattr(hub, "configured", False) and hub.root else None
+
+    def _connect_settings(self) -> dict[str, str]:
+        from project_opener.lan.connect_bot import effective_settings
+        return effective_settings(self.app.ctx.settings, self._hub_root())
+
+    @Property("QVariantMap", notify=changed)
+    def connectState(self) -> dict[str, Any]:  # noqa: N802
+        """What Settings > Connect and mail shows: is it set up, from where, and can it be shared.
+        The token never reaches QML."""
+        from project_opener.lan.connect_bot import office_settings
+        cs = self._connect_settings()
+        root = self._hub_root()
+        office = office_settings(root)
+        mine = cs["source"] == "pc"
+        return {"ready": bool(cs["hub"] and cs["token"] and (cs["fingerprint"] or cs["hub"].startswith("http://"))),
+                "hub": cs["hub"], "source": cs["source"], "hasTeamHub": root is not None,
+                "shared": bool(office), "sharedSame": bool(office) and mine and office.get("hub") == cs["hub"]
+                and office.get("token") == cs["token"]}
 
     @Slot(str)
-    def setCliqToken(self, token: str) -> None:  # noqa: N802
-        """Stored with DPAPI; never echoed back to QML.  An empty token removes it."""
+    def pasteConnectSettings(self, text: str) -> None:  # noqa: N802
+        """Take what Connect's "Copy settings" gives (Control room > Integrations).  The token is
+        stored with DPAPI and never echoed back to QML; the result arrives as ``connectTested``."""
+        from project_opener.lan.connect_bot import parse_settings
+        got = parse_settings(text)
         s = self.app.ctx.settings
-        s.cliq_token = token.strip()
+        if not got:
+            self.connectTested.emit(False, "That is not what Connect copies. In Connect: Control room, "
+                                           "Integrations, Create token, Copy settings.")
+            return
+        hub = got["hub"] or s.connect_hub
+        fingerprint = got["fingerprint"] or s.connect_fingerprint
+        token = got["token"] or s.connect_token
+        if not hub or not token:
+            self.connectTested.emit(False, "The hub's address or the token is missing. Copy the settings "
+                                           "from Connect again.")
+            return
+        if hub.startswith("https://") and not fingerprint:
+            self.connectTested.emit(False, "The hub's fingerprint is missing. Copy the settings from Connect again.")
+            return
+        s.connect_hub, s.connect_fingerprint = hub, fingerprint
+        s.connect_token = token
         s.save()
-        self.changed.emit("cliq_token_enc")
+        self.changed.emit("connect_hub")
+        self.testConnect(False)
 
     @Slot()
-    def testCliq(self) -> None:  # noqa: N802
-        """Find my Cliq id (the stored one, else by e-mail) and send myself a test message; answer with
-        ``cliqTested``.  The token is the office bot's webhook token (V4-SEAMS, builder 1 ask 2)."""
+    def removeConnect(self) -> None:  # noqa: N802
+        """Forget this PC's own settings (the office's, in the Team Hub, are used again if there are any)."""
         s = self.app.ctx.settings
-        if not s.cliq_token_enc or not s.cliq_bot:
-            self.cliqTested.emit(False, "Enter the office bot's name and token first.")
+        s.connect_hub = s.connect_fingerprint = ""
+        s.connect_token = ""
+        s.save()
+        self.changed.emit("connect_hub")
+        self.connectTested.emit(True, "Removed from this PC." + (
+            " The office's settings from the Team Hub are used." if self._connect_settings()["source"] else ""))
+
+    @Slot(bool)
+    def shareConnect(self, on: bool) -> None:  # noqa: N802
+        """Put this PC's settings in the Team Hub for every PC (or take them out again)."""
+        from project_opener.lan.connect_bot import share_office_settings, unshare_office_settings
+        root, cs = self._hub_root(), self._connect_settings()
+        if root is None:
+            self.connectTested.emit(False, "Set a Team Hub folder first (Settings, Team Hub).")
             return
-        if not s.cliq_user_id and not s.email.strip():
-            self.cliqTested.emit(False, "Enter your e-mail address first; the bot finds you by it.")
+        if not on:
+            ok = unshare_office_settings(root)
+            self.connectTested.emit(ok, "No longer shared: each PC needs its own settings." if ok
+                                    else "The Team Hub folder refused the change.")
+        elif cs["source"] != "pc":
+            self.connectTested.emit(False, "Paste the settings from Connect on this PC first.")
             return
-        root = Path(getattr(self.app.ctx.store, "root", C.data_dir()))
-        email, base, bot, token, known = s.email.strip(), s.cliq_api_base, s.cliq_bot, s.cliq_token, s.cliq_user_id
-        outbox = root / getattr(C, "CLIQ_OUTBOX_FILE", "cliq-outbox.jsonl")
-
-        def work() -> tuple[bool, str, str]:
-            from project_opener.lan.cliq import CliqClient
-            client = CliqClient(base, bot, token, outbox)
-            uid = known or client.lookup_user(email)
-            if not uid:
-                return False, (f"Cliq would not look up {email}. Paste your Cliq user id below instead "
-                               "(Cliq, your profile)."), ""
-            res = client.dm([uid], "Project Opener test: your Cliq account is linked.")
-            ok = bool(getattr(res, "ok", False))
-            msg = "Linked: a test message is in your Cliq." if ok else (
-                getattr(res, "message", "") or "Cliq refused the message.")
-            return ok, msg, uid
-
-        def done(result: tuple[bool, str, str]) -> None:
-            ok, msg, uid = result
-            if ok and uid and uid != s.cliq_user_id:
-                s.cliq_user_id = uid
-                s.save()
-                self.changed.emit("cliq_user_id")
-            self.cliqTested.emit(ok, msg)
-
-        def fail(exc: Exception) -> None:
-            self.cliqTested.emit(False, str(exc) or type(exc).__name__)
-
-        self.app.run_async(work, done, fail)
+        else:
+            ok = share_office_settings(root, cs["hub"], cs["fingerprint"], cs["token"], self.app.ctx.user)
+            self.connectTested.emit(ok, "Shared: every PC on this Team Hub uses them from now on." if ok
+                                    else "The Team Hub folder refused the change.")
+        self.changed.emit("connect_hub")
 
     @Slot()
-    def unlinkCliq(self) -> None:  # noqa: N802
-        self.setValue("cliq_user_id", "")
+    @Slot(bool)
+    def testConnect(self, notice: bool = True) -> None:  # noqa: N802
+        """Ask the hub who we are; with ``notice`` also send me a test notice (it arrives from Nib).
+        Answers with ``connectTested``."""
+        from project_opener.lan.connect_bot import ConnectClient, make_notice
+        cs = self._connect_settings()
+        root = Path(getattr(self.app.ctx.store, "root", C.data_dir()))
+        me = self.app.ctx.user
+        client = ConnectClient(cs["hub"], cs["token"], cs["fingerprint"], root / C.CONNECT_OUTBOX_FILE,
+                               dry_run=os.environ.get("PO_CONNECT_DRY_RUN") == "1")
+
+        def work() -> tuple[bool, str]:
+            res = client.hello()
+            if not res.ok or not notice:
+                return bool(res.ok), res.message
+            sent = client.notify(make_notice([me], title="Project Opener is connected",
+                                             text="Mentions, tasks and watcher hits will reach you here."))
+            if sent.ok:
+                return True, res.message + " A test notice is in your conversation with Nib."
+            if sent.unknown:
+                return False, (f"Connect does not know the sign-in {me}. Open Dexterity Connect on this PC "
+                               "once, then try again.")
+            return False, sent.message or "Connect refused the notice."
+
+        self.app.run_async(work, lambda r: self.connectTested.emit(r[0], r[1]),
+                           lambda exc: self.connectTested.emit(False, str(exc) or type(exc).__name__))
 
     # ----------------------------------------------------------- dialogs
     def _dialog_parent(self) -> Any:

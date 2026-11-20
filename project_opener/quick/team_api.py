@@ -130,9 +130,9 @@ class TeamApi(ApiBase):
         return bool(getattr(self.ctx.settings, "board_show_me", True))
 
     @Property(bool, notify=wrappedChanged)
-    def cliqReady(self) -> bool:  # noqa: N802
-        s = self.ctx.settings
-        return bool(s.cliq_token_enc and s.cliq_bot)
+    def connectReady(self) -> bool:  # noqa: N802
+        watchers = getattr(self.app, "watchers", None)
+        return bool(watchers is not None and watchers.connect_ready)
 
     # ------------------------------------------------------------ helpers
     @property
@@ -295,35 +295,42 @@ class TeamApi(ApiBase):
         self.wrappedChanged.emit()
 
     @Slot(str)
-    def postToCliq(self, channel: str) -> None:  # noqa: N802
-        """Post my week to a Cliq channel through the office bot (the watchers' Cliq client)."""
-        ch = (channel or "").strip().lstrip("#")
+    def postToSpace(self, space: str) -> None:  # noqa: N802
+        """Post my week in a Dexterity Connect Space (the watchers' Connect client)."""
+        from project_opener.lan.connect_bot import make_notice
+        name = (space or "").strip().lstrip("#")
         st = self._wrapped
-        if not ch or not st.get("start"):
+        if not name or not st.get("start"):
             return
-        if getattr(self.ctx.settings, "wrapped_channel", "") != ch:
-            self.ctx.settings.wrapped_channel = ch
+        if getattr(self.ctx.settings, "wrapped_space", "") != name:
+            self.ctx.settings.wrapped_space = name
             self.ctx.settings.save()
-        text = W.cliq_text(st.get("name") or self._name(self.me), st.get("raw") or {}, int(st.get("place") or 0),
-                           int(st.get("of") or 0))
+        title, lines = W.post_lines(st.get("name") or self._name(self.me), st.get("raw") or {},
+                                    int(st.get("place") or 0), int(st.get("of") or 0))
         watchers = getattr(self.app, "watchers", None)
-        if watchers is None:
-            self._toast("Cliq is not set up", "Add the office bot in Settings > Cliq.", "warning")
+        if watchers is None or not watchers.connect_ready:
+            self._toast("Connect is not set up", "Paste the settings from Connect in Settings, Connect and mail.",
+                        "warning")
             return
-        cliq = watchers.dispatcher().cliq
+        connect = watchers.dispatcher().connect
+        # one post per person, week and Space: pressing twice (or a retry) does not post it twice
+        notice = make_notice(space=name, title=title, lines=lines, sender=self.me,
+                             key=f"po:wrapped:{self.me.lower()}:{st.get('start')}:{name.lower()}")
 
         def work() -> Any:
-            return cliq.send("channel", ch, text)
+            return connect.send(notice)
 
         def done(res: Any) -> None:
             if getattr(res, "ok", False):
-                self._toast("Posted to Cliq", f"#{ch}", "success")
+                self._toast("Posted in Connect", name, "success")
             elif getattr(res, "retry", False):
-                self._toast("Cliq is not reachable", "The post is queued and goes when Cliq answers.", "warning")
+                self._toast("Connect is not reachable", "The post is queued and goes when Connect answers.", "warning")
+            elif getattr(res, "unknown", None):
+                self._toast("No Space with that name", f"Connect has no Space called {name}.", "error")
             else:
-                self._toast("Cliq refused the post", getattr(res, "message", "") or "", "error")
+                self._toast("Connect refused the post", getattr(res, "message", "") or "", "error")
 
-        self.app.run_async(work, done, lambda e: self._toast("Cliq post failed", str(e), "error"))
+        self.app.run_async(work, done, lambda e: self._toast("Connect post failed", str(e), "error"))
 
     # -------------------------------------------------------------- apply
     def _apply(self, res: dict[str, Any]) -> None:
@@ -555,7 +562,7 @@ class TeamApi(ApiBase):
                                                    f"for {span_text(a.isoformat(), b.isoformat())}",
                                                    "", title="Handover", inbox=False)
                     except Exception:  # noqa: BLE001
-                        log.debug("handover Cliq note failed", exc_info=True)
+                        log.debug("handover Connect notice failed", exc_info=True)
             return hid
 
         def done(hid: str) -> None:

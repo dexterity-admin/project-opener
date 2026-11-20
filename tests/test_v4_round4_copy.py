@@ -36,7 +36,7 @@ def test_a_checkpoint_frame_carries_its_app_glyph():
     assert snapshot_glyph("file", r"D:\P12513\Iso checklist.pdf") != "app-window"
 
 
-def test_a_watcher_promises_a_cliq_dm_only_once_linked():
-    n = M.Notify(toast=True, mentions=["priya"], cliq_dm=True)
-    assert notify_text(n, cliq_linked=True) == "Toast · @priya · Cliq DM"
-    assert notify_text(n, cliq_linked=False) == "Toast · @priya · Cliq DM once linked"
+def test_a_watcher_promises_a_connect_notice_only_once_set_up():
+    n = M.Notify(toast=True, mentions=["priya"], connect_dm=True, connect_space="Piping P-12")
+    assert notify_text(n, connect_ready=True) == "Toast · @priya · Connect · Space Piping P-12"
+    assert notify_text(n, connect_ready=False) == "Toast · @priya · Connect once set up · Space Piping P-12"

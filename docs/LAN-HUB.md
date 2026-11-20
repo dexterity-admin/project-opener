@@ -73,7 +73,7 @@ working on the same hub: they ignore the number and skip every file they do not 
 
 ```
 _ProjectOpenerHub/
-├── users/<user>.json        + "email", "cliq_id", "cliq_linked", "current_activity"
+├── users/<user>.json        + "email", "connect_notify", "current_activity"
 ├── groups.json              {"schema": 1, "groups": [{name, members[], color, created_by, updated_by, updated_at}]}
 ├── published/<id>.json      + "type": "project" | "activity", "for": ["yokesh", "checkers"]
 │                            activities: {"schema": 2, "type": "activity", "published_id", "author", "author_name",
@@ -113,7 +113,7 @@ contain `..`; anything else is refused rather than written.
   level and drop names nobody on the hub has used (`users/*.json`), so a typo reaches nobody. Nobody is sent
   their own note.
 - Publishing *for* people writes the published file **and** an inbox entry per person reached (kind
-  `project`, which a 3.2 PC also shows, or `activity`), tags the pulse row, and DMs the people who linked Cliq.
+  `project`, which a 3.2 PC also shows, or `activity`), tags the pulse row, and tells those people in Dexterity Connect.
 - Groups: anyone may create, edit or delete one. *Make a group from this job* collects the people the hub
   shows holding it: the publisher, the published file's `for`, and everyone whose pulse mentions the job
   number or title.
@@ -144,24 +144,58 @@ sees down and others reach is shown that way, not hidden.
 
 Every alert has a stable key (watcher id + event + what it is about, never the time of the check).
 `delivered/<me>.json` records the keys delivered (newest 2,000); a key already there is not toasted,
-pulsed, written to inboxes or sent to Cliq again - also not by my other PC. Inbox entries are toasted
+pulsed, written to inboxes or sent to Connect again - also not by my other PC. Inbox entries are toasted
 once under the key `inbox:<id>`; entries older than three days found on first contact are recorded
 silently.
 
-### Zoho Cliq
+### Dexterity Connect (notices through Nib)
 
-One office bot under a shared service account. Its **webhook token** (Cliq: Bots & Tools > Webhook Tokens;
-it does not expire, at most 5 per user) is entered once in Settings and stored with DPAPI. Endpoints used,
-from Zoho's documentation (verified 5 November 2026):
+Mentions, tasks and watcher hits also reach people in Dexterity Connect, the office messenger. They
+arrive in the person's conversation with **Nib**, Connect's companion, under the name *Project Opener*,
+with a `projectopener://` link back here. (Until 4.0 this was a Zoho Cliq bot.) Connect's
+`docs/TOOL-NOTICES.md` is the contract; `lan/connect_bot.py` is the client.
 
-| Use | Request |
+**Set-up, once for the office**
+
+1. An administrator of Connect opens **Control room > Integrations**, names it *Project Opener*, presses
+   **Create token**, then **Copy settings**.
+2. In Project Opener: **Settings > Connect and mail**, paste into *Settings from Connect*, **Save**. The
+   hub is asked at once; **Send me a test** puts a notice in your conversation with Nib.
+3. Switch on **Share these settings with the office**. They are written to `connect.json` in the Team
+   Hub folder, and every other PC on that hub uses them within a minute: nobody else sets anything up.
+
+People are addressed by their Windows sign-in, the login the Team Hub already uses, so nobody links an
+account. Each person can switch **Tell me in Connect** off; that choice rides on their heartbeat
+(`connect_notify`) and senders leave them out (their inbox entry and toast still arrive).
+
+| Use | Request (`Authorization: Bearer <token>`) |
 |---|---|
-| DM people | `POST {base}/bots/{bot}/message?zapikey=TOKEN` with `{"text", "userids": "id1,id2"}` |
-| Post to a channel | `POST {base}/channelsbyname/{channel}/message?zapikey=TOKEN&bot_unique_name={bot}` with `{"text"}` |
-| Find my user id | `GET {base}/users/{email}` - documented for OAuth (`ZohoCliq.Users.READ`); with the webhook token it may be refused, in which case the user pastes the id in Settings |
+| Test | `GET https://<hub>:47900/api/bot/hello` |
+| Tell people, post in a Space | `POST https://<hub>:47900/api/bot/notify` with `{"to": [logins], "space", "key", "kind", "from", "title", "text", "lines", "link": {"title", "url"}}` |
+| A hub from before tool notices | `POST /api/bot/message` with the same words (used by itself when `/api/bot/notify` answers 404) |
 
-`base` defaults to `https://cliq.zoho.in/api/v2` (other data centres: cliq.zoho.com, .eu, .com.au, .jp,
-.com.cn, .sa, .uk, cliq.zohocloud.ca). A user receives bot DMs only after subscribing to the bot. Network
-failures, 429 and 5xx are queued in the data folder's `cliq-outbox.jsonl` and retried every 5 minutes; other
-refusals are logged and dropped. Sources: <https://www.zoho.com/cliq/help/platform/webhook-tokens.html>,
-<https://www.zoho.com/cliq/help/restapi/v2/>.
+How it stays reliable:
+
+- **Never in the way.** The toast, the alert list and the inbox entry are done first; the notice is sent
+  from a worker thread with a 10 s timeout.
+- **Nothing twice.** Every notice carries a `key`; the hub delivers a key once per person. A watcher hit
+  uses its own event key (`po:watch:<key>`), so my other PC or a retry never repeats it; Weekly Wrapped
+  uses the person, week and Space.
+- **Nothing lost.** No answer, 429 and 5xx are queued in the data folder's `connect-outbox.jsonl` and
+  tried again every 5 minutes (50 times; the newest 500 kept). When the hub is away or asks us to wait,
+  the rest of the outbox waits too. A request the hub delivered only partly is sent again whole: those
+  who had it answer "duplicate".
+- **Nothing to the wrong place.** The hub's certificate is its own; its SHA-256 fingerprint (part of the
+  pasted settings) is compared on the open connection before the token is sent. A hub showing another
+  certificate gets nothing, and that is not retried.
+- **Refusals are final.** 400, 401 (token revoked), 403 and "Connect does not know that sign-in" are
+  logged and dropped, not queued.
+- **Leave.** Connect answers when the person is on leave (Nib's leave note): assigning a task then
+  toasts "Priya is on leave, back Mon 24 Nov. Yokesh covers." The notice is still delivered.
+- **Outside the office** the Bot API is not reachable (the hub refuses it through its internet gateway):
+  notices wait in the outbox until the PC is back on the office network.
+
+The token is stored with DPAPI on the PC where it was pasted. Shared with the office it is plain text
+in the Team Hub folder: anyone who can open that folder can read it. It can only post notices under
+the name *Project Opener* (the hub writes that name itself), at most 120 a minute, and an administrator
+revokes it in Connect with one click.

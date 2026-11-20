@@ -110,13 +110,13 @@ def pump(ms):
 
 peers = [
     {"login": "ravi", "displayName": "Ravi", "role": "Designer", "host": "PC2", "online": False, "doing": "",
-     "initials": "RA", "hue": 140, "cliqLinked": False},
+     "initials": "RA", "hue": 140, "tellInConnect": True},
     {"login": "priya", "displayName": "Priya", "role": "Checker", "host": "PC1", "online": True,
-     "doing": "DM-GAD · Mangala GAD review", "initials": "PR", "hue": 40, "cliqLinked": False},
+     "doing": "DM-GAD · Mangala GAD review", "initials": "PR", "hue": 40, "tellInConnect": True},
 ]
 for i in range(4):
     peers.append({"login": f"u{i}", "displayName": f"User {i}", "role": "", "host": "", "online": i < 2,
-                  "doing": "", "initials": f"U{i}", "hue": 60 * i, "cliqLinked": False})
+                  "doing": "", "initials": f"U{i}", "hue": 60 * i, "tellInConnect": True})
 f.hub._peers.reset(peers)
 f.hub.peersChanged.emit()
 f.watchers._roots.reset([

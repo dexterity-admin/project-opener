@@ -194,11 +194,12 @@ def rank(rows: list[dict[str, Any]], by: str = "tasks") -> list[dict[str, Any]]:
     return out
 
 
-def cliq_text(name: str, stats: dict[str, Any], place: int = 0, of: int = 0) -> str:
-    """The Cliq post: the week's counts as the page shows them, nothing more (no hours, no window titles)."""
+def post_lines(name: str, stats: dict[str, Any], place: int = 0, of: int = 0) -> tuple[str, list[str]]:
+    """The post in a Connect Space: a title and the week's counts as the page shows them, nothing more
+    (no hours, no window titles)."""
     start = date.fromisoformat(str(stats["start"]))
-    lines = [f"*{name}'s week* ({start.day} {start.strftime('%b')})",
-             f"Activities run: {stats['activities_run']}",
+    title = f"{name}'s week ({start.day} {start.strftime('%b')})"
+    lines = [f"Activities run: {stats['activities_run']}",
              f"Tasks closed: {stats['tasks_closed']}"]
     rate = stats.get("on_time_rate")
     lines.append(f"On time: {rate} %" if rate is not None else "On time: no due dates")
@@ -207,4 +208,4 @@ def cliq_text(name: str, stats: dict[str, Any], place: int = 0, of: int = 0) -> 
         lines.append(f"Windows reopened: {stats['windows_reopened']}")
     if place and of > 1:
         lines.append(f"Office board: {place} of {of}")
-    return "\n".join(lines)
+    return title, lines

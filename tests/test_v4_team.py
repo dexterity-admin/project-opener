@@ -98,11 +98,12 @@ def test_merge_two_pcs_of_one_person_and_rank():
     assert [r["name"] for r in W.rank(rows, "activities")][0] in ("A", "B")
 
 
-def test_cliq_text_says_only_the_counts():
+def test_the_space_post_says_only_the_counts():
     st = W.week_stats([launch(THU)], [], "vikram", THU)
-    text = W.cliq_text("Vikram", st, place=2, of=5)
-    assert "Activities run: 1" in text and "On time: no due dates" in text and "Office board: 2 of 5" in text
-    assert "Windows reopened" not in text                        # not counted yet: not claimed
+    title, lines = W.post_lines("Vikram", st, place=2, of=5)
+    assert title.startswith("Vikram's week (")
+    assert "Activities run: 1" in lines and "On time: no due dates" in lines and "Office board: 2 of 5" in lines
+    assert not any("Windows reopened" in x for x in lines)                       # not counted yet: not claimed
 
 
 # -------------------------------------------------------------- two PCs

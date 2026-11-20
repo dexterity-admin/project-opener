@@ -320,11 +320,22 @@ class TasksApi(ApiBase):
             return
         hub = self.ctx.hub
 
-        def work() -> None:
+        def work() -> Any:
             reached = hub.expand_targets(logins)
-            dispatcher.notify_people(reached, text, task_link(task.id), kind=kind, task_id=task.id, title=task.title)
+            return dispatcher.notify_people(reached, text, task_link(task.id), kind=kind, task_id=task.id,
+                                            title=task.title)
 
-        self.app.run_async(work)
+        def done(delivery: Any) -> None:
+            # Connect knows who is on leave (Nib's leave note): say so, so the task does not wait unseen
+            for login, away in (getattr(delivery, "away", None) or {}).items():
+                back, cover = str(away.get("back") or ""), str(away.get("cover") or "")
+                day = parse_due(back[:10]) if back else None
+                when = f", back {day.strftime('%a')} {day.day} {day.strftime('%b')}" if day else ""
+                covers = f" {self.name_for(cover.split(chr(92))[-1])} covers." if cover else ""
+                self._toast(f"{self.name_for(login)} is on leave{when}",
+                            f"They will see it when they are back.{covers}", "info")
+
+        self.app.run_async(work, done)
 
     def _pulse(self, event: str, detail: str, task: M.Task, mentions: list[str] | None = None) -> None:
         hub = self.ctx.hub
@@ -357,7 +368,7 @@ class TasksApi(ApiBase):
 
     @Slot(str, str, str, str, str, result=str)
     def create(self, title: str, owner: str, due: str, attach_kind: str, attach_id: str) -> str:
-        """Returns the task id.  Assigning someone else writes a "task" inbox entry and a Cliq DM."""
+        """Returns the task id.  Assigning someone else writes a "task" inbox entry and tells them in Connect."""
         title = (title or "").strip()
         if not title:
             return ""
@@ -405,7 +416,7 @@ class TasksApi(ApiBase):
 
     @Slot(str, bool)
     def setDone(self, task_id: str, done: bool) -> None:  # noqa: N802
-        """Pulses "<name> finished <title>" and tells the creator (toast, Cliq DM)."""
+        """Pulses "<name> finished <title>" and tells the creator (toast, Connect)."""
         old = self._tasks.get(task_id)
         if old is None or old.done == bool(done):
             return
