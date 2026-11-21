@@ -39,7 +39,7 @@ Page {
         { key: "profile", text: "Profile" }, { key: "appearance", text: "Appearance" },
         { key: "launching", text: "Opening" }, { key: "paths", text: "Paths" },
         { key: "hub", text: "Team Hub" }, { key: "snapshot", text: "Snapshot" },
-        { key: "pill", text: "Pill and keys" }, { key: "cliq", text: "Cliq and mail" },
+        { key: "pill", text: "Pill and keys" }, { key: "cliq", text: "Messages and mail" },
         { key: "watchers", text: "Watchers" }, { key: "updates", text: "Updates" }
     ]
     function tabFor(key) {
@@ -91,7 +91,7 @@ Page {
             Field {
                 width: 280
                 label: "E-mail"
-                help: "The Cliq bot finds you by it."
+                help: "Mail, and the Cliq bot if you use Zoho Cliq."
                 text: page.v("email") || ""
                 placeholder: "Your work e-mail"
                 input.onEditingFinished: page.set("email", text)
@@ -381,21 +381,49 @@ Page {
         }
     }
 
-    // ------------------------------------------------------------ Cliq and mail
+    // ------------------------------------------------------------ Messages and mail
     SettingsSection {
         id: secCliq
         visible: page.tab === "cliq"
         width: page.contentW
-        line: "The office bot sends you mentions, tasks and watcher hits as Cliq messages with a link back here."
+        readonly property bool useCliq: page.v("messages_via") === "cliq"
+        line: secCliq.useCliq ? "The office's Cliq bot sends you mentions, tasks and watcher hits as Cliq messages with a link back here."
+                              : "Nib, Dexterity Connect's companion, brings you mentions, tasks and watcher hits with a link back here. Nothing to set up."
         property string testText: ""
         property bool testOk: false
+        property string nibText: ""
+        property bool nibOk: false
         Connections { target: app.settings; function onCliqTested(ok, message) { secCliq.testOk = ok; secCliq.testText = message } }
+        Connections { target: app.settings; function onNibTested(ok, message) { secCliq.nibOk = ok; secCliq.nibText = message } }
+        Item {
+            visible: !secCliq.useCliq
+            width: parent.width
+            height: 34
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 12
+                StatusPill {
+                    anchors.verticalCenter: parent.verticalCenter
+                    status: app.settings.nibReady ? "ok" : "neutral"
+                    label: app.settings.nibReady ? "Nib is ready" : "Waiting for the office's Connect settings"
+                }
+                ActionButton { visible: app.settings.nibReady; text: "Send me a test"; small: true; onClicked: { secCliq.nibText = "Asking Nib…"; app.settings.testNib() } }
+                Txt {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: secCliq.nibText !== "" ? secCliq.nibText : app.settings.nibReady ? "" : "An administrator adds it once on the Team Hub; you do nothing."
+                    tone: secCliq.nibText === "" ? "muted" : secCliq.nibOk ? "ok" : "bad"
+                }
+            }
+        }
+        SwitchRow { label: "Use Zoho Cliq instead"; help: "Only if your office still uses the Cliq bot: it needs the bot's name, token and your link."; checked: secCliq.useCliq; onToggled: (on) => page.set("messages_via", on ? "cliq" : "nib") }
         Row {
+            visible: secCliq.useCliq
             spacing: 16
             Field { width: 220; label: "Bot"; placeholder: "The bot's unique name"; text: page.v("cliq_bot") || ""; input.onEditingFinished: page.set("cliq_bot", text) }
             Field { width: 320; label: "Cliq address"; text: page.v("cliq_api_base") || ""; input.onEditingFinished: page.set("cliq_api_base", text) }
         }
         Row {
+            visible: secCliq.useCliq
             spacing: 12
             Field {
                 id: tokenField
@@ -420,6 +448,7 @@ Page {
             }
         }
         Item {
+            visible: secCliq.useCliq
             width: parent.width
             height: 34
             Row {
@@ -435,7 +464,18 @@ Page {
                 Txt { anchors.verticalCenter: parent.verticalCenter; text: secCliq.testText; tone: secCliq.testText === "" ? "muted" : secCliq.testOk ? "ok" : "bad" }
             }
         }
-        SwitchRow { label: "Message me on Cliq by default"; help: "Mentions, tasks given to you and watcher hits. Each watcher can say otherwise."; checked: page.v("notify_cliq_default") === true; onToggled: (on) => page.set("notify_cliq_default", on) }
+        SwitchRow { label: secCliq.useCliq ? "Message me on Cliq by default" : "Message me by default"; help: "Mentions, tasks given to you and watcher hits. Each watcher can say otherwise."; checked: page.v("notify_cliq_default") === true; onToggled: (on) => page.set("notify_cliq_default", on) }
+        Column {
+            spacing: 6
+            Txt { text: "When your leave starts in Nib"; strong: true }
+            Segmented {
+                label: "When your leave starts in Nib"
+                options: [{ value: "offer", text: "Offer the handover" }, { value: "auto", text: "Hand over by itself" }, { value: "off", text: "Do nothing" }]
+                value: page.v("handover_on_leave") || "offer"
+                onPicked: (val) => page.set("handover_on_leave", val)
+            }
+            Txt { text: "Your cover and dates come from Nib's leave note; the work comes back when the leave ends."; tone: "muted"; role: "small" }
+        }
         Column {
             spacing: 6
             Txt { text: "Mail"; strong: true }

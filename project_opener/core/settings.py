@@ -92,7 +92,9 @@ class Settings:
     cliq_api_base: str = "https://cliq.zoho.in/api/v2"
     cliq_bot: str = ""                  # bot unique name
     cliq_token_enc: str = ""            # DPAPI blob of the office bot token (shared service account)
-    notify_cliq_default: bool = True    # DM me on mention / task / watcher hits when linked
+    notify_cliq_default: bool = True    # message me on mention / task / watcher hits (Nib, or Cliq when linked)
+    messages_via: str = "nib"           # nib (Dexterity Connect's Nib, nothing to set up) | cliq (Zoho Cliq instead)
+    handover_on_leave: str = "offer"    # when Nib says my leave starts: offer | auto | off
     auto_watchers: bool = True          # make watchers for my cards' folders and servers without asking
     auto_watchers_dismissed: list[str] = field(default_factory=list)  # auto keys the user deleted: not remade
     mail_client: str = "outlook"        # outlook | mailto
